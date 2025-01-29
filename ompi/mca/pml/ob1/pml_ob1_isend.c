@@ -274,7 +274,6 @@ int mca_pml_ob1_isend(const void *buf,
                     strcpy(item->sendmode, "STANDARD");
                 }
             } else if(!strcmp(item->communicationType, "collective")){
-                printf("(iSend) Process: %d, Partner: %d\n", item->processrank, dst);
                 item->coll_partnerranks[dst / 8] |= (1 << (dst % 8));
             }
         }else item = NULL;
@@ -505,7 +504,6 @@ int mca_pml_ob1_send(const void *buf,
                 strcpy(item->sendmode, "STANDARD");
             }
             else if(!strcmp(item->communicationType, "collective")){
-                printf("(Send) Process: %d, Partner: %d\n", item->processrank, dst);
                 item->coll_partnerranks[dst / 8] |= (1 << (dst % 8));
             }
         }
