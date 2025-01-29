@@ -370,7 +370,7 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         for (int i = 0; i <= 400; i++) {
             if (item->coll_partnerranks[i / 8] & (1 << (i % 8)) != 0) {
                 printf("%d ", i);
-            //}
+            }
         }
         printf("\n");
         //printf("Rank: %d, Function: %s, \n", item->processrank, item->function);
