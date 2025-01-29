@@ -220,7 +220,7 @@ void initQentry(qentry **q, int dest, char *function, int function_len, int send
         item->withinEagerLimit = -1;
         item->foundMatchWild = -1;
         memcpy(item->usedAlgorithm, "", 0);
-        memset(coll_partnerranks, 0, 50);
+        memset(item->coll_partnerranks, 0, 50);
 
     }
 }
