@@ -421,8 +421,8 @@ static void* SQLMonitorFunc(void* _arg){
         strftime(start_time_str, sizeof(start_time_str), "%Y-%m-%d %H:%M:%S", localtime(&(start_runtime.tv_sec)));
         char *program_name = getenv("EDUMPI_PROGRAM");
         const char *query = "INSERT INTO edumpi_runs (edumpi_run_id, start_time, user_id, program_name) VALUES ($1, $2, $3, $4)";
-        const char *paramValues[3] = {job_id, start_time_str, user_id, program_name};
-        int paramlengths[3] = {strlen(job_id), strlen(start_time_str), strlen(user_id), strlen(program_name)};
+        const char *paramValues[4] = {job_id, start_time_str, user_id, program_name};
+        int paramlengths[4] = {strlen(job_id), strlen(start_time_str), strlen(user_id), strlen(program_name)};
         PGresult *res = PQexecParams(conn, query, 4, NULL, paramValues, paramlengths, NULL, 0);  
     }
     else {     
