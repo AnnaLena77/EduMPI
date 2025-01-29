@@ -273,7 +273,7 @@ int mca_pml_ob1_isend(const void *buf,
                 else if(sendmode==MCA_PML_BASE_SEND_STANDARD){
                     strcpy(item->sendmode, "STANDARD");
                 }
-            } else if(!strcmp(item->communicationType, "collective"){
+            } else if(!strcmp(item->communicationType, "collective")){
                 item->coll_partnerranks[dst / 8] |= (1 << (dst % 8));
             }
         }else item = NULL;
@@ -503,7 +503,7 @@ int mca_pml_ob1_send(const void *buf,
             else if(sendmode==MCA_PML_BASE_SEND_STANDARD){
                 strcpy(item->sendmode, "STANDARD");
             }
-            else if(item->communicationType, "collective"){
+            else if(!strcmp(item->communicationType, "collective")){
                 item->coll_partnerranks[dst / 8] |= (1 << (dst % 8));
             }
         }
