@@ -365,20 +365,20 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         timestampToBinary(time_end, buffer, &offset);*/
         
         *off = offset;
+        
+        printf("Gespeicherte Zahlen, Rank %d: \n", item->processrank);
+        for (int i = 0; i <= 400; i++) {
+            if (item->coll_partnerranks[i / 8] & (1 << (i % 8)) != 0) {
+                printf("%d ", i);
+            //}
+        }
+        printf("\n");
         //printf("Rank: %d, Function: %s, \n", item->processrank, item->function);
         item = NULL;
         //fwrite(buffer, offset, 1, file);
         /*if(item->function != "MPI_Bcast"){
             printf("Item: %s, BTL: %s, Datasize: UsedProtocol: %s\n", item->function, item->usedBtl, item->recvDatasize, item->usedAlgorithm); 
         }*/
-        
-        printf("Gespeicherte Zahlen, Rank %d: \n", item->processrank);
-        for (int i = 0; i <= 50; i++) {
-            //if (item->coll_partnerranks[i / 8] & (1 << (i % 8)) != 0) {
-                //printf("%d ", item->coll_partnerranks[i]);
-            //}
-        }
-        printf("\n");
         
 }
 
