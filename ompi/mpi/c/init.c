@@ -220,6 +220,8 @@ void initQentry(qentry **q, int dest, char *function, int function_len, int send
         item->withinEagerLimit = -1;
         item->foundMatchWild = -1;
         memcpy(item->usedAlgorithm, "", 0);
+        memset(coll_partnerranks, 0, 50);
+
     }
 }
 
@@ -370,14 +372,13 @@ void qentryToBinary(qentry q, char *buffer, int *off){
             printf("Item: %s, BTL: %s, Datasize: UsedProtocol: %s\n", item->function, item->usedBtl, item->recvDatasize, item->usedAlgorithm); 
         }*/
         
-        //printf("Start:");
-        //print_timespec(item->start);
-        //printf("End:");
-        //print_timespec(item->end);
-        //printf("LateSender: %.9f Seconds\n", item->lateSenderTime);
-        //printf("LateReceiver: %.9f Seconds\n", item->lateReceiverTime);
-        //printf("Test Request: %.9f Seconds\n", item->sendWaitingTime);
-        //printf("\n");
+        printf("Gespeicherte Zahlen, Rank %s: ", item->processrank);
+        for (int i = 0; i <= 50; i++) {
+            if (item->coll_partnerranks[i / 8] & (1 << (i % 8))) != 0;) {
+                printf("%d ", i);
+            }
+        }
+        printf("\n");
         
 }
 

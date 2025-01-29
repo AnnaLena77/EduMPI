@@ -28,6 +28,8 @@ typedef struct qentry {
     char processorname[30];
     int processrank;
     int partnerrank;
+    uint8_t coll_partnerranks[50];
+    
     char sendmode[30]; //later
     int immediate; //later
     char usedBtl[30];
