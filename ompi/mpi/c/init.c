@@ -419,10 +419,11 @@ static void* SQLMonitorFunc(void* _arg){
         char *user_id = strrchr(getenv("HOME"), '/') + 1;
         char start_time_str[30]; // Platz für den Zeitstempel
         strftime(start_time_str, sizeof(start_time_str), "%Y-%m-%d %H:%M:%S", localtime(&(start_runtime.tv_sec)));
-        const char *query = "INSERT INTO edumpi_runs (edumpi_run_id, start_time, user_id) VALUES ($1, $2, $3)";
-        const char *paramValues[3] = {job_id, start_time_str, user_id};
-        int paramlengths[3] = {strlen(job_id), strlen(start_time_str), strlen(user_id)};
-        PGresult *res = PQexecParams(conn, query, 3, NULL, paramValues, paramlengths, NULL, 0);  
+        char *program_name = getenv("EDUMPI_PROGRAM");
+        const char *query = "INSERT INTO edumpi_runs (edumpi_run_id, start_time, user_id, program_name) VALUES ($1, $2, $3, $4)";
+        const char *paramValues[3] = {job_id, start_time_str, user_id, program_name};
+        int paramlengths[3] = {strlen(job_id), strlen(start_time_str), strlen(user_id), strlen(program_name)};
+        PGresult *res = PQexecParams(conn, query, 4, NULL, paramValues, paramlengths, NULL, 0);  
     }
     else {     
        while(!check_job_id){
