@@ -369,7 +369,7 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         printf("Gespeicherte Zahlen, Rank %d: \n", item->processrank);
         for (int i = 0; i <= 50; i++) {
             //if (item->coll_partnerranks[i / 8] & (1 << (i % 8)) != 0) {
-                printf("%d ", item->coll_parterranks[i]);
+                printf("%d ", item->coll_partnerranks[i]);
             //}
         }
         printf("\n");
