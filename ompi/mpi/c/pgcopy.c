@@ -135,17 +135,18 @@ void byteaToBinary(int* array, int length, char* buffer, int* offset){
     int byteSize = length/8; // Minimale Byte-Größe für die Bitmaske
 
     int off = *offset;
+    int *arr = *array;
     
     bool isEmpty = true;
     
     for(int i=0; i<byteSize; i++){
-        //printf("%d ", array[i]);
-        if(array[i] != 0){
+        printf("%d ", arr[i]);
+        if(arr[i] != 0){
             isEmpty = false;
             break;
         }
     }
-    //printf("\n");
+    printf("\n");
     
     if(isEmpty) {
         // Setze alles auf 0
@@ -171,7 +172,7 @@ void byteaToBinary(int* array, int length, char* buffer, int* offset){
         off += 4;
         *offset += 4;
         
-        memcpy(buffer + off, array, byteSize);
+        memcpy(buffer + off, arr, byteSize);
         off += byteSize;
         *offset += byteSize;
     }

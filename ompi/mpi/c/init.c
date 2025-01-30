@@ -359,12 +359,7 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         double time_diff = timespec_diff(item->start, item->end);
         doubleToBinary(time_diff, buffer, &offset);
         
-        for(int i = 0; i<50; i++){
-            printf("%d ", item->coll_partnerranks[i]);
-        }
-        printf("\n");
-        
-        byteaToBinary(item->coll_partnerranks, 400, buffer, &offset);
+        byteaToBinary(&item->coll_partnerranks, 400, buffer, &offset);
         
         *off = offset;
         item = NULL;
