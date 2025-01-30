@@ -322,7 +322,7 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         int offset = *off;
         
         
-        newRow(buffer, 15, &offset);
+        newRow(buffer, 16, &offset);
         
         //printf("%.9f Seconds\n", item->sendWaitingTime);
         
@@ -359,27 +359,10 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         double time_diff = timespec_diff(item->start, item->end);
         doubleToBinary(time_diff, buffer, &offset);
         
-        /*struct timespec time_end;
-        clock_gettime(CLOCK_REALTIME, &time_end);
-        
-        timestampToBinary(time_end, buffer, &offset);*/
+        byteaToBinary(item->coll_partnerranks, 400, buffer, &offset);
         
         *off = offset;
-        
-        printf("Gespeicherte Zahlen, Rank %d: \n", item->processrank);
-        for (int i = 0; i <= 400; i++) {
-            if ((item->coll_partnerranks[i / 8] & (1 << (i % 8))) != 0)
-            {
-                printf("%d ", i);
-            }
-        }
-        printf("\n");
-        //printf("Rank: %d, Function: %s, \n", item->processrank, item->function);
         item = NULL;
-        //fwrite(buffer, offset, 1, file);
-        /*if(item->function != "MPI_Bcast"){
-            printf("Item: %s, BTL: %s, Datasize: UsedProtocol: %s\n", item->function, item->usedBtl, item->recvDatasize, item->usedAlgorithm); 
-        }*/
         
 }
 
