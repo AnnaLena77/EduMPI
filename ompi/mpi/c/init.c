@@ -455,7 +455,7 @@ static void* SQLMonitorFunc(void* _arg){
                 reader_pos ++;
             }
             
-            char buffer[200];
+            char buffer[250];
             int offset = 0;
             qentry *item = &ringbuffer[reader_pos];
             if(reader_pos == writer_pos){
