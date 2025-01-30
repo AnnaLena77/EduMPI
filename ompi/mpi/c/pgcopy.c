@@ -139,13 +139,13 @@ void byteaToBinary(uint8_t* array, int length, char* buffer, int* offset){
     bool isEmpty = true;
     
     for(int i=0; i<byteSize; i++){
-        printf("%d ", array[i]);
+        //printf("%d ", array[i]);
         if(array[i] != 0){
             isEmpty = false;
             break;
         }
     }
-    printf("\n");
+    //printf("\n");
     
     if(isEmpty) {
         // Setze alles auf 0
