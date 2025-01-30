@@ -168,9 +168,6 @@ void byteaToBinary(int* array, int length, char* buffer, int* offset){
     
         off += 4;
         *offset += 4;
-        buffer[]
-        off += byteSize;
-        *offset += byteSize;
         
         memcpy(buffer + off, array, byteSize);
         off += byteSize;
