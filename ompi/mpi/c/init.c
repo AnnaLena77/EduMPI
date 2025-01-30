@@ -322,7 +322,7 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         int offset = *off;
         
         
-        newRow(buffer, 15, &offset);
+        newRow(buffer, 16, &offset);
         
         //printf("%.9f Seconds\n", item->sendWaitingTime);
         
@@ -359,7 +359,7 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         double time_diff = timespec_diff(item->start, item->end);
         doubleToBinary(time_diff, buffer, &offset);
         
-        //byteaToBinary(item->coll_partnerranks, 400, buffer, &offset);
+        byteaToBinary(item->coll_partnerranks, 400, buffer, &offset);
         
         *off = offset;
         item = NULL;
