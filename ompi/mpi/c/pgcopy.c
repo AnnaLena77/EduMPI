@@ -139,7 +139,7 @@ void byteaToBinary(int* array, int length, char* buffer, int* offset){
     bool isEmpty = true;
     
     for(int i=0; i<byteSize; i++){
-        if(buffer[0] != 0){
+        if(array[i] != 0){
             isEmpty = false;
             break;
         }
