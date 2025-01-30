@@ -146,7 +146,7 @@ void byteaToBinary(int* array, int length, char* buffer, int* offset){
     *offset += 4;
 
     for(int i = 0; i<50; i++){
-        buffer[i] = i;
+        buffer[off+i] = i;
     }
     // Wenn Bits gesetzt wurden, speichere die Byte-Größe und die Bitmaske
     off += byteSize;
