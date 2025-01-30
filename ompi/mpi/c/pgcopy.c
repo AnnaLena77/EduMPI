@@ -132,33 +132,21 @@ void timestampToBinary(struct timespec time, char* buffer, int* offset, int roun
 
 void byteaToBinary(int* array, int length, char* buffer, int* offset){
     if (length <= 0) return;  // Keine Daten -> Nichts tun
-    int byteSize = 50; // Minimale Byte-Größe für die Bitmaske
+    int byteSize = length/8; // Minimale Byte-Größe für die Bitmaske
 
     int off = *offset;
     
     // Setze alles auf 0
-    memset(buffer + off, 0, byteSize);  
+    buffer[off] = 0;
+    buffer[off+1] = 0;
+    buffer[off+2] = 0;
+    buffer[off+3] = byteSize;
 
-    bool hasBits = false;  // Flag, um zu prüfen, ob Bits gesetzt werden
-
-    // Setze Bits effizient
-    for (int i = 0; i < length; i++) {
-        int byteIndex = array[i] / 8;
-        int bitIndex = array[i] % 8;
-        buffer[off + byteIndex] |= (1 << bitIndex);
-        hasBits = true;  // Mindestens ein Bit wurde gesetzt
-    }
-
-    // Wenn keine Bits gesetzt wurden, speichere nur ein Byte
-    if (!hasBits) {
-        buffer[off] = 0;  // Leere Bitmaske als 1 Byte
-        *offset = off + 1;  // Nur 1 Byte Offset
-        return;
-    }
+    memcpy(buffer, array, byteSize);
 
     // Wenn Bits gesetzt wurden, speichere die Byte-Größe und die Bitmaske
-    buffer[off - 1] = byteSize;
-    *offset = off + byteSize;
+    off += byteSize;
+    *offset += byteSize
 }
 
 
