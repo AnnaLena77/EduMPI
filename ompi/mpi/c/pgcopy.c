@@ -136,20 +136,47 @@ void byteaToBinary(int* array, int length, char* buffer, int* offset){
 
     int off = *offset;
     
-    // Setze alles auf 0
-    buffer[off] = 0;
-    buffer[off+1] = 0;
-    buffer[off+2] = 0;
-    buffer[off+3] = byteSize;
+    bool isEmpty = true;
     
-    off += 4;
-    *offset += 4;
+    for(int i=0; i<byteSize; i++){
+        if(buffer[0] != 0){
+            isEmpty = false;
+            break;
+        }
+    }
     
-    memcpy(buffer + off, array, byteSize);
+    if(isEmpty) {
+        // Setze alles auf 0
+        buffer[off] = 0;
+        buffer[off+1] = 0;
+        buffer[off+2] = 0;
+        buffer[off+3] = 1;
+    
+        off += 1;
+        *offset += 1;
 
-    // Wenn Bits gesetzt wurden, speichere die Byte-Größe und die Bitmaske
-    off += byteSize;
-    *offset += byteSize;
+        buffer[off] = 0;
+        off += 1;
+        *offset += 1;
+    
+    } else {
+        // Setze alles auf 0
+        buffer[off] = 0;
+        buffer[off+1] = 0;
+        buffer[off+2] = 0;
+        buffer[off+3] = byteSize;
+    
+        off += 4;
+        *offset += 4;
+        buffer[]
+        off += byteSize;
+        *offset += byteSize;
+        
+        memcpy(buffer + off, array, byteSize);
+        off += byteSize;
+        *offset += byteSize;
+    }
+
 }
 
 
