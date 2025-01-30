@@ -142,11 +142,11 @@ void byteaToBinary(int* array, int length, char* buffer, int* offset){
     buffer[off+2] = 0;
     buffer[off+3] = byteSize;
 
-    memcpy(buffer, array, byteSize);
+    memcpy(buffer + off, array, byteSize);
 
     // Wenn Bits gesetzt wurden, speichere die Byte-Größe und die Bitmaske
     off += byteSize;
-    *offset += byteSize
+    *offset += byteSize;
 }
 
 
