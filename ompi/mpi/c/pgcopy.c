@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
+#include <stdbool.h>
 #include "ompi/mpi/c/pgcopy/pgcopy.h"
 
 /*
