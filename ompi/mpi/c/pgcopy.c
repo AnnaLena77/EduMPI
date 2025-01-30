@@ -152,10 +152,10 @@ void byteaToBinary(int* array, int length, char* buffer, int* offset){
         buffer[off+2] = 0;
         buffer[off+3] = 1;
     
-        off += 1;
-        *offset += 1;
+        off += 4;
+        *offset += 4;
 
-        buffer[off] = 0;
+        buffer[off+1] = 0;
         off += 1;
         *offset += 1;
     
