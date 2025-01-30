@@ -130,18 +130,17 @@ void timestampToBinary(struct timespec time, char* buffer, int* offset, int roun
     *offset += 8; 
 }
 
-void byteaToBinary(int* array, int length, char* buffer, int* offset){
+void byteaToBinary(uint8_t* array, int length, char* buffer, int* offset){
     if (length <= 0) return;  // Keine Daten -> Nichts tun
     int byteSize = length/8; // Minimale Byte-Größe für die Bitmaske
 
     int off = *offset;
-    int *arr = *array;
     
     bool isEmpty = true;
     
     for(int i=0; i<byteSize; i++){
-        printf("%d ", arr[i]);
-        if(arr[i] != 0){
+        printf("%d ", array[i]);
+        if(array[i] != 0){
             isEmpty = false;
             break;
         }
@@ -172,7 +171,7 @@ void byteaToBinary(int* array, int length, char* buffer, int* offset){
         off += 4;
         *offset += 4;
         
-        memcpy(buffer + off, arr, byteSize);
+        memcpy(buffer + off, array, byteSize);
         off += byteSize;
         *offset += byteSize;
     }
