@@ -320,13 +320,9 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         //printf("Counter: %d\n", counter);
         qentry *item = &q;
         int offset = *off;
-        
-        if(!strcmp(item->communicationType, "collective")){
-            newRow(buffer, 16, &offset);
-        } else {
-            newRow(buffer, 15, &offset);
-        }
-        
+            
+        newRow(buffer, 16, &offset);
+
         //printf("%.9f Seconds\n", item->sendWaitingTime);
         
         
