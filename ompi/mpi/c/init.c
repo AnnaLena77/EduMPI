@@ -321,8 +321,11 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         qentry *item = &q;
         int offset = *off;
         
-        
-        newRow(buffer, 16, &offset);
+        if(!strcmp(item->communicationType, "collective")){
+            newRow(buffer, 16, &offset);
+        } else {
+            newRow(buffer, 15, &offset);
+        }
         
         //printf("%.9f Seconds\n", item->sendWaitingTime);
         
@@ -359,7 +362,7 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         double time_diff = timespec_diff(item->start, item->end);
         doubleToBinary(time_diff, buffer, &offset);
         
-        byteaToBinary(item->coll_partnerranks, 400, buffer, &offset);
+        byteaToBinary(item->coll_partnerranks, 400, buffer, &offset, strcmp(item->communicationType, "collective"));
         
         *off = offset;
         item = NULL;

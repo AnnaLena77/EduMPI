@@ -130,7 +130,7 @@ void timestampToBinary(struct timespec time, char* buffer, int* offset, int roun
     *offset += 8; 
 }
 
-void byteaToBinary(uint8_t* array, int length, char* buffer, int* offset){
+void byteaToBinary(uint8_t* array, int length, char* buffer, int* offset, int p2p){
     if (length <= 0) return;  // Keine Daten -> Nichts tun
     int byteSize = length/8; // Minimale Byte-Größe für die Bitmaske
 
@@ -138,11 +138,13 @@ void byteaToBinary(uint8_t* array, int length, char* buffer, int* offset){
     
     bool isEmpty = true;
     
-    for(int i=0; i<byteSize; i++){
-        //printf("%d ", array[i]);
-        if(array[i] != 0){
-            isEmpty = false;
-            break;
+    if(!p2p) {
+        for(int i=0; i<byteSize; i++){
+            //printf("%d ", array[i]);
+            if(array[i] != 0){
+                isEmpty = false;
+                break;
+            }
         }
     }
     //printf("\n");
@@ -152,14 +154,12 @@ void byteaToBinary(uint8_t* array, int length, char* buffer, int* offset){
         buffer[off] = 0;
         buffer[off+1] = 0;
         buffer[off+2] = 0;
-        buffer[off+3] = 1;
+        buffer[off+3] = 0;
     
         off += 4;
         *offset += 4;
 
-        buffer[off+1] = 0;
-        off += 1;
-        *offset += 1;
+        
     
     } else {
         // Setze alles auf 0
