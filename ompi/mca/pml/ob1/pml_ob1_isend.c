@@ -250,7 +250,7 @@ int mca_pml_ob1_isend(const void *buf,
     if(q!=NULL){
         if(*q!=NULL){
             item = *q;
-            //printf("Isend: %s\n", item->function);
+            printf("Isend: %s\n", item->function);
             item->sendcount = item->sendcount + count;
         	   if(datatype == MPI_PACKED){
                 item->sendDatasize += count;
@@ -430,6 +430,7 @@ int mca_pml_ob1_send(const void *buf,
     if(q!=NULL){
         if(*q!=NULL){
             item = *q;
+            printf("Send: %s\n", item->function);
         }else item = NULL;
     }
     else {
