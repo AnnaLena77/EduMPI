@@ -483,7 +483,7 @@ int mca_pml_ob1_send(const void *buf,
         return OMPI_SUCCESS;
     }
 #ifdef ENABLE_ANALYSIS
-    else {
+    //else {
         if(item!=NULL){
             //size of send-Data:
             item->sendcount = item->sendcount + count;
@@ -507,7 +507,7 @@ int mca_pml_ob1_send(const void *buf,
                 item->coll_partnerranks[dst / 8] |= (1 << (dst % 8));
             }
         }
-    }
+    //}
 #endif
 
     if (!OMPI_COMM_CHECK_ASSERT_ALLOW_OVERTAKE(comm) || 0 > tag) {
