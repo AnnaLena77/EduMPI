@@ -26,6 +26,8 @@ $ ./configure --prefix=/home/anna-lena/sharefolder/mpi LIBS="-lmongoc-1.0 -lmysq
 
 ./configure --prefix=/home/anna-lena/Desktop/Edu_install --with-pmix=internal --with-libdev=internal --with-hwloc=internal --with-prrte=internal LIBS="-lpq" CFLAGS="-DENABLE_ANALYSIS=1"
 
+./configure --prefix=/home/fdai0231/EduMPI_Testumgebung --with-pmix=internal --with-libdev=internal --with-hwloc=internal --with-prrte=internal LIBS="-lpq" CFLAGS="-DENABLE_ANALYSIS=1"
+
 
 Make MPI:
 $ sudo make all install

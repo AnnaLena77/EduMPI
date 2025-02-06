@@ -29,9 +29,9 @@
 #include "btl_portals4.h"
 #include "btl_portals4_frag.h"
 
-#ifdef ENABLE_ANALYSIS
+/*#ifdef ENABLE_ANALYSIS
 #	include "ompi/mpi/c/init.h"
-#endif
+#endif*/
 
 int mca_btl_portals4_send(struct mca_btl_base_module_t *btl_base,
                           struct mca_btl_base_endpoint_t *endpoint,
@@ -105,7 +105,7 @@ int mca_btl_portals4_send(struct mca_btl_base_module_t *btl_base,
                          (void *) frag->segments[0].base.seg_addr.pval, put_length,
                          (uint64_t) match_bits));
 #ifdef ENABLE_ANALYSIS
-    if(item!=NULL) gettimeofday(&item->sent, NULL);
+    if(item!=NULL) clock_gettime(CLOCK_REALTIME, &item->sent);
 #endif
     return OPAL_SUCCESS;
 }

@@ -12,59 +12,62 @@
 #include <stdlib.h>
 #include <sys/time.h>
 
+#include "opal/constants.h"
 #include "opal/class/opal_list.h"
 #include "opal/class/opal_pointer_array.h"
-#include "opal/constants.h"
 #include "opal/util/bipartite_graph.h"
 #include "opal/util/bipartite_graph_internal.h"
 
-#define test_out(...) fprintf(stderr, __VA_ARGS__)
-#define check(a)                                                             \
+#  define test_out(...) fprintf(stderr, __VA_ARGS__)
+#  define check(a)                                                           \
     do {                                                                     \
         if (!(a)) {                                                          \
             test_out("%s:%d: check failed, '%s'\n", __func__, __LINE__, #a); \
-            return 1;                                                        \
+            return 1;                                              \
         }                                                                    \
     } while (0)
-#define check_str_eq(a, b)                                                                   \
-    do {                                                                                     \
-        const char *a_ = (a);                                                                \
-        const char *b_ = (b);                                                                \
-        if (0 != strcmp(a_, b_)) {                                                           \
-            test_out("%s:%d: check failed, \"%s\" != \"%s\"\n", __func__, __LINE__, a_, b_); \
-            return 1;                                                                        \
-        }                                                                                    \
+#  define check_str_eq(a,b)                                     \
+    do {                                                        \
+        const char *a_ = (a);                                   \
+        const char *b_ = (b);                                   \
+        if (0 != strcmp(a_,b_)) {                               \
+            test_out("%s:%d: check failed, \"%s\" != \"%s\"\n", \
+                     __func__, __LINE__, a_, b_);               \
+            return 1;                                 \
+        }                                                       \
     } while (0)
-#define check_int_eq(got, expected)                                                               \
-    do {                                                                                          \
-        if ((got) != (expected)) {                                                                \
-            test_out("%s:%d: check failed, \"%s\" != \"%s\", got %d\n", __func__, __LINE__, #got, \
-                     #expected, (got));                                                           \
-            return 1;                                                                             \
-        }                                                                                         \
+#  define check_int_eq(got, expected)                                   \
+    do {                                                                \
+        if ((got) != (expected)) {                                      \
+            test_out("%s:%d: check failed, \"%s\" != \"%s\", got %d\n", \
+                     __func__, __LINE__, #got, #expected, (got));       \
+            return 1;                                         \
+        }                                                               \
     } while (0)
 /* just use check_int_eq for now, no public error code to string routine
  * exists (opal_err2str is static) */
-#define check_err_code(got, expected) check_int_eq(got, expected)
-#define check_msg(a, msg)                                                                  \
-    do {                                                                                   \
-        if (!(a)) {                                                                        \
-            test_out("%s:%d: check failed, \"%s\" (%s)\n", __func__, __LINE__, #a, (msg)); \
-            return 1;                                                                      \
-        }                                                                                  \
+#  define check_err_code(got, expected)                                 \
+    check_int_eq(got, expected)
+#  define check_msg(a, msg)                                \
+    do {                                                   \
+        if (!(a)) {                                        \
+            test_out("%s:%d: check failed, \"%s\" (%s)\n", \
+                     __func__, __LINE__, #a, (msg));       \
+            return 1;                            \
+        }                                                  \
     } while (0)
 
-#define check_graph_is_consistent(g)                                                \
-    do {                                                                            \
+#define check_graph_is_consistent(g)                                         \
+    do {                                                                     \
         check(opal_bp_graph_order(g) <= opal_pointer_array_get_size(&g->vertices)); \
         check(g->source_idx >= -1 || g->source_idx < opal_bp_graph_order(g));       \
         check(g->sink_idx >= -1 || g->sink_idx < opal_bp_graph_order(g));           \
     } while (0)
 
-#define check_has_in_out_degree(g, u, expected_indegree, expected_outdegree) \
-    do {                                                                     \
-        check_int_eq(opal_bp_graph_indegree(g, (u)), expected_indegree);     \
-        check_int_eq(opal_bp_graph_outdegree(g, (u)), expected_outdegree);   \
+#define check_has_in_out_degree(g, u, expected_indegree, expected_outdegree)   \
+    do {                                                                       \
+        check_int_eq(opal_bp_graph_indegree(g, (u)), expected_indegree);   \
+        check_int_eq(opal_bp_graph_outdegree(g, (u)), expected_outdegree); \
     } while (0)
 
 /* Check the given path for sanity and that it does not have a cycle.  Uses
@@ -78,7 +81,7 @@
             check(pred[i_] < n);                   \
         }                                          \
         i_ = (sink);                               \
-        j_ = pred[(sink)];                         \
+        j_ = pred[(sink)];                       \
         while (i_ != -1 && j_ != -1) {             \
             check_msg(i_ != j_, "CYCLE DETECTED"); \
             i_ = pred[i_];                         \
@@ -106,19 +109,23 @@ static void e_cleanup(void *e_data)
  * list returned by opal_bp_graph_solve_bipartite_assignment */
 static int cmp_int_pair(const void *a, const void *b)
 {
-    int *ia = (int *) a;
-    int *ib = (int *) b;
+    int *ia = (int *)a;
+    int *ib = (int *)b;
 
     if (ia[0] < ib[0]) {
         return -1;
-    } else if (ia[0] > ib[0]) {
+    }
+    else if (ia[0] > ib[0]) {
         return 1;
-    } else { /* ia[0] == ib[0] */
+    }
+    else { /* ia[0] == ib[0] */
         if (ia[1] < ib[1]) {
             return -1;
-        } else if (ia[1] > ib[1]) {
+        }
+        else if (ia[1] > ib[1]) {
             return 1;
-        } else {
+        }
+        else {
             return 0;
         }
     }
@@ -132,7 +139,7 @@ static double gettime(void)
     struct timeval tv;
     gettimeofday(&tv, NULL);
     wtime = tv.tv_sec;
-    wtime += (double) tv.tv_usec / 1000000.0;
+    wtime += (double)tv.tv_usec / 1000000.0;
 
     return wtime;
 }
@@ -188,7 +195,7 @@ static int test_graph_create(void *ctx)
     check(opal_bp_graph_order(g) == 5);
     check_graph_is_consistent(g);
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/3, /*cost=*/1,
-                                 /*capacity=*/2, &user_data);
+                                     /*capacity=*/2, &user_data);
     check_graph_is_consistent(g);
     check(v_cleanup_count == 0);
     check(e_cleanup_count == 0);
@@ -227,11 +234,11 @@ static int test_graph_clone(void *ctx)
 
     /* and two edges */
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/3, /*cost=*/1,
-                                 /*capacity=*/2, &user_data);
+                                     /*capacity=*/2, &user_data);
     check_err_code(err, OPAL_SUCCESS);
     check_graph_is_consistent(g);
     err = opal_bp_graph_add_edge(g, /*u=*/3, /*v=*/1, /*cost=*/2,
-                                 /*capacity=*/100, &user_data);
+                                     /*capacity=*/100, &user_data);
     check_err_code(err, OPAL_SUCCESS);
     check_graph_is_consistent(g);
 
@@ -276,17 +283,17 @@ static int test_graph_accessors(void *ctx)
     check(opal_bp_graph_order(g) == 4);
 
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/2, /*cost=*/2,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/1, /*cost=*/2,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
 
-    check(opal_bp_graph_indegree(g, 0) == 0);
+    check(opal_bp_graph_indegree(g,  0) == 0);
     check(opal_bp_graph_outdegree(g, 0) == 2);
-    check(opal_bp_graph_indegree(g, 1) == 1);
+    check(opal_bp_graph_indegree(g,  1) == 1);
     check(opal_bp_graph_outdegree(g, 1) == 0);
-    check(opal_bp_graph_indegree(g, 2) == 1);
+    check(opal_bp_graph_indegree(g,  2) == 1);
     check(opal_bp_graph_outdegree(g, 2) == 0);
-    check(opal_bp_graph_indegree(g, 3) == 0);
+    check(opal_bp_graph_indegree(g,  3) == 0);
     check(opal_bp_graph_outdegree(g, 3) == 0);
 
     err = opal_bp_graph_free(g);
@@ -320,21 +327,24 @@ static int test_graph_assignment_solver(void *ctx)
     }
 
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/2, /*cost=*/10,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/3, /*cost=*/2,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
 
     me = NULL;
-    err = opal_bp_graph_solve_bipartite_assignment(g, &nme, &me);
+    err = opal_bp_graph_solve_bipartite_assignment(g,
+                                                    &nme,
+                                                    &me);
     check_err_code(err, OPAL_SUCCESS);
     check_int_eq(nme, 2);
     check(me != NULL);
-    qsort(me, nme, 2 * sizeof(int), &cmp_int_pair);
+    qsort(me, nme, 2*sizeof(int), &cmp_int_pair);
     check(me[0] == 0 && me[1] == 2);
     check(me[2] == 1 && me[3] == 3);
 
     err = opal_bp_graph_free(g);
     check_err_code(err, OPAL_SUCCESS);
+
 
     /* TEST CASE: left side has more vertices than the right side
      *
@@ -352,27 +362,30 @@ static int test_graph_assignment_solver(void *ctx)
     }
 
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/3, /*cost=*/10,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/4, /*cost=*/2,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/2, /*v=*/4, /*cost=*/1,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
 
     me = NULL;
-    err = opal_bp_graph_solve_bipartite_assignment(g, &nme, &me);
+    err = opal_bp_graph_solve_bipartite_assignment(g,
+                                                    &nme,
+                                                    &me);
     check_err_code(err, OPAL_SUCCESS);
     check_int_eq(nme, 2);
     check(me != NULL);
-    qsort(me, nme, 2 * sizeof(int), &cmp_int_pair);
+    qsort(me, nme, 2*sizeof(int), &cmp_int_pair);
     check(me[0] == 0 && me[1] == 3);
     check(me[2] == 2 && me[3] == 4);
     free(me);
 
     err = opal_bp_graph_free(g);
     check_err_code(err, OPAL_SUCCESS);
+
 
     /* test Christian's case:
      * 0 --> 2
@@ -391,21 +404,23 @@ static int test_graph_assignment_solver(void *ctx)
     }
 
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/2, /*cost=*/10,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/3, /*cost=*/1,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/3, /*cost=*/5,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
 
     me = NULL;
-    err = opal_bp_graph_solve_bipartite_assignment(g, &nme, &me);
+    err = opal_bp_graph_solve_bipartite_assignment(g,
+                                                    &nme,
+                                                    &me);
     check_err_code(err, OPAL_SUCCESS);
     check_int_eq(nme, 2);
     check(me != NULL);
-    qsort(me, nme, 2 * sizeof(int), &cmp_int_pair);
+    qsort(me, nme, 2*sizeof(int), &cmp_int_pair);
     check(me[0] == 0 && me[1] == 2);
     check(me[2] == 1 && me[3] == 3);
     free(me);
@@ -430,21 +445,23 @@ static int test_graph_assignment_solver(void *ctx)
     }
 
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/2, /*cost=*/10,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/2, /*cost=*/1,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/3, /*cost=*/5,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
 
     me = NULL;
-    err = opal_bp_graph_solve_bipartite_assignment(g, &nme, &me);
+    err = opal_bp_graph_solve_bipartite_assignment(g,
+                                                    &nme,
+                                                    &me);
     check_err_code(err, OPAL_SUCCESS);
     check_int_eq(nme, 2);
     check(me != NULL);
-    qsort(me, nme, 2 * sizeof(int), &cmp_int_pair);
+    qsort(me, nme, 2*sizeof(int), &cmp_int_pair);
     check(me[0] == 0 && me[1] == 2);
     check(me[2] == 1 && me[3] == 3);
     free(me);
@@ -469,27 +486,30 @@ static int test_graph_assignment_solver(void *ctx)
     }
 
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/2, /*cost=*/-1,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/3, /*cost=*/-10,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/3, /*cost=*/-5,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
 
     me = NULL;
-    err = opal_bp_graph_solve_bipartite_assignment(g, &nme, &me);
+    err = opal_bp_graph_solve_bipartite_assignment(g,
+                                                    &nme,
+                                                    &me);
     check_err_code(err, OPAL_SUCCESS);
     check_int_eq(nme, 2);
     check(me != NULL);
-    qsort(me, nme, 2 * sizeof(int), &cmp_int_pair);
+    qsort(me, nme, 2*sizeof(int), &cmp_int_pair);
     check(me[0] == 0 && me[1] == 2);
     check(me[2] == 1 && me[3] == 3);
     free(me);
 
     err = opal_bp_graph_free(g);
     check_err_code(err, OPAL_SUCCESS);
+
 
     /* TEST CASE: add some disconnected vertices
      * 0 --> 2
@@ -509,21 +529,23 @@ static int test_graph_assignment_solver(void *ctx)
     }
 
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/2, /*cost=*/-1,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/3, /*cost=*/-10,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/3, /*cost=*/-5,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
 
     me = NULL;
-    err = opal_bp_graph_solve_bipartite_assignment(g, &nme, &me);
+    err = opal_bp_graph_solve_bipartite_assignment(g,
+                                                    &nme,
+                                                    &me);
     check_err_code(err, OPAL_SUCCESS);
     check_int_eq(nme, 2);
     check(me != NULL);
-    qsort(me, nme, 2 * sizeof(int), &cmp_int_pair);
+    qsort(me, nme, 2*sizeof(int), &cmp_int_pair);
     check(me[0] == 0 && me[1] == 2);
     check(me[2] == 1 && me[3] == 3);
     free(me);
@@ -549,24 +571,26 @@ static int test_graph_assignment_solver(void *ctx)
     }
 
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/2, /*cost=*/-4294967296,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/2, /*cost=*/-4294967296,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/3, /*cost=*/-4294967296,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/3, /*cost=*/-4294967296,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
 
     me = NULL;
-    err = opal_bp_graph_solve_bipartite_assignment(g, &nme, &me);
+    err = opal_bp_graph_solve_bipartite_assignment(g,
+                                                    &nme,
+                                                    &me);
     check_err_code(err, OPAL_SUCCESS);
     check_int_eq(nme, 2);
     check(me != NULL);
-    qsort(me, nme, 2 * sizeof(int), &cmp_int_pair);
+    qsort(me, nme, 2*sizeof(int), &cmp_int_pair);
     if (me[1] == 2) {
         check(me[0] == 0 && me[1] == 2);
         check(me[2] == 1 && me[3] == 3);
@@ -578,6 +602,7 @@ static int test_graph_assignment_solver(void *ctx)
 
     err = opal_bp_graph_free(g);
     check_err_code(err, OPAL_SUCCESS);
+
 
     /* TEST CASE: check that simple cases are solved correctly
      *
@@ -594,20 +619,23 @@ static int test_graph_assignment_solver(void *ctx)
     }
 
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/2, /*cost=*/-100,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/2, /*cost=*/-100,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
 
     me = NULL;
-    err = opal_bp_graph_solve_bipartite_assignment(g, &nme, &me);
+    err = opal_bp_graph_solve_bipartite_assignment(g,
+                                                    &nme,
+                                                    &me);
     check_err_code(err, OPAL_SUCCESS);
     check_int_eq(nme, 1);
     check(me != NULL);
-    qsort(me, nme, 2 * sizeof(int), &cmp_int_pair);
+    qsort(me, nme, 2*sizeof(int), &cmp_int_pair);
     check((me[0] == 0 || me[0] == 1) && me[1] == 2);
 
     err = opal_bp_graph_free(g);
     check_err_code(err, OPAL_SUCCESS);
+
 
     /* TEST CASE: performance sanity check
      *
@@ -630,21 +658,23 @@ static int test_graph_assignment_solver(void *ctx)
         }
 
         err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/3, /*cost=*/10,
-                                     /*capacity=*/1, NULL);
+                                        /*capacity=*/1, NULL);
         check_err_code(err, OPAL_SUCCESS);
         err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/4, /*cost=*/2,
-                                     /*capacity=*/1, NULL);
+                                        /*capacity=*/1, NULL);
         check_err_code(err, OPAL_SUCCESS);
         err = opal_bp_graph_add_edge(g, /*u=*/2, /*v=*/4, /*cost=*/1,
-                                     /*capacity=*/1, NULL);
+                                        /*capacity=*/1, NULL);
         check_err_code(err, OPAL_SUCCESS);
 
         me = NULL;
-        err = opal_bp_graph_solve_bipartite_assignment(g, &nme, &me);
+        err = opal_bp_graph_solve_bipartite_assignment(g,
+                                                        &nme,
+                                                        &me);
         check_err_code(err, OPAL_SUCCESS);
         check_int_eq(nme, 2);
         check(me != NULL);
-        qsort(me, nme, 2 * sizeof(int), &cmp_int_pair);
+        qsort(me, nme, 2*sizeof(int), &cmp_int_pair);
         check(me[0] == 0 && me[1] == 3);
         check(me[2] == 2 && me[3] == 4);
         free(me);
@@ -690,25 +720,25 @@ static int test_graph_bellman_ford(void *ctx)
     }
 
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/2, /*cost=*/10,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/3, /*cost=*/2,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/4, /*v=*/0, /*cost=*/0,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/4, /*v=*/1, /*cost=*/0,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/2, /*v=*/5, /*cost=*/0,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/3, /*v=*/5, /*cost=*/0,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
 
-    pred = malloc(6 * sizeof(*pred));
+    pred = malloc(6*sizeof(*pred));
     check(pred != NULL);
     path_found = opal_bp_graph_bellman_ford(g, /*source=*/4, /*target=*/5, pred);
     check(path_found);
@@ -720,6 +750,7 @@ static int test_graph_bellman_ford(void *ctx)
 
     err = opal_bp_graph_free(g);
     check_err_code(err, OPAL_SUCCESS);
+
 
     /* TEST CASE: left side has more vertices than the right side, then
      * convert to a flow network
@@ -738,19 +769,19 @@ static int test_graph_bellman_ford(void *ctx)
     }
 
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/3, /*cost=*/10,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/4, /*cost=*/2,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/2, /*v=*/4, /*cost=*/1,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
 
     err = opal_bp_graph_bipartite_to_flow(g);
     check_err_code(err, OPAL_SUCCESS);
 
-    pred = malloc(7 * sizeof(*pred));
+    pred = malloc(7*sizeof(*pred));
     check(pred != NULL);
     path_found = opal_bp_graph_bellman_ford(g, /*source=*/5, /*target=*/6, pred);
     check(path_found);
@@ -781,20 +812,20 @@ static int test_graph_bellman_ford(void *ctx)
         check_err_code(err, OPAL_SUCCESS);
     }
 
-    err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/3, /*cost=*/INT32_MAX + 10LL,
-                                 /*capacity=*/1, NULL);
+    err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/3, /*cost=*/INT32_MAX+10LL,
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
-    err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/4, /*cost=*/INT32_MAX + 2LL,
-                                 /*capacity=*/1, NULL);
+    err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/4, /*cost=*/INT32_MAX+2LL,
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
-    err = opal_bp_graph_add_edge(g, /*u=*/2, /*v=*/4, /*cost=*/INT32_MAX + 1LL,
-                                 /*capacity=*/1, NULL);
+    err = opal_bp_graph_add_edge(g, /*u=*/2, /*v=*/4, /*cost=*/INT32_MAX+1LL,
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
 
     err = opal_bp_graph_bipartite_to_flow(g);
     check_err_code(err, OPAL_SUCCESS);
 
-    pred = malloc(7 * sizeof(*pred));
+    pred = malloc(7*sizeof(*pred));
     check(pred != NULL);
     path_found = opal_bp_graph_bellman_ford(g, /*source=*/5, /*target=*/6, pred);
     check(path_found);
@@ -827,19 +858,19 @@ static int test_graph_bellman_ford(void *ctx)
     }
 
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/3, /*cost=*/-1,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/4, /*cost=*/-2,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/2, /*v=*/4, /*cost=*/-10,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
 
     err = opal_bp_graph_bipartite_to_flow(g);
     check_err_code(err, OPAL_SUCCESS);
 
-    pred = malloc(7 * sizeof(*pred));
+    pred = malloc(7*sizeof(*pred));
     check(pred != NULL);
     path_found = opal_bp_graph_bellman_ford(g, /*source=*/5, /*target=*/6, pred);
     check(path_found);
@@ -880,13 +911,13 @@ static int test_graph_flow_conversion(void *ctx)
     }
 
     err = opal_bp_graph_add_edge(g, /*u=*/0, /*v=*/3, /*cost=*/10,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/1, /*v=*/4, /*cost=*/2,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/2, /*v=*/4, /*cost=*/1,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
 
     check_int_eq(opal_bp_graph_order(g), 5);
@@ -911,6 +942,7 @@ static int test_graph_flow_conversion(void *ctx)
 
     err = opal_bp_graph_free(g);
     check_err_code(err, OPAL_SUCCESS);
+
 
     /* TEST CASE: empty graph
      *
@@ -941,7 +973,7 @@ static int test_graph_param_checking(void *ctx)
 
     /* try with no vertices */
     err = opal_bp_graph_add_edge(g, /*u=*/3, /*v=*/5, /*cost=*/0,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_ERR_BAD_PARAM);
 
     for (i = 0; i < 6; ++i) {
@@ -951,34 +983,34 @@ static int test_graph_param_checking(void *ctx)
 
     /* try u out of range */
     err = opal_bp_graph_add_edge(g, /*u=*/9, /*v=*/5, /*cost=*/0,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_ERR_BAD_PARAM);
     err = opal_bp_graph_add_edge(g, /*u=*/6, /*v=*/5, /*cost=*/0,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_ERR_BAD_PARAM);
 
     /* try v out of range */
     err = opal_bp_graph_add_edge(g, /*u=*/2, /*v=*/8, /*cost=*/0,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_ERR_BAD_PARAM);
     err = opal_bp_graph_add_edge(g, /*u=*/2, /*v=*/6, /*cost=*/0,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_ERR_BAD_PARAM);
 
     /* try adding an edge that already exists */
     err = opal_bp_graph_add_edge(g, /*u=*/2, /*v=*/4, /*cost=*/0,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
     err = opal_bp_graph_add_edge(g, /*u=*/2, /*v=*/4, /*cost=*/0,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_EXISTS);
 
     /* try an edge with an out of range cost */
     err = opal_bp_graph_add_edge(g, /*u=*/2, /*v=*/3, /*cost=*/INT64_MAX,
-                                 /*capacity=*/1, NULL);
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_ERR_BAD_PARAM);
-    err = opal_bp_graph_add_edge(g, /*u=*/2, /*v=*/3, /*cost=*/INT64_MAX - 1,
-                                 /*capacity=*/1, NULL);
+    err = opal_bp_graph_add_edge(g, /*u=*/2, /*v=*/3, /*cost=*/INT64_MAX-1,
+                                     /*capacity=*/1, NULL);
     check_err_code(err, OPAL_SUCCESS);
 
     err = opal_bp_graph_free(g);
@@ -1008,8 +1040,7 @@ static int test_graph_helper_macros(void *ctx)
     /* TEST CASE: make sure that an empty path does not cause any edges to be
      * visited */
     RESET_ARRAYS(6, pred, visited);
-    FOREACH_UV_ON_PATH(pred, 3, 5, u, v)
-    {
+    FOREACH_UV_ON_PATH(pred, 3, 5, u, v) {
         visited[u][v] = true;
     }
     for (u = 0; u < 6; ++u) {
@@ -1023,15 +1054,17 @@ static int test_graph_helper_macros(void *ctx)
     pred[5] = 2;
     pred[2] = 1;
     pred[1] = 3;
-    FOREACH_UV_ON_PATH(pred, 3, 5, u, v)
-    {
+    FOREACH_UV_ON_PATH(pred, 3, 5, u, v) {
         visited[u][v] = true;
     }
     for (u = 0; u < 6; ++u) {
         for (v = 0; v < 6; ++v) {
-            if ((u == 2 && v == 5) || (u == 1 && v == 2) || (u == 3 && v == 1)) {
+            if ((u == 2 && v == 5) ||
+                (u == 1 && v == 2) ||
+                (u == 3 && v == 1)) {
                 check(visited[u][v] == true);
-            } else {
+            }
+            else {
                 check(visited[u][v] == false);
             }
         }
@@ -1041,34 +1074,24 @@ static int test_graph_helper_macros(void *ctx)
 
     /* not technically a macro, but make sure that the pair comparison function
      * isn't broken (because it was in an earlier revision...) */
-    pair1[0] = 0;
-    pair1[1] = 1;
-    pair2[0] = 0;
-    pair2[1] = 1;
+    pair1[0] = 0; pair1[1] = 1;
+    pair2[0] = 0; pair2[1] = 1;
     check(cmp_int_pair(&pair1[0], &pair2[0]) == 0);
 
-    pair1[0] = 1;
-    pair1[1] = 1;
-    pair2[0] = 0;
-    pair2[1] = 1;
+    pair1[0] = 1; pair1[1] = 1;
+    pair2[0] = 0; pair2[1] = 1;
     check(cmp_int_pair(pair1, pair2) > 0);
 
-    pair1[0] = 0;
-    pair1[1] = 1;
-    pair2[0] = 1;
-    pair2[1] = 1;
+    pair1[0] = 0; pair1[1] = 1;
+    pair2[0] = 1; pair2[1] = 1;
     check(cmp_int_pair(pair1, pair2) < 0);
 
-    pair1[0] = 1;
-    pair1[1] = 0;
-    pair2[0] = 1;
-    pair2[1] = 1;
+    pair1[0] = 1; pair1[1] = 0;
+    pair2[0] = 1; pair2[1] = 1;
     check(cmp_int_pair(pair1, pair2) < 0);
 
-    pair1[0] = 1;
-    pair1[1] = 1;
-    pair2[0] = 1;
-    pair2[1] = 0;
+    pair1[0] = 1; pair1[1] = 1;
+    pair2[0] = 1; pair2[1] = 0;
     check(cmp_int_pair(pair1, pair2) > 0);
 
     return 0;

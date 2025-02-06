@@ -231,12 +231,12 @@ ompi_coll_tuned_allreduce_intra_dec_fixed(const void *sbuf, void *rbuf, int coun
                                                     comm, module, alg, 0, 0);
 #else
     if(item!=NULL){
-        if(alg == 1) strcpy(item->usedAlgorithm, "basic_linear");
-        else if(alg == 2) strcpy(item->usedAlgorithm, "nonoverlapping");
-        else if(alg == 3) strcpy(item->usedAlgorithm, "recursive_doubling");
-        else if(alg == 4) strcpy(item->usedAlgorithm, "ring");
-        else if(alg == 5) strcpy(item->usedAlgorithm, "segmented_ring");
-        else if(alg == 6) strcpy(item->usedAlgorithm, "rabenseifner");
+        if(alg == 1) memcpy(item->usedAlgorithm, "basic_linear", 12);
+        else if(alg == 2) memcpy(item->usedAlgorithm, "nonoverlapping", 14);
+        else if(alg == 3) memcpy(item->usedAlgorithm, "recursive_doubling", 18);
+        else if(alg == 4) memcpy(item->usedAlgorithm, "ring", 4);
+        else if(alg == 5) memcpy(item->usedAlgorithm, "segmented_ring", 14);
+        else if(alg == 6) memcpy(item->usedAlgorithm, "rabenseifner", 12);
     }
     return ompi_coll_tuned_allreduce_intra_do_this (sbuf, rbuf, count, dtype, op,
                                                     comm, module, alg, 0, 0, &item);
@@ -449,11 +449,11 @@ int ompi_coll_tuned_alltoall_intra_dec_fixed(const void *sbuf, int scount,
                                                    alg, 0, 0, ompi_coll_tuned_alltoall_max_requests);
 #else
     if(item!=NULL){
-        if(alg == 1) strcpy(item->usedAlgorithm, "linear");
-        else if(alg == 2) strcpy(item->usedAlgorithm, "pairwise");
-        else if(alg == 3) strcpy(item->usedAlgorithm, "modified_bruck");
-        else if(alg == 4) strcpy(item->usedAlgorithm, "linear_sync");
-        else if(alg == 5) strcpy(item->usedAlgorithm, "two_proc");
+        if(alg == 1) memcpy(item->usedAlgorithm, "linear", 6);
+        else if(alg == 2) memcpy(item->usedAlgorithm, "pairwise", 8);
+        else if(alg == 3) memcpy(item->usedAlgorithm, "modified_bruck", 14);
+        else if(alg == 4) memcpy(item->usedAlgorithm, "linear_sync", 11);
+        else if(alg == 5) memcpy(item->usedAlgorithm, "two_proc", 8);
     }
     
     return ompi_coll_tuned_alltoall_intra_do_this (sbuf, scount, sdtype,
@@ -519,8 +519,8 @@ int ompi_coll_tuned_alltoallv_intra_dec_fixed(const void *sbuf, const int *scoun
                                                     alg);
 #else
     if(item!=NULL){
-        if(alg == 1) strcpy(item->usedAlgorithm, "basic_linear");
-        else if(alg == 2) strcpy(item->usedAlgorithm, "pairwise");
+        if(alg == 1) memcpy(item->usedAlgorithm, "basic_linear", 12);
+        else if(alg == 2) memcpy(item->usedAlgorithm, "pairwise", 8);
     }
     return ompi_coll_tuned_alltoallv_intra_do_this (sbuf, scounts, sdisps, sdtype,
                                                     rbuf, rcounts, rdisps, rdtype,
@@ -587,12 +587,12 @@ int ompi_coll_tuned_barrier_intra_dec_fixed(struct ompi_communicator_t *comm,
 
 #ifdef ENABLE_ANALYSIS
     if(item!=NULL){
-        if(alg == 1) strcpy(item->usedAlgorithm, "linear");
-        else if(alg == 2) strcpy(item->usedAlgorithm, "double_ring");
-        else if(alg == 3) strcpy(item->usedAlgorithm, "recoursive_doubling");
-        else if(alg == 4) strcpy(item->usedAlgorithm, "bruck");
-        else if(alg == 5) strcpy(item->usedAlgorithm, "two_proc");
-        else if(alg == 6) strcpy(item->usedAlgorithm, "tree");
+        if(alg == 1) memcpy(item->usedAlgorithm, "linear", 6);
+        else if(alg == 2) memcpy(item->usedAlgorithm, "double_ring", 11);
+        else if(alg == 3) memcpy(item->usedAlgorithm, "recoursive_doubling", 19);
+        else if(alg == 4) memcpy(item->usedAlgorithm, "bruck", 5);
+        else if(alg == 5) memcpy(item->usedAlgorithm, "two_proc", 8);
+        else if(alg == 6) memcpy(item->usedAlgorithm, "tree", 4);
     }
     return ompi_coll_tuned_barrier_intra_do_this (comm, module,
                                                   alg, 0, 0, &item);
@@ -629,6 +629,7 @@ int ompi_coll_tuned_bcast_intra_dec_fixed(void *buff, int count,
     }
     else item = NULL;
 #endif
+//printf("Test auf NULL 1: %d\n", item == NULL);
     size_t total_dsize, dsize;
     int communicator_size, alg;
 	communicator_size = ompi_comm_size(comm);
@@ -639,6 +640,7 @@ int ompi_coll_tuned_bcast_intra_dec_fixed(void *buff, int count,
     OPAL_OUTPUT((ompi_coll_tuned_stream, "ompi_coll_tuned_bcast_intra_dec_fixed"
                  " root %d rank %d com_size %d",
                  root, ompi_comm_rank(comm), communicator_size));
+            
 
     /** Algorithms:
      *  {1, "basic_linear"},
@@ -761,15 +763,16 @@ int ompi_coll_tuned_bcast_intra_dec_fixed(void *buff, int count,
         }
     }
 #ifdef ENABLE_ANALYSIS
-    if(item!=NULL){
-        if(alg == 1) strcpy(item->usedAlgorithm, "basic_linear");
-        else if(alg == 2) strcpy(item->usedAlgorithm, "chain");
-        else if(alg == 3) strcpy(item->usedAlgorithm, "pipeline");
-        else if(alg == 4) strcpy(item->usedAlgorithm, "split_binary_tree");
-        else if(alg == 5) strcpy(item->usedAlgorithm, "binomial");
-        else if(alg == 6) strcpy(item->usedAlgorithm, "knomial");
-        else if(alg == 7) strcpy(item->usedAlgorithm, "scatter_allgather");
-        else if(alg == 8) strcpy(item->usedAlgorithm, "scatter_allgather_ring");
+   if(item!=NULL){
+        if(alg == 1) memcpy(item->usedAlgorithm, "basic_linear", 12);
+        else if(alg == 2) memcpy(item->usedAlgorithm, "chain", 5);
+        else if(alg == 3) memcpy(item->usedAlgorithm, "pipeline", 8);
+        else if(alg == 4) memcpy(item->usedAlgorithm, "split_binary_tree", 17);
+        else if(alg == 5) memcpy(item->usedAlgorithm, "binary_tree", 11);
+        else if(alg == 6) memcpy(item->usedAlgorithm, "binomial", 8);
+        else if(alg == 7) memcpy(item->usedAlgorithm, "knomial", 7);
+        else if(alg == 8) memcpy(item->usedAlgorithm, "scatter_allgather", 17);
+        else if(alg == 9) memcpy(item->usedAlgorithm, "scatter_allgather_ring", 22);
     }
     
     return ompi_coll_tuned_bcast_intra_do_this (buff, count, datatype, root,
@@ -959,13 +962,13 @@ int ompi_coll_tuned_reduce_intra_dec_fixed( const void *sendbuf, void *recvbuf,
                                                   alg, 0, 0, 0);
 #else
     if(item!=NULL){
-        if(alg == 1) strcpy(item->usedAlgorithm, "linear");
-        else if(alg == 2) strcpy(item->usedAlgorithm, "chain");
-        else if(alg == 3) strcpy(item->usedAlgorithm, "pipeline");
-        else if(alg == 4) strcpy(item->usedAlgorithm, "binary");
-        else if(alg == 5) strcpy(item->usedAlgorithm, "binominal");
-        else if(alg == 6) strcpy(item->usedAlgorithm, "in-order-binary");
-        else if(alg == 7) strcpy(item->usedAlgorithm, "rabenseifner");
+        if(alg == 1) memcpy(item->usedAlgorithm, "linear", 6);
+        else if(alg == 2) memcpy(item->usedAlgorithm, "chain", 5);
+        else if(alg == 3) memcpy(item->usedAlgorithm, "pipeline", 8);
+        else if(alg == 4) memcpy(item->usedAlgorithm, "binary", 6);
+        else if(alg == 5) memcpy(item->usedAlgorithm, "binominal", 9);
+        else if(alg == 6) memcpy(item->usedAlgorithm, "in-order-binary", 15);
+        else if(alg == 7) memcpy(item->usedAlgorithm, "rabenseifner", 12);
     }
         return  ompi_coll_tuned_reduce_intra_do_this (sendbuf, recvbuf, count, datatype,
                                                   op, root, comm, module,
@@ -1136,10 +1139,10 @@ int ompi_coll_tuned_reduce_scatter_intra_dec_fixed( const void *sbuf, void *rbuf
                                                           alg, 0, 0);
 #else
     if(item!=NULL){
-        if(alg == 1) strcpy(item->usedAlgorithm, "non-overlapping");
-        else if(alg == 2) strcpy(item->usedAlgorithm, "recursive_halving");
-        else if(alg == 3) strcpy(item->usedAlgorithm, "ring");
-        else if(alg == 4) strcpy(item->usedAlgorithm, "butterfly");
+        if(alg == 1) memcpy(item->usedAlgorithm, "non-overlapping", 15);
+        else if(alg == 2) memcpy(item->usedAlgorithm, "recursive_halving", 17);
+        else if(alg == 3) memcpy(item->usedAlgorithm, "ring", 4);
+        else if(alg == 4) memcpy(item->usedAlgorithm, "butterfly", 9);
     }
     return  ompi_coll_tuned_reduce_scatter_intra_do_this (sbuf, rbuf, rcounts, dtype,
                                                           op, comm, module,
@@ -1283,10 +1286,10 @@ int ompi_coll_tuned_reduce_scatter_block_intra_dec_fixed(const void *sbuf, void 
                                                                 alg, 0, 0);
 #else
    if(item!=NULL){
-        if(alg == 1) strcpy(item->usedAlgorithm, "basic_linear");
-        else if(alg == 2) strcpy(item->usedAlgorithm, "recursive_doubling");
-        else if(alg == 3) strcpy(item->usedAlgorithm, "recursive_halving");
-        else if(alg == 4) strcpy(item->usedAlgorithm, "butterfly");
+        if(alg == 1) memcpy(item->usedAlgorithm, "basic_linear", 12);
+        else if(alg == 2) memcpy(item->usedAlgorithm, "recursive_doubling", 18);
+        else if(alg == 3) memcpy(item->usedAlgorithm, "recursive_halving", 17);
+        else if(alg == 4) memcpy(item->usedAlgorithm, "butterfly", 9);
     }
     return  ompi_coll_tuned_reduce_scatter_block_intra_do_this (sbuf, rbuf, rcount, dtype,
                                                                 op, comm, module,
@@ -1444,7 +1447,6 @@ int ompi_coll_tuned_allgather_intra_dec_fixed(const void *sbuf, int scount,
             alg = 5;
         }
     }
-
     OPAL_OUTPUT((ompi_coll_tuned_stream, "ompi_coll_tuned_allgather_intra_dec_fixed"
                  " rank %d com_size %d", ompi_comm_rank(comm), communicator_size));
 #ifndef ENABLE_ANALYSIS
@@ -1453,12 +1455,12 @@ int ompi_coll_tuned_allgather_intra_dec_fixed(const void *sbuf, int scount,
                                                    comm, module, alg, 0, 0);
 #else
     if(item!=NULL){
-        if(alg == 1) strcpy(item->usedAlgorithm, "linear");
-        else if(alg == 2) strcpy(item->usedAlgorithm, "bruck");
-        else if(alg == 3) strcpy(item->usedAlgorithm, "recursive_doubling");
-        else if(alg == 4) strcpy(item->usedAlgorithm, "ring");
-        else if(alg == 5) strcpy(item->usedAlgorithm, "neighbor");
-        else if(alg == 6) strcpy(item->usedAlgorithm, "two_proc");
+        if(alg == 1) memcpy(item->usedAlgorithm, "linear", 6);
+        else if(alg == 2) memcpy(item->usedAlgorithm, "bruck", 5);
+        else if(alg == 3) memcpy(item->usedAlgorithm, "recursive_doubling", 18);
+        else if(alg == 4) memcpy(item->usedAlgorithm, "ring", 4);
+        else if(alg == 5) memcpy(item->usedAlgorithm, "neighbor", 8);
+        else if(alg == 6) memcpy(item->usedAlgorithm, "two_proc", 8);
     }
     return ompi_coll_tuned_allgather_intra_do_this(sbuf, scount, sdtype,
                                                    rbuf, rcount, rdtype,
@@ -1620,11 +1622,11 @@ int ompi_coll_tuned_allgatherv_intra_dec_fixed(const void *sbuf, int scount,
                                                      alg, 0, 0);
 #else
     if(item!=NULL){
-        if(alg == 1) strcpy(item->usedAlgorithm, "default");
-        else if(alg == 2) strcpy(item->usedAlgorithm, "bruck");
-        else if(alg == 3) strcpy(item->usedAlgorithm, "ring");
-        else if(alg == 4) strcpy(item->usedAlgorithm, "neighbor");
-        else if(alg == 5) strcpy(item->usedAlgorithm, "two_proc");
+        if(alg == 1) memcpy(item->usedAlgorithm, "default", 7);
+        else if(alg == 2) memcpy(item->usedAlgorithm, "bruck", 5);
+        else if(alg == 3) memcpy(item->usedAlgorithm, "ring", 4);
+        else if(alg == 4) memcpy(item->usedAlgorithm, "neighbor", 8);
+        else if(alg == 5) memcpy(item->usedAlgorithm, "two_proc", 8);
     }
     return ompi_coll_tuned_allgatherv_intra_do_this (sbuf, scount, sdtype,
                                                      rbuf, rcounts,
@@ -1738,9 +1740,9 @@ int ompi_coll_tuned_gather_intra_dec_fixed(const void *sbuf, int scount,
                                                  alg, 0, 0);
 #else
     if(item!=NULL){
-        if(alg == 1) strcpy(item->usedAlgorithm, "basic_linear");
-        else if(alg == 2) strcpy(item->usedAlgorithm, "binomial");
-        else if(alg == 3) strcpy(item->usedAlgorithm, "linear_sync");
+        if(alg == 1) memcpy(item->usedAlgorithm, "basic_linear", 12);
+        else if(alg == 2) memcpy(item->usedAlgorithm, "binomial", 8);
+        else if(alg == 3) memcpy(item->usedAlgorithm, "linear_sync", 11);
     }
     return ompi_coll_tuned_gather_intra_do_this (sbuf, scount, sdtype,
                                                  rbuf, rcount, rdtype,
@@ -1869,9 +1871,9 @@ int ompi_coll_tuned_scatter_intra_dec_fixed(const void *sbuf, int scount,
                                                   alg, 0, 0);
 #else
     if(item!=NULL){
-        if(alg == 1) strcpy(item->usedAlgorithm, "basic_linear");
-        else if(alg == 2) strcpy(item->usedAlgorithm, "binomial");
-        else if(alg == 3) strcpy(item->usedAlgorithm, "linear_nb");
+        if(alg == 1) memcpy(item->usedAlgorithm, "basic_linear", 12);
+        else if(alg == 2) memcpy(item->usedAlgorithm, "binomial", 8);
+        else if(alg == 3) memcpy(item->usedAlgorithm, "linear_nb", 9);
     }
     return ompi_coll_tuned_scatter_intra_do_this (sbuf, scount, sdtype,
                                                   rbuf, rcount, rdtype,

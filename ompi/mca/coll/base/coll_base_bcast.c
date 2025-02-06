@@ -48,7 +48,7 @@ ompi_coll_base_bcast_intra_generic( void* buffer,
 #endif
                                      )
 {
-//printf("Hello from ompi_coll_base_bcast_intra_generic\n");
+//printf("ompi_coll_base_bcast_intra_generic\n");
 #ifdef ENABLE_ANALYSIS
     qentry *item;
     if(q!=NULL){
@@ -108,6 +108,7 @@ ompi_coll_base_bcast_intra_generic( void* buffer,
                                          MCA_PML_BASE_SEND_STANDARD, comm,
                                          &send_reqs[i]));
 #else
+                //printf("Test auf NULL 2: %d\n", item == NULL);
                 err = MCA_PML_CALL(isend(tmpbuf, sendcount, datatype,
                                          tree->tree_next[i],
                                          MCA_COLL_BASE_TAG_BCAST,
@@ -271,15 +272,12 @@ ompi_coll_base_bcast_intra_generic( void* buffer,
             if (err != MPI_SUCCESS) { line = __LINE__; goto error_hndl; }
         }
         
-
-        //FEHLER! Hier bleibt einer stehen
         err = ompi_request_wait( &recv_reqs[req_index], MPI_STATUS_IGNORE );
         
         
         if (err != MPI_SUCCESS) { line = __LINE__; goto error_hndl; }
     }
     
-    //root bekommt den Success!!!
     return (MPI_SUCCESS);
 
  error_hndl:

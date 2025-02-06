@@ -13,9 +13,9 @@
 #    define MCA_BTL_UCT_AM_H
 
 #    include "btl_uct_frag.h"
-#ifdef ENABLE_ANALYSIS
+/*#ifdef ENABLE_ANALYSIS
 #   include "ompi/mpi/c/init.h"
-#endif
+#endif*/
 
 struct mca_btl_base_descriptor_t *mca_btl_uct_prepare_src(mca_btl_base_module_t *btl,
                                                           mca_btl_base_endpoint_t *endpoint,

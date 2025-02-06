@@ -233,7 +233,7 @@ static int mca_btl_self_send(struct mca_btl_base_module_t *btl,
         des->des_cbfunc(btl, endpoint, des, OPAL_SUCCESS);
     }
 #ifdef ENABLE_ANALYSIS
-    if(item!=NULL) gettimeofday(&item->sent, NULL);
+    if(item!=NULL) clock_gettime(CLOCK_REALTIME, &item->sent);
 #endif
     if (btl_ownership) {
         mca_btl_self_free(btl, des);

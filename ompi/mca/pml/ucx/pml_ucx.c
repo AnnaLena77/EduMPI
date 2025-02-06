@@ -600,7 +600,11 @@ int mca_pml_ucx_del_comm(struct ompi_communicator_t* comm)
 
 int mca_pml_ucx_irecv_init(void *buf, size_t count, ompi_datatype_t *datatype,
                              int src, int tag, struct ompi_communicator_t* comm,
-                             struct ompi_request_t **request)
+                             struct ompi_request_t **request
+#ifdef ENABLE_ANALYSIS
+                             , qentry **q
+#endif
+                             )
 {
     mca_pml_ucx_persistent_request_t *req;
 
@@ -636,10 +640,14 @@ int mca_pml_ucx_irecv(void *buf, size_t count, ompi_datatype_t *datatype,
                       )
 {
 #ifdef ENABLE_ANALYSIS
+    //printf("UCX_Irecv\n");
     qentry *item;
     if(q!=NULL){
         if(*q!=NULL){
             item = *q;
+            item->blocking = 0;
+            item->recvcount = item->recvcount + count;
+        	   item->recvDatasize = item->recvDatasize + count*sizeof(datatype);
         } else item = NULL;
     } else item = NULL;
 #endif
@@ -686,10 +694,14 @@ int mca_pml_ucx_recv(void *buf, size_t count, ompi_datatype_t *datatype, int src
                      )
 {
 #ifdef ENABLE_ANALYSIS
+    //printf("UCX_Recv\n");
     qentry *item;
     if(q!=NULL){
         if(*q!=NULL){
             item = *q;
+            item->blocking = 1;
+            item->recvcount = item->recvcount + count;
+        	   item->recvDatasize = item->recvDatasize + count*sizeof(datatype);
         } else item = NULL;
     } else item = NULL;
 #endif
@@ -763,7 +775,11 @@ static inline const char *mca_pml_ucx_send_mode_name(mca_pml_base_send_mode_t mo
 int mca_pml_ucx_isend_init(const void *buf, size_t count, ompi_datatype_t *datatype,
                            int dst, int tag, mca_pml_base_send_mode_t mode,
                            struct ompi_communicator_t* comm,
-                           struct ompi_request_t **request)
+                           struct ompi_request_t **request
+#ifdef ENABLE_ANALYSIS
+			, qentry **q
+#endif
+                           )
 {
     mca_pml_ucx_persistent_request_t *req;
     ucp_ep_h ep;
@@ -812,10 +828,14 @@ mca_pml_ucx_bsend(ucp_ep_h ep, const void *buf, size_t count,
 {
 
 #ifdef ENABLE_ANALYSIS
+    //printf("UCX_Bsend\n");
     qentry *item;
     if(q!=NULL){
         if(*q!=NULL){
             item = *q;
+            item->blocking = 1;
+            item->sendcount = item->sendcount + count;
+        	   item->sendDatasize = item->sendDatasize + count*sizeof(datatype);
         } else item = NULL;
     } else item = NULL;
 #endif
@@ -942,8 +962,14 @@ int mca_pml_ucx_isend(const void *buf, size_t count, ompi_datatype_t *datatype,
     if(q!=NULL){
         if(*q!=NULL){
             item = *q;
-            int ranki;
-            MPI_Comm_rank(comm, &ranki);
+            item->blocking = 0;
+            strcpy(item->usedBtl,"ucx");
+            item->sendcount = item->sendcount + count;
+        	   item->sendDatasize = item->sendDatasize + count*sizeof(datatype);
+        	   //printf("Datasize: %d\n", item->sendDatasize);
+        	   
+            //int ranki;
+            //MPI_Comm_rank(comm, &ranki);
             //printf("UXC_ISEND Kommt von: %s\n Rank %d sendet an Rank %d\n", item->function, ranki, dst);
         } else item = NULL;
     } else item = NULL;
@@ -1070,12 +1096,16 @@ int mca_pml_ucx_send(const void *buf, size_t count, ompi_datatype_t *datatype, i
                      )
 {
 #ifdef ENABLE_ANALYSIS
+    //printf("UCX Send\n");
     qentry *item;
     if(q!=NULL){
         if(*q!=NULL){
             item = *q;
-            int ranki;
-            MPI_Comm_rank(comm, &ranki);
+            item->blocking = 1;
+            item->sendcount = item->sendcount + count;
+        	   item->sendDatasize = item->sendDatasize + count*sizeof(datatype);
+            //int ranki;
+            //MPI_Comm_rank(comm, &ranki);
             //printf("UXC_SEND Kommt von: %s\n Rank %d sendet an Rank %d\n", item->function, ranki, dst);
         } else item = NULL;
     } else item = NULL;
@@ -1221,6 +1251,9 @@ int mca_pml_ucx_imrecv(void *buf, size_t count, ompi_datatype_t *datatype,
     if(q!=NULL){
         if(*q!=NULL){
             item = *q;
+            item->blocking = 0;
+            item->recvcount = item->recvcount + count;
+        	   item->recvDatasize = item->recvDatasize + count*sizeof(datatype);
         } else item = NULL;
     } else item = NULL;
 #endif
@@ -1258,6 +1291,9 @@ int mca_pml_ucx_mrecv(void *buf, size_t count, ompi_datatype_t *datatype,
     if(q!=NULL){
         if(*q!=NULL){
             item = *q;
+            item->blocking = 1;
+            item->recvcount = item->recvcount + count;
+        	   item->recvDatasize = item->recvDatasize + count*sizeof(datatype);
         } else item = NULL;
     } else item = NULL;
 #endif

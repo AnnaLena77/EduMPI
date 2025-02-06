@@ -37,9 +37,10 @@
 #include "opal/mca/rcache/udreg/rcache_udreg.h"
 #include "opal/util/output.h"
 #include "opal_stdint.h"
-#ifdef ENABLE_ANALYSIS
+
+/*#ifdef ENABLE_ANALYSIS
 #   include "ompi/mpi/c/init.h"
-#endif
+#endif*/
 
 #include <assert.h>
 #include <errno.h>

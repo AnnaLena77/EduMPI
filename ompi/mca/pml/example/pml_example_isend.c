@@ -33,6 +33,8 @@ int mca_pml_example_isend( void* buf,
                        mca_pml_base_send_mode_t sendmode,
                        ompi_communicator_t* comm,
                        ompi_request_t** request )
+                       
+                       printf("hello from example\n");
 {
     return OMPI_SUCCESS;
 }

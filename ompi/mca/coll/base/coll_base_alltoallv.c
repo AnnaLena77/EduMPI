@@ -67,7 +67,6 @@ mca_coll_base_alltoallv_intra_basic_inplace(const void *rbuf, const int *rcounts
         } else item = NULL;
     } else item = NULL;
 #endif
-
     int i, size, rank, left, right, err = MPI_SUCCESS, line;
     ptrdiff_t extent;
     ompi_request_t *req = MPI_REQUEST_NULL;
@@ -149,7 +148,6 @@ mca_coll_base_alltoallv_intra_basic_inplace(const void *rbuf, const int *rcounts
                 goto error_hndl;
             }
         }
-
         if( (left != right) && (0 != rcounts[left]) ) {
             /* Send data to the left */
 #ifndef ENABLE_ANALYSIS
@@ -202,7 +200,6 @@ mca_coll_base_alltoallv_intra_basic_inplace(const void *rbuf, const int *rcounts
                 goto error_hndl;
             }
         }
-
         err = ompi_request_wait (&req, MPI_STATUSES_IGNORE);
         if (MPI_SUCCESS != err) {
             line = __LINE__;
@@ -392,9 +389,15 @@ ompi_coll_base_alltoallv_intra_basic_linear(const void *sbuf, const int *scounts
         if (rcounts[i] > 0) {
             ++nreqs;
             prcv = ((char *) rbuf) + (ptrdiff_t)rdisps[i] * rext;
+#ifndef ENABLE_ANALYSIS
             err = MCA_PML_CALL(irecv_init(prcv, rcounts[i], rdtype,
                                           i, MCA_COLL_BASE_TAG_ALLTOALLV, comm,
                                           preq++));
+#else
+            err = MCA_PML_CALL(irecv_init(prcv, rcounts[i], rdtype,
+                                          i, MCA_COLL_BASE_TAG_ALLTOALLV, comm,
+                                          preq++, &item));
+#endif
             if (MPI_SUCCESS != err) { goto err_hndl; }
         }
     }
@@ -408,10 +411,17 @@ ompi_coll_base_alltoallv_intra_basic_linear(const void *sbuf, const int *scounts
         if (scounts[i] > 0) {
             ++nreqs;
             psnd = ((char *) sbuf) + (ptrdiff_t)sdisps[i] * sext;
+#ifndef ENABLE_ANALYSIS
             err = MCA_PML_CALL(isend_init(psnd, scounts[i], sdtype,
                                          i, MCA_COLL_BASE_TAG_ALLTOALLV,
                                          MCA_PML_BASE_SEND_STANDARD, comm,
                                          preq++));
+#else
+            err = MCA_PML_CALL(isend_init(psnd, scounts[i], sdtype,
+                                         i, MCA_COLL_BASE_TAG_ALLTOALLV,
+                                         MCA_PML_BASE_SEND_STANDARD, comm,
+                                         preq++, &item));
+#endif
             if (MPI_SUCCESS != err) { goto err_hndl; }
         }
     }

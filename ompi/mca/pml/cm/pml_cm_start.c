@@ -60,7 +60,11 @@ mca_pml_cm_start(size_t count, ompi_request_t** requests)
                                                 sendreq->req_tag,
                                                 sendreq->req_send.req_send_mode,
                                                 sendreq->req_send.req_base.req_comm,
-                                                &request);
+                                                &request
+#ifdef ENABLE_ANALYSIS
+                                                , NULL
+#endif
+                                                );
                     if (OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
                         return rc;
                     }

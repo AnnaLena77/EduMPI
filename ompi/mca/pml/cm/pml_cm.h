@@ -71,7 +71,11 @@ mca_pml_cm_irecv_init(void *addr,
                       int src,
                       int tag,
                       struct ompi_communicator_t *comm,
-                      struct ompi_request_t **request)
+                      struct ompi_request_t **request
+#ifdef ENABLE_ANALYSIS
+                      , qentry **q
+#endif
+                      )
 {
     mca_pml_cm_hvy_recv_request_t *recvreq;
     uint32_t flags = 0;
@@ -231,7 +235,11 @@ mca_pml_cm_isend_init(const void* buf,
                         int tag,
                         mca_pml_base_send_mode_t sendmode,
                         ompi_communicator_t* comm,
-                        ompi_request_t** request)
+                        ompi_request_t** request
+#ifdef ENABLE_ANALYSIS
+                        , qentry **q
+#endif
+                        )
 {
     mca_pml_cm_hvy_send_request_t *sendreq;
     uint32_t flags = 0;

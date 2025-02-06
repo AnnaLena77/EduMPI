@@ -95,6 +95,11 @@ int MPI_Isendrecv(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
                  MPI_Datatype recvtype, int source, int recvtag,
                  MPI_Comm comm,  MPI_Request *request)
 {
+    #ifdef ENABLE_ANALYSIS
+    qentry *item = getWritingRingPos();
+    clock_gettime(CLOCK_REALTIME, &item->start);
+    initQentry(&item, dest, "MPI_Isendrecv", 13, 0, 0, "p2p", 3, sendtype, recvtype, comm, 0, NULL);
+    #endif
     ompi_isendrecv_context_t *context = NULL;
     ompi_comm_request_t *crequest;
     int rc = MPI_SUCCESS;
@@ -156,7 +161,7 @@ int MPI_Isendrecv(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
                                 source, recvtag, comm, &context->subreq[nreqs++]));
 #else
         rc = MCA_PML_CALL(irecv(recvbuf, recvcount, recvtype,
-                                source, recvtag, comm, &context->subreq[nreqs++], NULL));
+                                source, recvtag, comm, &context->subreq[nreqs++], &item));
 #endif
         if (MPI_SUCCESS != rc) {
             OBJ_RELEASE(context);
@@ -171,7 +176,7 @@ int MPI_Isendrecv(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
                                 sendtag, MCA_PML_BASE_SEND_STANDARD, comm, &context->subreq[nreqs++]));
 #else
         rc = MCA_PML_CALL(isend(sendbuf, sendcount, sendtype, dest,
-                                sendtag, MCA_PML_BASE_SEND_STANDARD, comm, &context->subreq[nreqs++], NULL));
+                                sendtag, MCA_PML_BASE_SEND_STANDARD, comm, &context->subreq[nreqs++], &item));
 #endif
         if (MPI_SUCCESS != rc) {
             OBJ_RELEASE(context);
@@ -202,6 +207,10 @@ int MPI_Isendrecv(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
 
     ompi_comm_request_start (crequest);
     *request = &crequest->super;
+    
+#ifdef ENABLE_ANALYSIS
+    clock_gettime(CLOCK_REALTIME, &item->end);
+#endif
 
     return rc;
 }

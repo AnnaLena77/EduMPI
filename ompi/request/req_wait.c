@@ -201,8 +201,6 @@ recheck:
         rc = ompi_grequest_invoke_query(request, &request->req_status);
     }
     if (MPI_STATUS_IGNORE != status) {
-        /* make sure we get the correct status */
-        opal_atomic_rmb();
         OMPI_COPY_STATUS(status, request->req_status, false);
     }
     rc = request->req_status.MPI_ERROR;

@@ -47,6 +47,11 @@ static const char FUNC_NAME[] = "MPI_Bsend_init";
 int MPI_Bsend_init(const void *buf, int count, MPI_Datatype type,
                    int dest, int tag, MPI_Comm comm, MPI_Request *request)
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item = getWritingRingPos();
+    clock_gettime(CLOCK_REALTIME, &item->start);
+    initQentry(&item, dest, "MPI_Bsend_init", 13, 0, 0, "p2p", 3, type, NULL, comm, 1, NULL);
+#endif
     int rc;
 
     MEMCHECKER(
@@ -90,8 +95,14 @@ int MPI_Bsend_init(const void *buf, int count, MPI_Datatype type,
     /*
      * Here, we just initialize the request -- memchecker should set the buffer in MPI_Start.
      */
+#ifndef ENABLE_ANALYSIS
     rc = MCA_PML_CALL(isend_init(buf, count, type, dest, tag,
 				 MCA_PML_BASE_SEND_BUFFERED, comm, request));
+#else
+    rc = MCA_PML_CALL(isend_init(buf, count, type, dest, tag,
+				 MCA_PML_BASE_SEND_BUFFERED, comm, request, &item));
+    clock_gettime(CLOCK_REALTIME, &item->end);
+#endif
     OMPI_ERRHANDLER_RETURN(rc, comm, rc, FUNC_NAME);
 }
 

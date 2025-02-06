@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2021 The University of Tennessee and The University
+ * Copyright (c) 2004-2023 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -126,7 +126,6 @@ mca_coll_base_alltoall_intra_basic_inplace(const void *rbuf, int rcount,
         }
 
         /* Receive data from the right */
-
 #ifndef ENABLE_ANALYSIS
         err = MCA_PML_CALL(irecv ((char *) rbuf + (MPI_Aint) right * rcount * extent, rcount, rdtype,
                                   right, MCA_COLL_BASE_TAG_ALLTOALL, comm, &req));
@@ -162,7 +161,6 @@ mca_coll_base_alltoall_intra_basic_inplace(const void *rbuf, int rcount,
             }
 
             /* Receive data from the left */
-
 #ifndef ENABLE_ANALYSIS
             err = MCA_PML_CALL(irecv ((char *) rbuf + (MPI_Aint) left * rcount * extent, rcount, rdtype,
                                       left, MCA_COLL_BASE_TAG_ALLTOALL, comm, &req));
@@ -319,7 +317,6 @@ int ompi_coll_base_alltoall_intra_bruck(const void *sbuf, int scount,
 #endif
     int i, line = -1, rank, size, err = 0;
     int sendto, recvfrom, distance, *displs = NULL;
-
     char *tmpbuf = NULL, *tmpbuf_free = NULL;
     ptrdiff_t sext, rext, span, gap = 0;
     struct ompi_datatype_t *new_ddt;
@@ -354,7 +351,7 @@ int ompi_coll_base_alltoall_intra_bruck(const void *sbuf, int scount,
     tmpbuf = tmpbuf_free - gap;
 
     /* Step 1 - local rotation - shift up by rank */
-    err = ompi_datatype_sndrcv (sbuf + ((ptrdiff_t) rank * scount * sext),
+    err = ompi_datatype_sndrcv ((char*)sbuf + ((ptrdiff_t) rank * scount * sext),
                                 (int32_t) (size - rank) * scount,
                                 sdtype,
                                 tmpbuf,
@@ -365,7 +362,7 @@ int ompi_coll_base_alltoall_intra_bruck(const void *sbuf, int scount,
     }
 
     if (rank != 0) {
-        err = ompi_datatype_sndrcv (sbuf,
+        err = ompi_datatype_sndrcv ((char*)sbuf,
                                     (int32_t) rank * scount,
                                     sdtype,
                                     tmpbuf + ((ptrdiff_t) (size - rank) * rcount * rext),
@@ -862,9 +859,15 @@ int ompi_coll_base_alltoall_intra_basic_linear(const void *sbuf, int scount,
          i = (i + 1) % size, ++rreq) {
         nreqs++;
 
+#ifndef ENABLE_ANALYSIS
         err = MCA_PML_CALL(irecv_init
                            (prcv + (ptrdiff_t)i * rcvinc, rcount, rdtype, i,
                            MCA_COLL_BASE_TAG_ALLTOALL, comm, rreq));
+#else
+        err = MCA_PML_CALL(irecv_init
+                           (prcv + (ptrdiff_t)i * rcvinc, rcount, rdtype, i,
+                           MCA_COLL_BASE_TAG_ALLTOALL, comm, rreq, &item));
+#endif
 
         if (MPI_SUCCESS != err) { line = __LINE__; goto err_hndl; }
     }
@@ -877,10 +880,17 @@ int ompi_coll_base_alltoall_intra_basic_linear(const void *sbuf, int scount,
     for (i = (rank + size - 1) % size; i != rank;
          i = (i + size - 1) % size, ++sreq) {
         nreqs++;
+#ifndef ENABLE_ANALYSIS
         err = MCA_PML_CALL(isend_init
                            (psnd + (ptrdiff_t)i * sndinc, scount, sdtype, i,
                            MCA_COLL_BASE_TAG_ALLTOALL,
                            MCA_PML_BASE_SEND_STANDARD, comm, sreq));
+#else
+        err = MCA_PML_CALL(isend_init
+                           (psnd + (ptrdiff_t)i * sndinc, scount, sdtype, i,
+                           MCA_COLL_BASE_TAG_ALLTOALL,
+                           MCA_PML_BASE_SEND_STANDARD, comm, sreq, &item));
+#endif
         if (MPI_SUCCESS != err) { line = __LINE__; goto err_hndl; }
     }
 

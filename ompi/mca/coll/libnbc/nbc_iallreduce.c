@@ -26,6 +26,7 @@
 
 #include <assert.h>
 
+#ifndef ENABLE_ANALYSIS
 static inline int allred_sched_diss(int rank, int p, int count, MPI_Datatype datatype, ptrdiff_t gap, const void *sendbuf,
                                     void *recvbuf, MPI_Op op, char inplace, NBC_Schedule *schedule, void *tmpbuf);
 static inline int allred_sched_recursivedoubling(int rank, int p, const void *sendbuf, void *recvbuf,
@@ -41,6 +42,24 @@ static inline int allred_sched_redscat_allgather(
     int rank, int comm_size, int count, MPI_Datatype datatype, ptrdiff_t gap,
     const void *sbuf, void *rbuf, MPI_Op op, char inplace,
     NBC_Schedule *schedule, void *tmpbuf, struct ompi_communicator_t *comm);
+#else
+static inline int allred_sched_diss(int rank, int p, int count, MPI_Datatype datatype, ptrdiff_t gap, const void *sendbuf,
+                                    void *recvbuf, MPI_Op op, char inplace, NBC_Schedule *schedule, void *tmpbuf, qentry **q);
+static inline int allred_sched_recursivedoubling(int rank, int p, const void *sendbuf, void *recvbuf,
+                                                 int count, MPI_Datatype datatype, ptrdiff_t gap, MPI_Op op,
+                                                 char inplace, NBC_Schedule *schedule, void *tmpbuf, qentry **q);
+static inline int allred_sched_ring(int rank, int p, int count, MPI_Datatype datatype, const void *sendbuf,
+                                    void *recvbuf, MPI_Op op, int size, int ext, NBC_Schedule *schedule,
+                                    void *tmpbuf, qentry **q);
+static inline int allred_sched_linear(int rank, int p, const void *sendbuf, void *recvbuf, int count,
+                                      MPI_Datatype datatype, ptrdiff_t gap, MPI_Op op, int ext, int size,
+                                      NBC_Schedule *schedule, void *tmpbuf, qentry **q);
+static inline int allred_sched_redscat_allgather(
+    int rank, int comm_size, int count, MPI_Datatype datatype, ptrdiff_t gap,
+    const void *sbuf, void *rbuf, MPI_Op op, char inplace,
+    NBC_Schedule *schedule, void *tmpbuf, struct ompi_communicator_t *comm, qentry **q);
+#endif 
+
 
 #ifdef NBC_CACHE_SCHEDULE
 /* tree comparison function for schedule cache */
@@ -63,8 +82,21 @@ int NBC_Allreduce_args_compare(NBC_Allreduce_args *a, NBC_Allreduce_args *b, voi
 
 static int nbc_allreduce_init(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op,
                               struct ompi_communicator_t *comm, ompi_request_t ** request,
-                              mca_coll_base_module_t *module, bool persistent)
+                              mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                              , qentry **q
+#endif
+                              )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int rank, p, res;
   ptrdiff_t ext, lb;
   NBC_Schedule *schedule;
@@ -153,16 +185,36 @@ static int nbc_allreduce_init(const void* sendbuf, void* recvbuf, int count, MPI
     } else {
       switch(alg) {
         case NBC_ARED_BINOMIAL:
+#ifdef ENABLE_ANALYSIS
+          if(item != NULL) memcpy(item->usedAlgorithm, "ared_binomial", 13);
+          res = allred_sched_redscat_allgather(rank, p, count, datatype, gap, sendbuf, recvbuf, op, inplace, schedule, tmpbuf, comm, &item);
+#else
           res = allred_sched_diss(rank, p, count, datatype, gap, sendbuf, recvbuf, op, inplace, schedule, tmpbuf);
+#endif
           break;
         case NBC_ARED_REDSCAT_ALLGATHER:
+#ifdef ENABLE_ANALYSIS
+          if(item != NULL) memcpy(item->usedAlgorithm, "ared_allgather", 14);
+          res = allred_sched_redscat_allgather(rank, p, count, datatype, gap, sendbuf, recvbuf, op, inplace, schedule, tmpbuf, comm, &item);
+#else
           res = allred_sched_redscat_allgather(rank, p, count, datatype, gap, sendbuf, recvbuf, op, inplace, schedule, tmpbuf, comm);
+#endif
           break;
         case NBC_ARED_RING:
+#ifdef ENABLE_ANALYSIS
+          if(item != NULL)  memcpy(item->usedAlgorithm, "ared_ring", 9);
+          res = allred_sched_ring(rank, p, count, datatype, sendbuf, recvbuf, op, size, ext, schedule, tmpbuf, &item);
+#else
           res = allred_sched_ring(rank, p, count, datatype, sendbuf, recvbuf, op, size, ext, schedule, tmpbuf);
+#endif
           break;
         case NBC_ARED_RDBL:
+#ifdef ENABLE_ANALYSIS
+          if(item != NULL)  memcpy(item->usedAlgorithm, "ared_recursivedoubling", 22);
+          res = allred_sched_recursivedoubling(rank, p, sendbuf, recvbuf, count, datatype, gap, op, inplace, schedule, tmpbuf, &item);
+#else 
           res = allred_sched_recursivedoubling(rank, p, sendbuf, recvbuf, count, datatype, gap, op, inplace, schedule, tmpbuf);
+#endif
           break;
       }
     }
@@ -228,8 +280,21 @@ int ompi_coll_libnbc_iallreduce(const void* sendbuf, void* recvbuf, int count, M
                                 , qentry **q
 #endif
                                 ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }else item = NULL;
+    
+    int res = nbc_allreduce_init(sendbuf, recvbuf, count, datatype, op,
+                                 comm, request, module, false, &item);
+#else
     int res = nbc_allreduce_init(sendbuf, recvbuf, count, datatype, op,
                                  comm, request, module, false);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -247,8 +312,20 @@ int ompi_coll_libnbc_iallreduce(const void* sendbuf, void* recvbuf, int count, M
 static int nbc_allreduce_inter_init(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op,
                                     struct ompi_communicator_t *comm, ompi_request_t ** request,
                                     mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                                    , qentry **q
+#endif
                                     )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+#endif
   int rank, res, rsize;
   size_t size;
   MPI_Aint ext;
@@ -284,8 +361,13 @@ static int nbc_allreduce_inter_init(const void* sendbuf, void* recvbuf, int coun
     return OMPI_ERR_OUT_OF_RESOURCE;
   }
 
+#ifndef ENABLE_ANALYSIS
   res = allred_sched_linear (rank, rsize, sendbuf, recvbuf, count, datatype, gap, op,
                              ext, size, schedule, tmpbuf);
+#else
+  res = allred_sched_linear (rank, rsize, sendbuf, recvbuf, count, datatype, gap, op,
+                             ext, size, schedule, tmpbuf, &item);
+#endif
   if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
     OBJ_RELEASE(schedule);
     free(tmpbuf);
@@ -316,8 +398,20 @@ int ompi_coll_libnbc_iallreduce_inter(const void* sendbuf, void* recvbuf, int co
                                       , qentry **q
 #endif
                                       ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_allreduce_inter_init(sendbuf, recvbuf, count, datatype, op,
+                                       comm, request, module, false, &item);
+#else
     int res = nbc_allreduce_inter_init(sendbuf, recvbuf, count, datatype, op,
                                        comm, request, module, false);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -368,7 +462,20 @@ int ompi_coll_libnbc_iallreduce_inter(const void* sendbuf, void* recvbuf, int co
   if (vrank == root) rank = 0; \
 }
 static inline int allred_sched_diss(int rank, int p, int count, MPI_Datatype datatype, ptrdiff_t gap, const void *sendbuf, void *recvbuf,
-                                    MPI_Op op, char inplace, NBC_Schedule *schedule, void *tmpbuf) {
+                                    MPI_Op op, char inplace, NBC_Schedule *schedule, void *tmpbuf
+#ifdef ENABLE_ANALYSIS
+                                    , qentry **q
+#endif
+                                    ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int root, vrank, maxr, vpeer, peer, res;
   char *rbuf, *lbuf, *buf;
   int tmprbuf, tmplbuf;
@@ -404,7 +511,11 @@ static inline int allred_sched_diss(int rank, int p, int count, MPI_Datatype dat
       VRANK2RANK(peer, vpeer, root)
       if (peer < p) {
         /* we have to wait until we have the data */
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_recv (rbuf, tmprbuf, count, datatype, peer, schedule, true);
+#else
+        res = NBC_Sched_recv (rbuf, tmprbuf, count, datatype, peer, schedule, true, &item);
+#endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
           return res;
         }
@@ -431,10 +542,18 @@ static inline int allred_sched_diss(int rank, int p, int count, MPI_Datatype dat
       VRANK2RANK(peer, vpeer, root)
       if (firstred && !inplace) {
         /* we have to use the sendbuf in the first round .. */
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_send (sendbuf, false, count, datatype, peer, schedule, false);
+#else
+        res = NBC_Sched_send (sendbuf, false, count, datatype, peer, schedule, false, &item);
+#endif
       } else {
         /* and the recvbuf in all remaining rounds */
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_send (lbuf, tmplbuf, count, datatype, peer, schedule, false);
+#else
+        res = NBC_Sched_send (lbuf, tmplbuf, count, datatype, peer, schedule, false, &item);
+#endif
       }
 
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
@@ -455,7 +574,11 @@ static inline int allred_sched_diss(int rank, int p, int count, MPI_Datatype dat
     for (int r = 0; r < maxr ; ++r) {
       if ((vrank >= (1 << r)) && (vrank < (1 << (r + 1)))) {
         VRANK2RANK(peer, vrank - (1 << r), root);
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_recv (recvbuf, false, count, datatype, peer, schedule, false);
+#else
+        res = NBC_Sched_recv (recvbuf, false, count, datatype, peer, schedule, false, &item);
+#endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
           return res;
         }
@@ -473,7 +596,11 @@ static inline int allred_sched_diss(int rank, int p, int count, MPI_Datatype dat
   for (int r = 0; r < maxr; ++r) {
     if (((vrank + (1 << r) < p) && (vrank < (1 << r))) || (vrank == 0)) {
       VRANK2RANK(peer, vrank + (1 << r), root);
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send (recvbuf, false, count, datatype, peer, schedule, false);
+#else
+      res = NBC_Sched_send (recvbuf, false, count, datatype, peer, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
       }
@@ -526,8 +653,21 @@ static inline int allred_sched_diss(int rank, int p, int count, MPI_Datatype dat
  */
 static inline int allred_sched_recursivedoubling(int rank, int p, const void *sendbuf, void *recvbuf,
                                                  int count, MPI_Datatype datatype, ptrdiff_t gap, MPI_Op op,
-                                                 char inplace, NBC_Schedule *schedule, void *tmpbuf)
+                                                 char inplace, NBC_Schedule *schedule, void *tmpbuf
+#ifdef ENABLE_ANALYSIS
+                                                 , qentry **q
+#endif
+                                                 )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int res, pof2, nprocs_rem, vrank;
   char *tmpsend = NULL, *tmprecv = NULL, *tmpswap = NULL;
 
@@ -556,11 +696,19 @@ static inline int allred_sched_recursivedoubling(int rank, int p, const void *se
   nprocs_rem = p - pof2;
   if (rank < 2 * nprocs_rem) {
     if (0 == rank % 2) {    /* Even */
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send(tmpsend, false, count, datatype, rank + 1, schedule, true);
+#else
+      res = NBC_Sched_send(tmpsend, false, count, datatype, rank + 1, schedule, true, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { return res; }
       vrank = -1;
     } else {                /* Odd */
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_recv(tmprecv, false, count, datatype, rank - 1, schedule, true);
+#else
+      res = NBC_Sched_recv(tmprecv, false, count, datatype, rank - 1, schedule, true, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { return res; }
 
       /* tmpsend = tmprecv (op) tmpsend */
@@ -590,11 +738,19 @@ static inline int allred_sched_recursivedoubling(int rank, int p, const void *se
       }
 
       /* Exchange the data */
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send(tmpsend, false, count, datatype, remote, schedule, false);
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { return res; }
 
       res = NBC_Sched_recv(tmprecv, false, count, datatype, remote, schedule, true);
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { return res; }
+#else
+      res = NBC_Sched_send(tmpsend, false, count, datatype, remote, schedule, false, &item);
+      if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { return res; }
+
+      res = NBC_Sched_recv(tmprecv, false, count, datatype, remote, schedule, true, &item);
+      if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { return res; }
+#endif
 
       /* Apply operation */
       if (rank < remote) {
@@ -620,11 +776,19 @@ static inline int allred_sched_recursivedoubling(int rank, int p, const void *se
   */
   if (rank < 2 * nprocs_rem) {
     if (0 == rank % 2) {    /* Even */
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_recv(recvbuf, false, count, datatype, rank + 1, schedule, false);
+#else
+      res = NBC_Sched_recv(recvbuf, false, count, datatype, rank + 1, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { return res; }
       tmpsend = (char *)recvbuf;
     } else {                /* Odd */
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send(tmpsend, false, count, datatype, rank - 1, schedule, false);
+#else
+      res = NBC_Sched_send(tmpsend, false, count, datatype, rank - 1, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { return res; }
     }
   }
@@ -642,8 +806,21 @@ static inline int allred_sched_recursivedoubling(int rank, int p, const void *se
 static inline int
 allred_sched_ring(int r, int p,
                   int count, MPI_Datatype datatype, const void *sendbuf, void *recvbuf,
-                  MPI_Op op, int size, int ext, NBC_Schedule *schedule, void *tmpbuf)
+                  MPI_Op op, int size, int ext, NBC_Schedule *schedule, void *tmpbuf
+#ifdef ENABLE_ANALYSIS
+                  , qentry **q
+#endif
+                  )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int segsize, *segsizes, *segoffsets; /* segment sizes and offsets per segment (number of segments == number of nodes */
   int speer, rpeer; /* send and recv peers */
   int res = OMPI_SUCCESS;
@@ -783,27 +960,47 @@ allred_sched_ring(int r, int p,
 
     /* first message come out of sendbuf */
     if (round == 0) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send ((char *) sendbuf + soffset, false, segsizes[selement], datatype, speer,
                             schedule, false);
+#else
+      res = NBC_Sched_send ((char *) sendbuf + soffset, false, segsizes[selement], datatype, speer,
+                            schedule, false, &item);
+#endif
     } else {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send ((char *) recvbuf + soffset, false, segsizes[selement], datatype, speer,
                             schedule, false);
+#else
+      res = NBC_Sched_send ((char *) recvbuf + soffset, false, segsizes[selement], datatype, speer,
+                            schedule, false, &item);
+#endif
     }
 
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       goto free_and_return;
     }
     if( recvbuf != sendbuf ) {  /* check for MPI_IN_PLACE */
+#ifndef ENABLE_ANALSYIS
         res = NBC_Sched_recv ((char *) recvbuf + roffset, false, segsizes[relement], datatype, rpeer,
-                              schedule, true);
+                              schedule, true, &item);
+#else
+        res = NBC_Sched_recv ((char *) recvbuf + roffset, false, segsizes[relement], datatype, rpeer,
+                              schedule, true, &item);
+#endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
           goto free_and_return;
         }
         res = NBC_Sched_op ((char *) sendbuf + roffset, false, (char *) recvbuf + roffset, false,
                              segsizes[relement], datatype, op, schedule, true);
     } else {
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_recv ((char *) tmpbuf, false, segsizes[relement], datatype, rpeer,
                               schedule, true);
+#else
+        res = NBC_Sched_recv ((char *) tmpbuf, false, segsizes[relement], datatype, rpeer,
+                              schedule, true, &item);
+#endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
           goto free_and_return;
         }
@@ -820,13 +1017,23 @@ allred_sched_ring(int r, int p,
     int relement = (r-round + 2*p /*2*p avoids negative mod*/)%p; /* the element that I receive from my neighbor */
     size_t roffset = segoffsets[relement]*(size_t)ext;
 
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_send ((char *) recvbuf + soffset, false, segsizes[selement], datatype, speer,
                           schedule, false);
+#else
+    res = NBC_Sched_send ((char *) recvbuf + soffset, false, segsizes[selement], datatype, speer,
+                          schedule, false, &item);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       break;
     }
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_recv ((char *) recvbuf + roffset, false, segsizes[relement], datatype, rpeer,
                           schedule, true);
+#else
+    res = NBC_Sched_recv ((char *) recvbuf + roffset, false, segsizes[relement], datatype, rpeer,
+                          schedule, true, &item);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       break;
     }
@@ -838,7 +1045,20 @@ free_and_return:
 }
 
 static inline int allred_sched_linear(int rank, int rsize, const void *sendbuf, void *recvbuf, int count, MPI_Datatype datatype,
-				      ptrdiff_t gap, MPI_Op op, int ext, int size, NBC_Schedule *schedule, void *tmpbuf) {
+				      ptrdiff_t gap, MPI_Op op, int ext, int size, NBC_Schedule *schedule, void *tmpbuf
+#ifdef ENABLE_ANALYSIS
+                                          , qentry **q
+#endif
+				      ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int res;
 
   if (0 == count) {
@@ -846,16 +1066,28 @@ static inline int allred_sched_linear(int rank, int rsize, const void *sendbuf, 
   }
 
   /* send my data to the remote root */
+#ifndef ENABLE_ANALYSIS
   res = NBC_Sched_send (sendbuf, false, count, datatype, 0, schedule, false);
+#else
+  res = NBC_Sched_send (sendbuf, false, count, datatype, 0, schedule, false, &item);
+#endif
   if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
     return res;
   }
 
   /* recv my data to the remote root */
   if (0 != rank || 1 ==(rsize%2)) {
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_recv (recvbuf, false, count, datatype, 0, schedule, false);
+#else
+    res = NBC_Sched_recv (recvbuf, false, count, datatype, 0, schedule, false, &item);
+#endif
   } else {
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_recv ((void *)(-gap), true, count, datatype, 0, schedule, false);
+#else
+    res = NBC_Sched_recv ((void *)(-gap), true, count, datatype, 0, schedule, false, &item);
+#endif
   }
   if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
     return res;
@@ -885,7 +1117,11 @@ static inline int allred_sched_linear(int rank, int rsize, const void *sendbuf, 
 
     /* get data from remote peers and reduce */
     for (int rpeer = 1 ; rpeer < rsize ; ++rpeer) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_recv (rbuf, tmprbuf, count, datatype, rpeer, schedule, true);
+#else
+      res = NBC_Sched_recv (rbuf, tmprbuf, count, datatype, rpeer, schedule, true, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
       }
@@ -900,20 +1136,32 @@ static inline int allred_sched_linear(int rank, int rsize, const void *sendbuf, 
     }
 
     /* exchange our result with the remote root (each root will broadcast to the other's peers) */
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_recv ((void *)(-gap), true, count, datatype, 0, schedule, false);
+#else
+    res = NBC_Sched_recv ((void *)(-gap), true, count, datatype, 0, schedule, false, &item);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       return res;
     }
 
     /* wait for data from remote root */
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_send (recvbuf, false, count, datatype, 0, schedule, true);
+#else
+    res = NBC_Sched_send (recvbuf, false, count, datatype, 0, schedule, true, &item);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       return res;
     }
 
     /* broadcast the result to all remote peers */
     for (int rpeer = 1 ; rpeer < rsize ; ++rpeer) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send ((void *)(-gap), true, count, datatype, rpeer, schedule, false);
+#else
+      res = NBC_Sched_send ((void *)(-gap), true, count, datatype, rpeer, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
       }
@@ -980,8 +1228,21 @@ static inline int allred_sched_linear(int rank, int rsize, const void *sendbuf, 
 static inline int allred_sched_redscat_allgather(
     int rank, int comm_size, int count, MPI_Datatype datatype, ptrdiff_t gap,
     const void *sbuf, void *rbuf, MPI_Op op, char inplace,
-    NBC_Schedule *schedule, void *tmpbuf, struct ompi_communicator_t *comm)
+    NBC_Schedule *schedule, void *tmpbuf, struct ompi_communicator_t *comm
+#ifdef ENABLE_ANALYSIS
+    , qentry **q
+#endif
+    )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
     int res = OMPI_SUCCESS;
     int *rindex = NULL, *rcount = NULL, *sindex = NULL, *scount = NULL;
      /* Find nearest power-of-two less than or equal to comm_size */
@@ -1022,19 +1283,34 @@ static inline int allred_sched_redscat_allgather(
              * Send the left half of the input vector to the left neighbor,
              * Recv the right half of the input vector from the left neighbor
              */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send(rbuf, false, count_lhalf, datatype, rank - 1,
                                  schedule, false);
+#else
+            res = NBC_Sched_send(rbuf, false, count_lhalf, datatype, rank - 1,
+                                 schedule, false, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
+#ifndef ENABLE_ANALYSIS
              res = NBC_Sched_recv(tmp_buf + (ptrdiff_t)count_lhalf * extent,
                                  false, count_rhalf, datatype, rank - 1, schedule, true);
+#else
+             res = NBC_Sched_recv(tmp_buf + (ptrdiff_t)count_lhalf * extent,
+                                 false, count_rhalf, datatype, rank - 1, schedule, true, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
              res = NBC_Sched_op(tmp_buf + (ptrdiff_t)count_lhalf * extent,
                                false, (char *)rbuf + (ptrdiff_t)count_lhalf * extent,
                                false, count_rhalf, datatype, op, schedule, true);
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
              /* Send the right half to the left neighbor */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)count_lhalf * extent,
                                  false, count_rhalf, datatype, rank - 1, schedule, true);
+#else
+            res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)count_lhalf * extent,
+                                 false, count_rhalf, datatype, rank - 1, schedule, true, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
              /* This process does not participate in recursive doubling phase */
             vrank = -1;
@@ -1044,18 +1320,33 @@ static inline int allred_sched_redscat_allgather(
              * Send the right half of the input vector to the right neighbor,
              * Recv the left half of the input vector from the right neighbor
              */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)count_lhalf * extent,
                                  false, count_rhalf, datatype, rank + 1, schedule, false);
+#else
+            res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)count_lhalf * extent,
+                                 false, count_rhalf, datatype, rank + 1, schedule, false, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
+#ifndef ENABLE_ANALYSIS
              res = NBC_Sched_recv(tmp_buf, false, count_lhalf, datatype, rank + 1,
                                  schedule, true);
+#else
+             res = NBC_Sched_recv(tmp_buf, false, count_lhalf, datatype, rank + 1,
+                                 schedule, true, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
              res = NBC_Sched_op(tmp_buf, false, rbuf, false, count_lhalf,
                                datatype, op, schedule, true);
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
              /* Recv the right half from the right neighbor */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_recv((char *)rbuf + (ptrdiff_t)count_lhalf * extent,
                                  false, count_rhalf, datatype, rank + 1, schedule, true);
+#else
+            res = NBC_Sched_recv((char *)rbuf + (ptrdiff_t)count_lhalf * extent,
+                                 false, count_rhalf, datatype, rank + 1, schedule, true, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
              vrank = rank / 2;
         }
@@ -1114,11 +1405,21 @@ static inline int allred_sched_redscat_allgather(
                 rindex[step] = sindex[step] + scount[step];
             }
              /* Send part of data from the rbuf, recv into the tmp_buf */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)sindex[step] * extent,
                                  false, scount[step], datatype, dest, schedule, false);
+#else
+            res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)sindex[step] * extent,
+                                 false, scount[step], datatype, dest, schedule, false, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_recv((char *)tmp_buf + (ptrdiff_t)rindex[step] * extent,
                                  false, rcount[step], datatype, dest, schedule, true);
+#else
+            res = NBC_Sched_recv((char *)tmp_buf + (ptrdiff_t)rindex[step] * extent,
+                                 false, rcount[step], datatype, dest, schedule, true, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
              /* Local reduce: rbuf[] = tmp_buf[] <op> rbuf[] */
             res = NBC_Sched_op((char *)tmp_buf + (ptrdiff_t)rindex[step] * extent,
@@ -1153,11 +1454,21 @@ static inline int allred_sched_redscat_allgather(
              * Send rcount[step] elements from rbuf[rindex[step]...]
              * Recv scount[step] elements to rbuf[sindex[step]...]
              */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)rindex[step] * extent,
                                  false, rcount[step], datatype, dest, schedule, false);
+#else
+            res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)rindex[step] * extent,
+                                 false, rcount[step], datatype, dest, schedule, false, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_recv((char *)rbuf + (ptrdiff_t)sindex[step] * extent,
                                  false, scount[step], datatype, dest, schedule, true);
+#else
+            res = NBC_Sched_recv((char *)rbuf + (ptrdiff_t)sindex[step] * extent,
+                                 false, scount[step], datatype, dest, schedule, true, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
             step--;
         }
@@ -1168,11 +1479,19 @@ static inline int allred_sched_redscat_allgather(
     if (rank < 2 * nprocs_rem) {
         if (rank % 2 != 0) {
             /* Odd process -- recv result from rank - 1 */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_recv(rbuf, false, count, datatype, rank - 1, schedule, false);
+#else
+            res = NBC_Sched_recv(rbuf, false, count, datatype, rank - 1, schedule, false, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
         } else {
             /* Even process -- send result to rank + 1 */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send(rbuf, false, count, datatype, rank + 1, schedule, false);
+#else
+            res = NBC_Sched_send(rbuf, false, count, datatype, rank + 1, schedule, false, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
         }
     }
@@ -1190,9 +1509,26 @@ static inline int allred_sched_redscat_allgather(
 
 int ompi_coll_libnbc_allreduce_init(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op,
                                     struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                    mca_coll_base_module_t *module) {
+                                    mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                    , qentry **q
+#endif
+                                    ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    
+    int res = nbc_allreduce_init(sendbuf, recvbuf, count, datatype, op,
+                             comm, request, module, true, &item);
+#else
     int res = nbc_allreduce_init(sendbuf, recvbuf, count, datatype, op,
                                  comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -1202,9 +1538,26 @@ int ompi_coll_libnbc_allreduce_init(const void* sendbuf, void* recvbuf, int coun
 
 int ompi_coll_libnbc_allreduce_inter_init(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op,
                                           struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                          mca_coll_base_module_t *module) {
+                                          mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                          , qentry **q
+#endif
+                                          ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    
+    int res = nbc_allreduce_inter_init(sendbuf, recvbuf, count, datatype, op,
+                                       comm, request, module, true, &item);
+#else
     int res = nbc_allreduce_inter_init(sendbuf, recvbuf, count, datatype, op,
                                        comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }

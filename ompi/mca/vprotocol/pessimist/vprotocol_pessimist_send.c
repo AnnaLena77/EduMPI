@@ -13,7 +13,7 @@
 #include "ompi_config.h"
 #include "vprotocol_pessimist.h"
 #include "vprotocol_pessimist_sender_based.h"
-#include "ompi/mpi/c/init.h"
+//#include "ompi/mpi/c/init.h"
 
 #ifndef ENABLE_ANALYSIS
 int mca_vprotocol_pessimist_isend(const void *buf,

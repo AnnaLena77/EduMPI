@@ -23,7 +23,7 @@
 
 #include "vprotocol_pessimist_event.h"
 #include "vprotocol_pessimist_sender_based_types.h"
-#include "ompi/mpi/c/init.h"
+//#include "ompi/mpi/c/init.h"
 
 BEGIN_C_DECLS
 

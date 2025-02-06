@@ -24,7 +24,8 @@
 
 #include "opal/sys/atomic.h"
 
-int main(int argc, char *argv[])
+int
+main(int argc, char *argv[])
 {
     /* there really isn't a great way to test that the barriers
        actually barrier, but at least make sure they don't kill the
@@ -36,3 +37,4 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+

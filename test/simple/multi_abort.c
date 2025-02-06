@@ -5,10 +5,10 @@
  * The most basic of MPI applications
  */
 
-#include "mpi.h"
 #include <stdio.h>
+#include "mpi.h"
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     int rank, size;
 
@@ -18,8 +18,7 @@ int main(int argc, char *argv[])
 
     printf("Hello, World, I am %d of %d\n", rank, size);
 
-    if (0 != rank)
-        MPI_Abort(MPI_COMM_WORLD, rank);
+    if (0 != rank) MPI_Abort(MPI_COMM_WORLD, rank);
 
     MPI_Finalize();
     return 0;

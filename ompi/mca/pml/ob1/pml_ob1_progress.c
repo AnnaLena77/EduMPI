@@ -101,11 +101,7 @@ int mca_pml_ob1_progress(void)
 
                 /* select a btl */
                 bml_btl = mca_bml_base_btl_array_get_next(&endpoint->btl_eager);
-#ifndef ENABLE_ANALYSIS
                 rc = mca_pml_ob1_send_request_start_btl(sendreq, bml_btl);
-#else
-                rc = mca_pml_ob1_send_request_start_btl(sendreq, bml_btl, NULL);
-#endif
                 if( OPAL_LIKELY(OMPI_SUCCESS == rc) ) {
                     send_succeeded = true;
                     completed_requests++;

@@ -399,11 +399,6 @@ int mca_pml_ob1_add_procs(ompi_proc_t** procs, size_t nprocs)
     if (OMPI_SUCCESS != rc) {
         return rc;
     }
-
-    if (NULL == mca_bml.bml_add_procs) {
-        return OMPI_ERR_UNREACH;
-    }
-
     rc = mca_bml.bml_add_procs (nprocs, procs, &reachable);
     OBJ_DESTRUCT(&reachable);
     if (OMPI_SUCCESS != rc) {
@@ -780,7 +775,6 @@ int mca_pml_ob1_send_control_btl (mca_bml_base_btl_t *bml_btl, int order, mca_pm
 #else 
     rc = mca_bml_base_send (bml_btl, des, hdr->hdr_common.hdr_type, NULL);
 #endif
-
     if( OPAL_LIKELY( rc >= 0 ) ) {
         if( OPAL_LIKELY( 1 == rc ) ) {
             MCA_PML_OB1_PROGRESS_PENDING(bml_btl);

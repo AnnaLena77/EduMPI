@@ -60,7 +60,7 @@ mca_coll_inter_allreduce_inter(const void *sbuf, void *rbuf, int count,
     } else item = NULL;
 #endif
     int err, rank, root = 0;
-    char *tmpbuf = NULL, *pml_buffer = NULL;
+    char *tmpbuf = NULL, *pml_buffer = NULL, *source;
     ptrdiff_t gap, span;
 
     rank = ompi_comm_rank(comm);
@@ -70,10 +70,10 @@ mca_coll_inter_allreduce_inter(const void *sbuf, void *rbuf, int count,
 
     tmpbuf = (char *) malloc(span);
     if (NULL == tmpbuf) {
-	return OMPI_ERR_OUT_OF_RESOURCE;
+        return OMPI_ERR_OUT_OF_RESOURCE;
     }
     pml_buffer = tmpbuf - gap;
-
+    source = (MPI_IN_PLACE == sbuf) ? rbuf : sbuf;
 #ifndef ENABLE_ANALYSIS
     err = comm->c_local_comm->c_coll->coll_reduce(sbuf, pml_buffer, count,
 						 dtype, op, root,
@@ -86,7 +86,7 @@ mca_coll_inter_allreduce_inter(const void *sbuf, void *rbuf, int count,
                                                  comm->c_local_comm->c_coll->coll_reduce_module, &item);
 #endif
     if (OMPI_SUCCESS != err) {
-	goto exit;
+        goto exit;
     }
 
     if (rank == root) {
@@ -112,11 +112,11 @@ mca_coll_inter_allreduce_inter(const void *sbuf, void *rbuf, int count,
     /* bcast the message to all the local processes */
 #ifndef ENABLE_ANALYSIS
     err = comm->c_local_comm->c_coll->coll_bcast(rbuf, count, dtype,
-						root, comm->c_local_comm,
+				            root, comm->c_local_comm,
                                                 comm->c_local_comm->c_coll->coll_bcast_module);
 #else
     err = comm->c_local_comm->c_coll->coll_bcast(rbuf, count, dtype,
-						root, comm->c_local_comm,
+					   root, comm->c_local_comm,
                                                 comm->c_local_comm->c_coll->coll_bcast_module, &item);
 #endif
     if (OMPI_SUCCESS != err) {

@@ -38,7 +38,7 @@
 #include "ompi/communicator/communicator.h"
 #include "ompi/group/group.h"
 #include "ompi/mca/osc/osc.h"
-#include "ompi/mpi/c/init.h"
+//#include "ompi/mpi/c/init.h"
 
 BEGIN_C_DECLS
 

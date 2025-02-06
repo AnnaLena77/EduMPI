@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <time.h>
+#include <stdbool.h>
 #include "ompi/mpi/c/pgcopy/pgcopy.h"
 
 /*
@@ -50,6 +51,31 @@ void intToBinary(int integer, char* buffer, int* offset){
     *offset += 8;
 }
 
+void doubleToBinary(double value, char* buffer, int* offset) {
+    int off = *offset;
+
+    buffer[off] = 0;
+    buffer[off+1] = 0;
+    buffer[off+2] = 0;
+    buffer[off+3] = 8; // 8 bytes für double
+
+    off += 4;
+
+    // Zeiger auf den double-Wert als uint64_t behandeln
+    uint64_t integer_value = *((uint64_t*)&value);
+    
+    buffer[off] = (integer_value >> 56) & 0xff;
+    buffer[off+1] = (integer_value >> 48) & 0xff;
+    buffer[off+2] = (integer_value >> 40) & 0xff;
+    buffer[off+3] = (integer_value >> 32) & 0xff;
+    buffer[off+4] = (integer_value >> 24) & 0xff;
+    buffer[off+5] = (integer_value >> 16) & 0xff;
+    buffer[off+6] = (integer_value >> 8) & 0xff;
+    buffer[off+7] = integer_value & 0xff;
+    
+    *offset += 12;  // 4 bytes für die Länge + 8 bytes für den double-Wert
+}
+
 void stringToBinary(char* string, char* buffer, int* offset){
     int off = *offset;
     int len = strlen(string);
@@ -67,7 +93,7 @@ void stringToBinary(char* string, char* buffer, int* offset){
 
 }
 
-void timestampToBinary(struct timespec time, char* buffer, int* offset){
+void timestampToBinary(struct timespec time, char* buffer, int* offset, int round_seconds){
     int off = *offset;
     
     buffer[off] = 0;
@@ -77,15 +103,20 @@ void timestampToBinary(struct timespec time, char* buffer, int* offset){
     
     off += 4;
     *offset += 4;
+    
+    //int utc_offset_seconds = 2 * 3600;
 
     //count of seconds since 01.01.2000
-    time_t seconds_since_2000 = time.tv_sec - 946684800;
+    time_t seconds_since_2000 = time.tv_sec - 946684800; // + utc_offset_seconds;
+    long long timestamp_micro;
     //cast into microseconds
-    long microseconds = (time.tv_nsec / 1000);
-    long long timestamp_micro = seconds_since_2000 * 1000000LL + microseconds;
-    
-    int utc_offset_seconds = 2 * 3600;
-    timestamp_micro += utc_offset_seconds * 1000000LL;
+    if(!round_seconds){
+        long microseconds = (time.tv_nsec / 1000);
+        timestamp_micro = seconds_since_2000 * 1000000LL + microseconds;
+    } else {
+        timestamp_micro = seconds_since_2000 * 1000000LL; // Milliseconds and nanoseconds set to 0
+    }
+    //timestamp_micro += utc_offset_seconds * 1000000LL;
     
     buffer[off] = (timestamp_micro >> 56) & 0xff;
     buffer[off+1] = (timestamp_micro >> 48) & 0xff;
@@ -98,6 +129,55 @@ void timestampToBinary(struct timespec time, char* buffer, int* offset){
     
     *offset += 8; 
 }
+
+void byteaToBinary(uint8_t* array, int length, char* buffer, int* offset, int p2p){
+    if (length <= 0) return;  // Keine Daten -> Nichts tun
+    int byteSize = length/8; // Minimale Byte-Größe für die Bitmaske
+
+    int off = *offset;
+    
+    bool isEmpty = true;
+    
+    if(!p2p) {
+        for(int i=0; i<byteSize; i++){
+            //printf("%d ", array[i]);
+            if(array[i] != 0){
+                isEmpty = false;
+                break;
+            }
+        }
+    }
+    //printf("\n");
+    
+    if(isEmpty) {
+        // Setze alles auf 0
+        buffer[off] = 0;
+        buffer[off+1] = 0;
+        buffer[off+2] = 0;
+        buffer[off+3] = 0;
+    
+        off += 4;
+        *offset += 4;
+
+        
+    
+    } else {
+        // Setze alles auf 0
+        buffer[off] = 0;
+        buffer[off+1] = 0;
+        buffer[off+2] = 0;
+        buffer[off+3] = byteSize;
+    
+        off += 4;
+        *offset += 4;
+        
+        memcpy(buffer + off, array, byteSize);
+        off += byteSize;
+        *offset += byteSize;
+    }
+
+}
+
 
 void newRow(char* buffer, int column_count, int* offset){
     //memcpy(buffer, PGCOPY_HEADER, 19);

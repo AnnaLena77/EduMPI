@@ -59,10 +59,8 @@ mca_coll_inter_gatherv_inter(const void *sbuf, int scount,
     }
     else item = NULL;
 #endif
-
     int i, rank, size, size_local, err;
     size_t total = 0;
-
     int *count=NULL, *displace=NULL;
     char *ptmp_free=NULL, *ptmp=NULL;
     ompi_datatype_t *ndtype;

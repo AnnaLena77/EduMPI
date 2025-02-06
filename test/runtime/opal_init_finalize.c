@@ -18,10 +18,11 @@
 
 #include "ompi_config.h"
 
-#include "opal/constants.h"
 #include "opal/runtime/opal.h"
+#include "opal/constants.h"
 
-int main(int argc, char *argv[])
+int
+main(int argc, char *argv[])
 {
     int ret;
 

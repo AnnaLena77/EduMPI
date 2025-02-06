@@ -41,9 +41,9 @@
 #include "opal/mca/common/sm/common_sm.h"
 #include "opal/util/bit_ops.h"
 
-#ifdef ENABLE_ANALYSIS
+/*#ifdef ENABLE_ANALYSIS
 #   include "ompi/mpi/c/init.h"
-#endif
+#endif*/
 
 BEGIN_C_DECLS
 
@@ -439,7 +439,6 @@ extern int mca_btl_smcuda_sendi(struct mca_btl_base_module_t *btl,
                                 , qentry **q
 #endif
                                 );
-
 /**
  * Initiate a send to the peer.
  *

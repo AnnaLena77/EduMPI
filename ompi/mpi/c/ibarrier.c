@@ -42,20 +42,11 @@ static const char FUNC_NAME[] = "MPI_Ibarrier";
 int MPI_Ibarrier(MPI_Comm comm, MPI_Request *request)
 {
 #ifdef ENABLE_ANALYSIS
-    qentry *item = (qentry*)malloc(sizeof(qentry));
-    initQentry(&item);
-    gettimeofday(&item->start, NULL);
-    strcpy(item->function, "MPI_Barrier");
-    strcpy(item->communicationType, "collective");
-    
-    //item->processorname
-    char *proc_name = (char*)malloc(MPI_MAX_PROCESSOR_NAME);
-    int proc_name_length;
-    MPI_Get_processor_name(proc_name, &proc_name_length);
-    strcpy(item->processorname, proc_name);
-    free(proc_name);
-    
+    qentry *item = getWritingRingPos();
+    clock_gettime(CLOCK_REALTIME, &item->start);
+    initQentry(&item, -1, "MPI_Ibarrier", 11, 0, 0, "collective", 10, NULL, NULL, comm, 0, NULL);
 #endif 
+
     int err = MPI_SUCCESS;
 
     SPC_RECORD(OMPI_SPC_IBARRIER, 1);
@@ -76,7 +67,8 @@ int MPI_Ibarrier(MPI_Comm comm, MPI_Request *request)
     err = comm->c_coll->coll_ibarrier(comm, request, comm->c_coll->coll_ibarrier_module);
 #else
     err = comm->c_coll->coll_ibarrier(comm, request, comm->c_coll->coll_ibarrier_module, &item);
-    qentryIntoQueue(&item);
+    //qentryIntoQueue(&item);
+    clock_gettime(CLOCK_REALTIME, &item->end);
 #endif
 
     /* All done */

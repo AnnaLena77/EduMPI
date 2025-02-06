@@ -27,7 +27,6 @@
 
 #ifndef MCA_COLL_HAN_ALGORITHMS_H
 #define MCA_COLL_HAN_ALGORITHMS_H
-    
 /* use this pointer type instead of void* to avoid warnings as it is
  * not legal to convert function pointers to void*
  *

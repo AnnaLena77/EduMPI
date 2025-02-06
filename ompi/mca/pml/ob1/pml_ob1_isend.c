@@ -43,7 +43,16 @@
 #include "ompi/mca/pml/base/pml_base_sendreq.h"
 #endif
 
+
+#ifdef ENABLE_ANALYSIS
+struct timespec wait_start;
+struct timespec wait_end;
+#endif
+
+/*#ifdef ENABLE_ANALYSIS
 #include "ompi/mpi/c/init.h"
+#endif*/
+
 
 /**
  * Single usage request. As we allow recursive calls (as an
@@ -61,8 +70,22 @@ int mca_pml_ob1_isend_init(const void *buf,
                            int tag,
                            mca_pml_base_send_mode_t sendmode,
                            ompi_communicator_t * comm,
-                           ompi_request_t ** request)
+                           ompi_request_t ** request
+#ifdef ENABLE_ANALYSIS
+                           , qentry **q
+#endif
+                           )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL){
+            item = *q;
+            } else item = NULL;
+    } else {
+        item = NULL;
+    }
+#endif
     mca_pml_ob1_comm_proc_t *ob1_proc = mca_pml_ob1_peer_lookup (comm, dst);
     mca_pml_ob1_send_request_t *sendreq = NULL;
     MCA_PML_OB1_SEND_REQUEST_ALLOC(comm, dst, sendreq);
@@ -72,6 +95,12 @@ int mca_pml_ob1_isend_init(const void *buf,
     MCA_PML_OB1_SEND_REQUEST_INIT(sendreq, buf, count, datatype, dst, tag,
                                   comm, sendmode, true, ob1_proc);
 
+#ifdef ENABLE_ANALYSIS
+    if(item!=NULL){ 
+        sendreq->q = item;
+        clock_gettime(CLOCK_REALTIME, &sendreq->activate);
+    }
+#endif
     PERUSE_TRACE_COMM_EVENT (PERUSE_COMM_REQ_ACTIVATE,
                              &(sendreq)->req_send.req_base,
                              PERUSE_SEND);
@@ -215,19 +244,21 @@ int mca_pml_ob1_isend(const void *buf,
 {
 #endif
 #ifdef ENABLE_ANALYSIS
-    printf("Funktion: Ob1_isend\n");
+    //printf("Funktion: Ob1_isend\n");
     qentry *item;
     //if q is NULL, isend is not called from a normal operation
     if(q!=NULL){
         if(*q!=NULL){
-            if (!strcmp(item->communicationType, "collective")){
-                //printf("Collectives isend\n");
-            }
-        
             item = *q;
+            //printf("Isend: %s\n", item->function);
             item->sendcount = item->sendcount + count;
-        	   item->count = item->count + count;
-        	   item->datasize = item->datasize + count*sizeof(datatype);
+        	   if(datatype == MPI_PACKED){
+                item->sendDatasize += count;
+            } else{
+                int type_size = 0;
+                MPI_Type_size(datatype, &type_size);
+        	       item->sendDatasize += count*type_size;
+            }
             if(item->blocking == 0 && !strcmp(item->communicationType, "p2p")){
                 //qentry->sendmode & qentry->operation
                 if(sendmode==MCA_PML_BASE_SEND_SYNCHRONOUS){
@@ -242,7 +273,9 @@ int mca_pml_ob1_isend(const void *buf,
                 else if(sendmode==MCA_PML_BASE_SEND_STANDARD){
                     strcpy(item->sendmode, "STANDARD");
                 }
-            } 
+            } else if(!strcmp(item->communicationType, "collective")){
+                item->coll_partnerranks[dst / 8] |= (1 << (dst % 8));
+            }
         }else item = NULL;
     }
     else {
@@ -311,19 +344,22 @@ int mca_pml_ob1_isend(const void *buf,
                                   dst, tag,
                                   comm, sendmode, false, ob1_proc);
 
-    #ifdef ENABLE_ANALYSIS
-    if(item!=NULL) gettimeofday(&item->initializeRequest, NULL);
-    #endif
+    /*#ifdef ENABLE_ANALYSIS
+    if(item!=NULL) clock_gettime(CLOCK_REALTIME, &item->initializeRequest);
+    #endif*/
+#ifdef ENABLE_ANALYSIS
+    if(item!=NULL){ 
+        sendreq->q = item;
+        clock_gettime(CLOCK_REALTIME, &sendreq->activate);
+        //printf("Isend: %s\n", item->function);
+    }
+#endif
+    
     PERUSE_TRACE_COMM_EVENT (PERUSE_COMM_REQ_ACTIVATE,
                              &(sendreq)->req_send.req_base,
                              PERUSE_SEND);
     
-#ifdef ENABLE_ANALYSIS
-    //Endless-loop -> mca_pml_ob1_send_request_start_seq (pml_ob1_sendreq.h)
-    MCA_PML_OB1_SEND_REQUEST_START_W_SEQ(sendreq, endpoint, seqn, rc, &item);
-#else
     MCA_PML_OB1_SEND_REQUEST_START_W_SEQ(sendreq, endpoint, seqn, rc);
-#endif
     *request = (ompi_request_t *) sendreq;
 #ifdef ENABLE_ANALYSIS
     //if(item!=NULL) qentryIntoQueue(&item);
@@ -343,6 +379,14 @@ alloc_ft_req:
                                   datatype,
                                   dst, tag,
                                   comm, sendmode, false, ob1_proc);
+
+#ifdef ENABLE_ANALYSIS
+    if(item!=NULL){ 
+        sendreq->q = item;
+        clock_gettime(CLOCK_REALTIME, &sendreq->activate);
+        //printf("Isend: %s\n", item->function);
+    }
+#endif
 
     PERUSE_TRACE_COMM_EVENT (PERUSE_COMM_REQ_ACTIVATE,
                              &(sendreq)->req_send.req_base,
@@ -392,7 +436,7 @@ int mca_pml_ob1_send(const void *buf,
         item = NULL;
     }
 #endif
-    printf("Funktion: Ob1_send\n");
+    //printf("Funktion: Ob1_send\n");
     mca_pml_ob1_comm_proc_t *ob1_proc = mca_pml_ob1_peer_lookup (comm, dst);
     ompi_proc_t *dst_proc = ob1_proc->ompi_proc;
     mca_bml_base_endpoint_t* endpoint = mca_bml_base_get_endpoint (dst_proc);
@@ -415,6 +459,7 @@ int mca_pml_ob1_send(const void *buf,
 #ifndef ENABLE_ANALYSIS
         rc = mca_pml_ob1_isend (buf, count, datatype, dst, tag, sendmode, comm, &brequest);
 #else
+        strcpy(item->sendmode, "BUFFERED");
         rc = mca_pml_ob1_isend (buf, count, datatype, dst, tag, sendmode, comm, &brequest, &item);
 #endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
@@ -423,36 +468,43 @@ int mca_pml_ob1_send(const void *buf,
         //Wartet auf Receive, der gepostet sein muss, um Deadlock zu vermeiden
         //MPI_Bsend garantiert, dass Data in Buffer kopiert wurde, aber nicht, dass die Nachricht kopiert wurde 
         //Buffer kann sicher wieder verwendet werden
+#ifdef ENABLE_ANALYSIS
+    if(item!=NULL) clock_gettime(CLOCK_MONOTONIC, &wait_start);
+#endif
         ompi_request_wait_completion (brequest);
+#ifdef ENABLE_ANALYSIS
+        if(item!=NULL){
+            clock_gettime(CLOCK_MONOTONIC, &wait_end);
+            long long elapsed_ns = (wait_end.tv_sec - wait_start.tv_sec) * 1000000000LL + (wait_end.tv_nsec - wait_start.tv_nsec);
+            item->sendWaitingTime += (double)elapsed_ns / 1e9;
+        }    
+#endif
         ompi_request_free (&brequest);
         return OMPI_SUCCESS;
     }
 #ifdef ENABLE_ANALYSIS
     else {
         if(item!=NULL){
-            if(!strcmp(item->communicationType, "collective")){
-                int processrank;
-                MPI_Comm_rank(comm, &processrank);
-            }
             //size of send-Data:
             item->sendcount = item->sendcount + count;
-        	   item->count = item->count + count;
-        	   item->datasize = item->datasize + count*sizeof(datatype);
-        	   //printf("Datasize aus send: %d\n", item->datasize);
-            //qentry->sendmode & qentry->operation
-            
-            
+            if(datatype == MPI_PACKED){
+                item->sendDatasize += count;
+            } else{
+        	       int type_size = 0;
+                MPI_Type_size(datatype, &type_size);
+        	       item->sendDatasize += count*type_size;
+        	   }
             if(sendmode==MCA_PML_BASE_SEND_SYNCHRONOUS && !strcmp(item->communicationType, "p2p")){
                 strcpy(item->sendmode, "SYNCHRONOUS");
-            }
-            else if(sendmode==MCA_PML_BASE_SEND_BUFFERED){
-                strcpy(item->sendmode, "BUFFERED");
             }
             else if(sendmode==MCA_PML_BASE_SEND_READY){
                 strcpy(item->sendmode, "READY");
             }
             else if(sendmode==MCA_PML_BASE_SEND_STANDARD){
                 strcpy(item->sendmode, "STANDARD");
+            }
+            else if(!strcmp(item->communicationType, "collective")){
+                item->coll_partnerranks[dst / 8] |= (1 << (dst % 8));
             }
         }
     }
@@ -481,9 +533,6 @@ int mca_pml_ob1_send(const void *buf,
         //Wenn rc = 0, keine Daten versendet.
 
         if (OPAL_LIKELY(0 <= rc)) {
-#ifdef ENABLE_ANALYSIS
-            //if(item!=NULL) qentryIntoQueue(&item);
-#endif
             return OMPI_SUCCESS;
         }
         //Wenn MPI_Send Nachrichtengröße >16 KB, Rendevous-Protokoll! 0>rc!
@@ -502,27 +551,36 @@ int mca_pml_ob1_send(const void *buf,
     sendreq->req_send.req_base.req_proc = dst_proc;
     sendreq->rdma_frag = NULL;
 
-
     MCA_PML_OB1_SEND_REQUEST_INIT(sendreq, buf, count, datatype, dst, tag,
                                   comm, sendmode, false, ob1_proc);
                                   
 #ifdef ENABLE_ANALYSIS
-    if(item!=NULL) gettimeofday(&item->initializeRequest, NULL);
+    if(item!=NULL){ 
+        sendreq->q = item;
+        clock_gettime(CLOCK_REALTIME, &sendreq->activate);
+        //printf("Isend: %s\n", item->function);
+    }
 #endif
     
     PERUSE_TRACE_COMM_EVENT (PERUSE_COMM_REQ_ACTIVATE,
                              &sendreq->req_send.req_base,
                              PERUSE_SEND);
-#ifndef ENABLE_ANALYSIS
     MCA_PML_OB1_SEND_REQUEST_START_W_SEQ(sendreq, endpoint, seqn, rc);
-#else
-    MCA_PML_OB1_SEND_REQUEST_START_W_SEQ(sendreq, endpoint, seqn, rc, &item);
-#endif
     if (OPAL_LIKELY(rc == OMPI_SUCCESS)) {
+/*#ifdef ENABLE_ANALYSIS
+        if(item!=NULL) clock_gettime(CLOCK_REALTIME, &item->requestWaitCompletion);
+#endif*/
 #ifdef ENABLE_ANALYSIS
-        if(item!=NULL) gettimeofday(&item->requestWaitCompletion, NULL);
+    if(item!=NULL) clock_gettime(CLOCK_MONOTONIC, &wait_start);
 #endif
         ompi_request_wait_completion(&sendreq->req_send.req_base.req_ompi);
+#ifdef ENABLE_ANALYSIS
+    if(item!=NULL){
+        clock_gettime(CLOCK_MONOTONIC, &wait_end);
+        long long elapsed_ns = (wait_end.tv_sec - wait_start.tv_sec) * 1000000000LL + (wait_end.tv_nsec - wait_start.tv_nsec);
+        item->sendWaitingTime += (double)elapsed_ns / 1e9;
+    } 
+#endif
 
         rc = sendreq->req_send.req_base.req_ompi.req_status.MPI_ERROR;
     }
@@ -533,11 +591,11 @@ int mca_pml_ob1_send(const void *buf,
         mca_pml_ob1_send_request_fini (sendreq);
         mca_pml_ob1_sendreq = sendreq;
     }
-#ifdef ENABLE_ANALYSIS
+/*#ifdef ENABLE_ANALYSIS
     if(item!=NULL){ 
-        gettimeofday(&item->requestFini, NULL);
+        clock_gettime(CLOCK_REALTIME, &item->requestFini);
         //qentryIntoQueue(&item);
     }
-#endif
+#endif*/
     return rc;
 }

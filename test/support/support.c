@@ -18,10 +18,10 @@
  */
 
 #include "opal_config.h"
-#include <assert.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+#include <stdio.h>
 
 #include "support.h"
 
@@ -52,13 +52,16 @@ void test_init(const char *a)
     opal_n_failures = 0;
 
     return;
+
 }
+
 
 void test_success(void)
 {
     opal_n_tests++;
     opal_n_success++;
 }
+
 
 void test_failure(const char *a)
 {
@@ -71,6 +74,7 @@ void test_failure(const char *a)
     fflush(stderr);
 }
 
+
 int test_verify_str(const char *expected_result, const char *test_result)
 {
     size_t len_expect, len_result;
@@ -80,7 +84,8 @@ int test_verify_str(const char *expected_result, const char *test_result)
     len_expect = expected_result ? strlen(expected_result) : 0;
     len_result = test_result ? strlen(test_result) : 0;
 
-    if ((!(len_expect == len_result)) || (0 != strcmp(expected_result, test_result))) {
+    if ((!(len_expect == len_result)) ||
+        (0 != strcmp(expected_result, test_result))) {
         test_failure("Comparison failure");
         fprintf(stderr, " Expected result: %s\n", expected_result);
         fprintf(stderr, " Test result: %s\n", test_result);
@@ -92,6 +97,7 @@ int test_verify_str(const char *expected_result, const char *test_result)
 
     return return_value;
 }
+
 
 int test_verify_int(int expected_result, int test_result)
 {
@@ -111,6 +117,7 @@ int test_verify_int(int expected_result, int test_result)
     return return_value;
 }
 
+
 int test_finalize(void)
 {
     int return_value;
@@ -118,12 +125,13 @@ int test_finalize(void)
     return_value = 0;
 
     if (opal_n_tests == opal_n_success) {
-        fprintf(stderr, "SUPPORT: OMPI Test Passed: %s: (%d tests)\n", opal_description,
-                opal_n_tests);
+        fprintf(stderr, "SUPPORT: OMPI Test Passed: %s: (%d tests)\n",
+                opal_description, opal_n_tests);
         fflush(stderr);
     } else {
-        fprintf(stderr, "SUPPORT: OMPI Test failed: %s (%d of %d failed)\n", opal_description,
-                opal_n_failures, opal_n_tests);
+        fprintf(stderr,
+                "SUPPORT: OMPI Test failed: %s (%d of %d failed)\n",
+                opal_description, opal_n_failures, opal_n_tests);
         fflush(stderr);
         return_value = 1;
     }
@@ -134,11 +142,13 @@ int test_finalize(void)
     return return_value;
 }
 
+
 /* note this is for additional output that does NOT go to STDERR but STDOUT */
-void test_comment(const char *userstr)
+void test_comment (const char* userstr)
 {
-    fprintf(stdout, "%s:%s\n", opal_description, userstr);
+	fprintf(stdout, "%s:%s\n", opal_description, userstr);
 }
+
 
 void test_fail_stop(const char *msg, int status)
 {

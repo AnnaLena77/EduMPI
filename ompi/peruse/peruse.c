@@ -66,10 +66,12 @@ int PERUSE_Init (void)
 {
     if (MPI_PARAM_CHECK) {
         int32_t state = ompi_mpi_state;
+#ifndef ENABLE_ANALYSIS
         if (state < OMPI_MPI_STATE_INIT_COMPLETED ||
             state >= OMPI_MPI_STATE_FINALIZE_STARTED) {
             return PERUSE_ERR_INIT;
         }
+#endif
     }
     ompi_peruse_init ();
     return PERUSE_SUCCESS;

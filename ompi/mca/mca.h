@@ -30,7 +30,9 @@
 
 #include "ompi_config.h"
 #include "opal/mca/mca.h"
+#ifdef ENABLE_ANALYSIS
 #include "ompi/mpi/c/init.h"
+#endif
 
 #define OMPI_MCA_BASE_VERSION_2_1_0(type, type_major, type_minor, type_release) \
     MCA_BASE_VERSION_2_1_0("ompi", OMPI_MAJOR_VERSION, OMPI_MINOR_VERSION,      \

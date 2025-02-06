@@ -1024,6 +1024,7 @@ mca_coll_han_bcast_intra_dynamic(void *buff,
     return bcast(buff, count, dtype,
                  root, comm, sub_module);
 #else
+    //printf("%s\n", sub_module->coll_bcast);
     return bcast(buff, count, dtype,
                  root, comm, sub_module, &item);
 #endif

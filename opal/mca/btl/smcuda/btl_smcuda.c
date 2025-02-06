@@ -70,15 +70,14 @@
 #include "btl_smcuda_fifo.h"
 #include "btl_smcuda_frag.h"
 
-#ifdef ENABLE_ANALYSIS
+/*#ifdef ENABLE_ANALYSIS
 #   include "ompi/mpi/c/init.h"
-#endif
+#endif*/
 
 #include "btl_smcuda_accelerator.h"
 
 
 #include "opal/include/opal/opal_cuda.h"
-
 
 static struct mca_btl_base_registration_handle_t *
 mca_btl_smcuda_register_mem(struct mca_btl_base_module_t *btl,

@@ -43,7 +43,11 @@ mca_coll_han_set_scatter_args(mca_coll_han_scatter_args_t * args,
                               int root_low_rank,
                               struct ompi_communicator_t *up_comm,
                               struct ompi_communicator_t *low_comm,
-                              int w_rank, bool noop, ompi_request_t * req)
+                              int w_rank, bool noop, ompi_request_t * req
+#ifdef ENABLE_ANALYSIS
+                              , qentry **q
+#endif
+                              )
 {
     args->cur_task = cur_task;
     args->sbuf = sbuf;
@@ -62,6 +66,9 @@ mca_coll_han_set_scatter_args(mca_coll_han_scatter_args_t * args,
     args->w_rank = w_rank;
     args->noop = noop;
     args->req = req;
+#ifdef ENABLE_ANALYSIS
+    args->q = q;
+#endif
 }
 
 /*
@@ -123,11 +130,10 @@ mca_coll_han_scatter_intra(const void *sbuf, int scount,
 #ifndef ENABLE_ANALYSIS
         return han_module->previous_scatter(sbuf, scount, sdtype, rbuf, rcount, rdtype, root,
                                             comm, han_module->previous_scatter_module);
-#else 
+#else
         return han_module->previous_scatter(sbuf, scount, sdtype, rbuf, rcount, rdtype, root,
                                             comm, han_module->previous_scatter_module, &item);
 #endif
-
     }
 
     ompi_communicator_t *low_comm =
@@ -201,7 +207,11 @@ mca_coll_han_scatter_intra(const void *sbuf, int scount,
     mca_coll_han_set_scatter_args(us_args, us, reorder_sbuf, NULL, reorder_buf, scount, sdtype,
                                   (char *) rbuf, rcount, rdtype, root, root_up_rank, root_low_rank,
                                   up_comm, low_comm, w_rank, low_rank != root_low_rank,
-                                  temp_request);
+                                  temp_request
+#ifdef ENABLE_ANALYSIS
+			       , &item
+#endif
+                                  );
     /* Init us task */
     init_task(us, mca_coll_han_scatter_us_task, (void *) (us_args));
     /* Issure us task */
@@ -216,6 +226,20 @@ mca_coll_han_scatter_intra(const void *sbuf, int scount,
 int mca_coll_han_scatter_us_task(void *task_args)
 {
     mca_coll_han_scatter_args_t *t = (mca_coll_han_scatter_args_t *) task_args;
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(t->q!=NULL){
+        if(*(t->q)!=NULL) {
+            item = *(t->q);
+        }
+        else{
+             item = NULL;
+         }
+    }
+    else {
+         item = NULL;
+    }
+#endif
 
     if (t->noop) {
         OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output, "[%d] Han Scatter:  us noop\n",
@@ -245,7 +269,7 @@ int mca_coll_han_scatter_us_task(void *task_args)
 #else
         t->up_comm->c_coll->coll_scatter((char *) t->sbuf, t->scount * low_size, t->sdtype,
                                          tmp_rbuf, count * low_size, dtype, t->root_up_rank,
-                                         t->up_comm, t->up_comm->c_coll->coll_scatter_module, NULL);
+                                         t->up_comm, t->up_comm->c_coll->coll_scatter_module, &item);
 #endif
         t->sbuf = tmp_rbuf;
         t->sbuf_inter_free = tmp_buf;
@@ -269,6 +293,22 @@ int mca_coll_han_scatter_us_task(void *task_args)
 int mca_coll_han_scatter_ls_task(void *task_args)
 {
     mca_coll_han_scatter_args_t *t = (mca_coll_han_scatter_args_t *) task_args;
+    
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(t->q!=NULL){
+        if(*(t->q)!=NULL) {
+            item = *(t->q);
+        }
+        else{
+             item = NULL;
+         }
+    }
+    else {
+         item = NULL;
+    }
+#endif
+
     OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output, "[%d] Han Scatter:  ls\n",
                          t->w_rank));
     OBJ_RELEASE(t->cur_task);
@@ -280,7 +320,7 @@ int mca_coll_han_scatter_ls_task(void *task_args)
 #else
     t->low_comm->c_coll->coll_scatter((char *) t->sbuf, t->scount, t->sdtype, (char *) t->rbuf,
                                       t->rcount, t->rdtype, t->root_low_rank, t->low_comm,
-                                      t->low_comm->c_coll->coll_scatter_module, NULL);
+                                      t->low_comm->c_coll->coll_scatter_module, &item);
 #endif
 
     if (t->sbuf_inter_free != NULL && t->noop != true) {

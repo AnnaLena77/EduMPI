@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2019 The University of Tennessee and The University
+ * Copyright (c) 2004-2023 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2022 High Performance Computing Center Stuttgart,
@@ -125,6 +125,7 @@ typedef int ompi_comm_allgatherfct (void* inbuf, int incount, MPI_Datatype intyp
                                     void* outbuf, int outcount, MPI_Datatype outtype,
                                     ompi_communicator_t *comm,
                                     mca_coll_base_module_t *data);
+
 static int ompi_comm_allgather_emulate_intra (void* inbuf, int incount, MPI_Datatype intype,
                                               void* outbuf, int outcount,
                                               MPI_Datatype outtype,
@@ -135,13 +136,13 @@ typedef int ompi_comm_allgatherfct (void* inbuf, int incount, MPI_Datatype intyp
                                     void* outbuf, int outcount, MPI_Datatype outtype,
                                     ompi_communicator_t *comm,
                                     mca_coll_base_module_t *data, qentry **q);
+
 static int ompi_comm_allgather_emulate_intra (void* inbuf, int incount, MPI_Datatype intype,
                                               void* outbuf, int outcount,
                                               MPI_Datatype outtype,
                                               ompi_communicator_t *comm,
                                               mca_coll_base_module_t *data, qentry **q);
 #endif
-
 
 static int ompi_comm_copy_topo (ompi_communicator_t *oldcomm,
                                 ompi_communicator_t *newcomm);
@@ -253,6 +254,16 @@ int ompi_comm_set_nb (ompi_communicator_t **ncomm, ompi_communicator_t *oldcomm,
     newcomm->c_assertions = 0;
 
     /* Set remote group and duplicate the local comm, if applicable */
+    if ((NULL == remote_group) && (NULL != remote_ranks)) {
+        /* determine how the list of local_rank can be stored most
+           efficiently */
+        ret = ompi_group_incl(oldcomm->c_remote_group, remote_size,
+                              remote_ranks, &newcomm->c_remote_group);
+        if (OPAL_UNLIKELY(OMPI_SUCCESS != ret)) {
+            return ret;
+        }
+        remote_group = newcomm->c_remote_group;
+    }
     if ( NULL != remote_group ) {
         ompi_communicator_t *old_localcomm;
 
@@ -446,7 +457,6 @@ int ompi_comm_create_w_info (ompi_communicator_t *comm, ompi_group_t *group, opa
     }
 
     /* Determine context id. It is identical to f_2_c_handle */
-    //Fehler
     rc = ompi_comm_nextcid (newcomp, comm, NULL, NULL, NULL, false, mode);
     if ( OMPI_SUCCESS != rc ) {
         goto exit;
@@ -540,10 +550,11 @@ int ompi_comm_split_with_info( ompi_communicator_t* comm, int color, int key,
     if ( NULL == results ) {
         return OMPI_ERR_OUT_OF_RESOURCE;
     }
+
 #ifndef ENABLE_ANALYSIS
     rc = allgatherfct( myinfo, 2, MPI_INT, results, 2, MPI_INT, comm, comm->c_coll->coll_allgather_module );
 #else
-    rc = allgatherfct( myinfo, 2, MPI_INT, results, 2, MPI_INT, comm, comm->c_coll->coll_allgather_module, NULL);
+    rc = allgatherfct( myinfo, 2, MPI_INT, results, 2, MPI_INT, comm, comm->c_coll->coll_allgather_module, NULL );
 #endif
     if ( OMPI_SUCCESS != rc ) {
         goto exit;
@@ -910,7 +921,6 @@ static int ompi_comm_split_verify (ompi_communicator_t *comm, int split_type, in
     rc = comm->c_coll->coll_allgather (MPI_IN_PLACE, 2, MPI_INT, results, 2, MPI_INT, comm,
                                       comm->c_coll->coll_allgather_module, NULL);
 #endif
-
     if (OMPI_SUCCESS != rc) {
         free (results);
         return rc;
@@ -956,7 +966,7 @@ static int ompi_comm_split_type_core(ompi_communicator_t *comm,
     int my_size, my_rsize = 0, mode;
     int rc;
     int inter = OMPI_COMM_IS_INTER(comm);
-    
+
     /* Perform the rest of the processing for a communicator split.
      *
      * Step 1: Build potential communicator groups. If any ranks will not be part of
@@ -1379,7 +1389,6 @@ int ompi_comm_dup_with_info ( ompi_communicator_t * comm, opal_info_t *info, omp
     }
 
     /* Determine context id. It is identical to f_2_c_handle */
-    //Fehler!
     rc = ompi_comm_nextcid (newcomp, comm, NULL, NULL, NULL, false, mode);
     if ( OMPI_SUCCESS != rc ) {
         OBJ_RELEASE(newcomp);
@@ -2130,7 +2139,7 @@ static int ompi_comm_allgather_emulate_intra( void *inbuf, int incount,
         for ( i=0; i<rsize; i++) {
 #ifndef ENABLE_ANALYSIS
             rc = MCA_PML_CALL(irecv( &tmpbuf[outcount*i], outcount, outtype, i,
-                                     OMPI_COMM_ALLGATHER_TAG, comm, &req[i]));
+                                     OMPI_COMM_ALLGATHER_TAG, comm, &req[i] ));
 #else
             rc = MCA_PML_CALL(irecv( &tmpbuf[outcount*i], outcount, outtype, i,
                                      OMPI_COMM_ALLGATHER_TAG, comm, &req[i], NULL ));
@@ -2142,7 +2151,7 @@ static int ompi_comm_allgather_emulate_intra( void *inbuf, int incount,
     }
 #ifndef ENABLE_ANALYSIS
     rc = MCA_PML_CALL(isend( inbuf, incount, intype, 0, OMPI_COMM_ALLGATHER_TAG,
-                             MCA_PML_BASE_SEND_STANDARD, comm, &sendreq));
+                             MCA_PML_BASE_SEND_STANDARD, comm, &sendreq ));
 #else
     rc = MCA_PML_CALL(isend( inbuf, incount, intype, 0, OMPI_COMM_ALLGATHER_TAG,
                              MCA_PML_BASE_SEND_STANDARD, comm, &sendreq, NULL ));
@@ -2182,7 +2191,7 @@ static int ompi_comm_allgather_emulate_intra( void *inbuf, int incount,
                                     OMPI_COMM_ALLGATHER_TAG,
                                     MCA_PML_BASE_SEND_STANDARD, comm));
 #else
-             rc = MCA_PML_CALL(send (tmpbuf, rsize*outcount, outtype, i,
+            rc = MCA_PML_CALL(send (tmpbuf, rsize*outcount, outtype, i,
                                     OMPI_COMM_ALLGATHER_TAG,
                                     MCA_PML_BASE_SEND_STANDARD, comm, NULL));
 #endif
@@ -2310,10 +2319,10 @@ int ompi_comm_get_rprocs (ompi_communicator_t *local_comm, ompi_communicator_t *
     int rc = OMPI_SUCCESS;
     int local_rank, local_size;
     ompi_proc_t **rprocs=NULL;
-    int32_t size_len;
+    size_t size_len;
     int int_len=0, rlen;
     pmix_data_buffer_t *sbuf=NULL, *rbuf=NULL;
-    void *sendbuf=NULL;
+    char *sendbuf=NULL;
     char *recvbuf;
     ompi_proc_t **proc_list = NULL;
     int i;
@@ -2351,7 +2360,7 @@ int ompi_comm_get_rprocs (ompi_communicator_t *local_comm, ompi_communicator_t *
         /* send the remote_leader the length of the buffer */
 #ifndef ENABLE_ANALYSIS
         rc = MCA_PML_CALL(irecv (&rlen, 1, MPI_INT, remote_leader, tag,
-                                 bridge_comm, &req));
+                                 bridge_comm, &req ));
 #else
         rc = MCA_PML_CALL(irecv (&rlen, 1, MPI_INT, remote_leader, tag,
                                  bridge_comm, &req, NULL ));
@@ -2360,9 +2369,10 @@ int ompi_comm_get_rprocs (ompi_communicator_t *local_comm, ompi_communicator_t *
             goto err_exit;
         }
         int_len = (int)size_len;
+
 #ifndef ENABLE_ANALYSIS
         rc = MCA_PML_CALL(send (&int_len, 1, MPI_INT, remote_leader, tag,
-                                MCA_PML_BASE_SEND_STANDARD, bridge_comm));
+                                MCA_PML_BASE_SEND_STANDARD, bridge_comm ));
 #else
         rc = MCA_PML_CALL(send (&int_len, 1, MPI_INT, remote_leader, tag,
                                 MCA_PML_BASE_SEND_STANDARD, bridge_comm, NULL ));
@@ -2384,7 +2394,7 @@ int ompi_comm_get_rprocs (ompi_communicator_t *local_comm, ompi_communicator_t *
 #else
     rc = local_comm->c_coll->coll_bcast( &rlen, 1, MPI_INT,
                                         local_leader, local_comm,
-                                        local_comm->c_coll->coll_bcast_module, NULL);
+                                        local_comm->c_coll->coll_bcast_module, NULL );
 #endif
     if ( OMPI_SUCCESS != rc ) {
 #if OPAL_ENABLE_FT_MPI
@@ -2408,7 +2418,7 @@ int ompi_comm_get_rprocs (ompi_communicator_t *local_comm, ompi_communicator_t *
         /* local leader exchange name lists */
 #ifndef ENABLE_ANALYSIS
         rc = MCA_PML_CALL(irecv (recvbuf, rlen, MPI_BYTE, remote_leader, tag,
-                                 bridge_comm, &req));
+                                 bridge_comm, &req ));
 #else
         rc = MCA_PML_CALL(irecv (recvbuf, rlen, MPI_BYTE, remote_leader, tag,
                                  bridge_comm, &req, NULL ));
@@ -2418,7 +2428,7 @@ int ompi_comm_get_rprocs (ompi_communicator_t *local_comm, ompi_communicator_t *
         }
 #ifndef ENABLE_ANALYSIS
         rc = MCA_PML_CALL(send(sendbuf, int_len, MPI_BYTE, remote_leader, tag,
-                               MCA_PML_BASE_SEND_STANDARD, bridge_comm));
+                               MCA_PML_BASE_SEND_STANDARD, bridge_comm ));
 #else
         rc = MCA_PML_CALL(send(sendbuf, int_len, MPI_BYTE, remote_leader, tag,
                                MCA_PML_BASE_SEND_STANDARD, bridge_comm, NULL ));
@@ -2444,7 +2454,7 @@ int ompi_comm_get_rprocs (ompi_communicator_t *local_comm, ompi_communicator_t *
         PMIX_DATA_BUFFER_RELEASE(sbuf);
     }
 
-    /* broadcast name list to all proceses in local_comm */
+    /* broadcast name list to all processes in local_comm */
 #ifndef ENABLE_ANALYSIS
     rc = local_comm->c_coll->coll_bcast( recvbuf, rlen, MPI_BYTE,
                                         local_leader, local_comm,
@@ -2569,7 +2579,6 @@ int ompi_comm_determine_first ( ompi_communicator_t *intercomm, int high )
                                            MPI_INT, intercomm,
                                            intercomm->c_coll->coll_allgatherv_module, NULL);
 #endif
-
     if ( NULL != rdisps ) {
         free ( rdisps );
     }

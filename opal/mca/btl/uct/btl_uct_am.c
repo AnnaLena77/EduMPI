@@ -14,10 +14,10 @@
 #include "btl_uct_rdma.h"
 
 
-#ifdef ENABLE_ANALYSIS
+/*#ifdef ENABLE_ANALYSIS
 #include "ompi/mpi/c/init.h"
 #include <time.h>
-#endif
+#endif*/
 
 /**
  * Allocate a segment.
@@ -56,7 +56,7 @@ mca_btl_base_descriptor_t *mca_btl_uct_alloc(mca_btl_base_module_t *btl,
     return (mca_btl_base_descriptor_t *) frag;
 }
 
-static inline void _mca_btl_uct_send_pack(void *data, void *header, size_t header_size,
+/*static inline void _mca_btl_uct_send_pack(void *data, void *header, size_t header_size,
                                           opal_convertor_t *convertor, size_t payload_size)
 {
     uint32_t iov_count = 1;
@@ -69,12 +69,32 @@ static inline void _mca_btl_uct_send_pack(void *data, void *header, size_t heade
     }
 
     /* pack the data into the supplied buffer */
-    iov.iov_base = (IOVBASE_TYPE *) ((intptr_t) data + header_size);
+    /*iov.iov_base = (IOVBASE_TYPE *) ((intptr_t) data + header_size);
     iov.iov_len = length = payload_size;
 
     (void) opal_convertor_pack(convertor, &iov, &iov_count, &length);
-
+    
     assert(length == payload_size);
+}*/
+static inline void _mca_btl_uct_send_pack(void *data, void *header, size_t header_size,
+                                          opal_convertor_t *convertor, size_t *payload_size, int assrt)
+{
+    uint32_t iov_count = 1;
+    struct iovec iov;
+    size_t length;
+
+    if (header_size > 0) {
+        assert(NULL != header);
+        memcpy(data, header, header_size);
+    }
+
+    /* pack the data into the supplied buffer */
+    iov.iov_base = (IOVBASE_TYPE *) ((intptr_t) data + header_size);
+    iov.iov_len = length = *payload_size;
+
+    (void) opal_convertor_pack(convertor, &iov, &iov_count, payload_size);
+
+    if(assrt) assert(length == *payload_size);
 }
 
 struct mca_btl_base_descriptor_t *mca_btl_uct_prepare_src(mca_btl_base_module_t *btl,
@@ -97,8 +117,12 @@ struct mca_btl_base_descriptor_t *mca_btl_uct_prepare_src(mca_btl_base_module_t 
             return NULL;
         }
 
+        /*_mca_btl_uct_send_pack((void *) ((intptr_t) frag->uct_iov.buffer + reserve), NULL, 0,
+                               convertor, *size);*/
         _mca_btl_uct_send_pack((void *) ((intptr_t) frag->uct_iov.buffer + reserve), NULL, 0,
-                               convertor, *size);
+                               convertor, size, 0);
+        frag->segments[0].seg_len = reserve + *size;
+        frag->uct_iov.length = reserve + *size;
     } else {
         opal_convertor_get_current_pointer(convertor, &data_ptr);
         assert(NULL != data_ptr);
@@ -226,7 +250,7 @@ int mca_btl_uct_send_frag(mca_btl_uct_module_t *uct_btl, mca_btl_uct_base_frag_t
                     /* send is complete */
                     mca_btl_uct_frag_complete(frag, OPAL_SUCCESS);
 #ifdef ENABLE_ANALYSIS
-                    if(item!=NULL) gettimeofday(&item->sent, NULL);
+                    if(item!=NULL) clock_gettime(CLOCK_REALTIME, &item->sent);
 #endif
                     return 1;
                 }
@@ -240,7 +264,7 @@ int mca_btl_uct_send_frag(mca_btl_uct_module_t *uct_btl, mca_btl_uct_base_frag_t
                 /* send is complete */
                 mca_btl_uct_frag_complete(frag, OPAL_SUCCESS);
 #ifdef ENABLE_ANALYSIS
-    if(item!=NULL) gettimeofday(&item->sent, NULL);
+    if(item!=NULL) clock_gettime(CLOCK_REALTIME, &item->sent);
 #endif
                 return 1;
             }
@@ -324,7 +348,7 @@ struct mca_btl_uct_sendi_pack_args_t {
 
 typedef struct mca_btl_uct_sendi_pack_args_t mca_btl_uct_sendi_pack_args_t;
 
-static size_t mca_btl_uct_sendi_pack(void *data, void *arg)
+/*static size_t mca_btl_uct_sendi_pack(void *data, void *arg)
 {
     mca_btl_uct_sendi_pack_args_t *args = (mca_btl_uct_sendi_pack_args_t *) arg;
     mca_btl_uct_am_header_t *am_header = (mca_btl_uct_am_header_t *) data;
@@ -332,6 +356,16 @@ static size_t mca_btl_uct_sendi_pack(void *data, void *arg)
     am_header->value = args->am_header;
     _mca_btl_uct_send_pack((void *) ((intptr_t) data + 8), args->header, args->header_size,
                            args->convertor, args->payload_size);
+    return args->header_size + args->payload_size + 8;
+}*/
+static size_t mca_btl_uct_sendi_pack(void *data, void *arg)
+{
+    mca_btl_uct_sendi_pack_args_t *args = (mca_btl_uct_sendi_pack_args_t *) arg;
+    mca_btl_uct_am_header_t *am_header = (mca_btl_uct_am_header_t *) data;
+
+    am_header->value = args->am_header;
+    _mca_btl_uct_send_pack((void *) ((intptr_t) data + 8), args->header, args->header_size,
+                           args->convertor, &args->payload_size, 1);
     return args->header_size + args->payload_size + 8;
 }
 
@@ -390,7 +424,8 @@ int mca_btl_uct_sendi(mca_btl_base_module_t *btl, mca_btl_base_endpoint_t *endpo
     } else if (msg_size < (size_t) MCA_BTL_UCT_TL_ATTR(uct_btl->am_tl, context->context_id)
                               .cap.am.max_short) {
         int8_t *data = alloca(total_size);
-        _mca_btl_uct_send_pack(data, header, header_size, convertor, payload_size);
+        _mca_btl_uct_send_pack(data, header, header_size, convertor, &payload_size, 1);
+        /*_mca_btl_uct_send_pack(data, header, header_size, convertor, payload_size);*/
         ucs_status = uct_ep_am_short(ep_handle, MCA_BTL_UCT_FRAG, am_header.value, data,
                                      total_size);
     } else {
@@ -419,7 +454,7 @@ int mca_btl_uct_sendi(mca_btl_base_module_t *btl, mca_btl_base_endpoint_t *endpo
     }
 #ifdef ENABLE_ANALYSIS
     if(item!=NULL){
-        gettimeofday(&item->sent, NULL);
+        clock_gettime(CLOCK_REALTIME, &item->sent);
         item->immediate = 1;
     }
 #endif

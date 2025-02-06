@@ -41,6 +41,11 @@ static const char FUNC_NAME[] = "MPI_Wait";
 
 int MPI_Wait(MPI_Request *request, MPI_Status *status)
 {
+    #ifdef ENABLE_ANALYSIS
+    qentry *item = getWritingRingPos();
+    clock_gettime(CLOCK_REALTIME, &item->start);
+    initQentry(&item, -1, "MPI_Wait", 8, 0, 0, "p2p", 3, NULL, NULL, NULL, 1, NULL);
+    #endif
     SPC_RECORD(OMPI_SPC_WAIT, 1);
 
     MEMCHECKER(
@@ -66,10 +71,13 @@ int MPI_Wait(MPI_Request *request, MPI_Status *status)
                 opal_memchecker_base_mem_undefined(&status->MPI_ERROR, sizeof(int));
             );
         }
+#ifdef ENABLE_ANALYSIS
+        clock_gettime(CLOCK_REALTIME, &item->end);
+#endif
         return MPI_SUCCESS;
     }
-
-    if (OMPI_SUCCESS == ompi_request_wait(request, status)) {
+    if (OMPI_SUCCESS == ompi_request_wait(request, status)){
+    
         /*
          * Per MPI-1, the MPI_ERROR field is not defined for single-completion calls
          */
@@ -78,6 +86,9 @@ int MPI_Wait(MPI_Request *request, MPI_Status *status)
                 opal_memchecker_base_mem_undefined(&status->MPI_ERROR, sizeof(int));
             }
         );
+#ifdef ENABLE_ANALYSIS
+        clock_gettime(CLOCK_REALTIME, &item->end);
+#endif
         return MPI_SUCCESS;
     }
 
@@ -86,5 +97,8 @@ int MPI_Wait(MPI_Request *request, MPI_Status *status)
             opal_memchecker_base_mem_undefined(&status->MPI_ERROR, sizeof(int));
         }
     );
+#ifdef ENABLE_ANALYSIS
+     clock_gettime(CLOCK_REALTIME, &item->end);
+#endif
     return ompi_errhandler_request_invoke(1, request, FUNC_NAME);
 }

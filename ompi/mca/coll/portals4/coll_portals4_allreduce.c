@@ -22,7 +22,6 @@
 #include "ompi/mca/coll/coll.h"
 #include "ompi/mca/pml/pml.h"
 #include "ompi/op/op.h"
-
 #include "coll_portals4.h"
 #include "coll_portals4_request.h"
 

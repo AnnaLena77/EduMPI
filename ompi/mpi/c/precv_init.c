@@ -57,7 +57,10 @@ int MPI_Precv_init(void* buf, int partitions, MPI_Count count, MPI_Datatype data
         }
         OMPI_ERRHANDLER_CHECK(rc, MPI_COMM_WORLD, rc, FUNC_NAME);
     }
-
+//#ifndef ENABLE_ANALYSIS
     rc = mca_part.part_precv_init(buf, partitions, count, datatype, source, tag, comm, info, request);
+/*#else
+    rc = mca_part.part_precv_init(buf, partitions, count, datatype, source, tag, comm, info, request, NULL);
+#endif*/
     OMPI_ERRHANDLER_RETURN(rc, MPI_COMM_WORLD, rc, FUNC_NAME);
 }

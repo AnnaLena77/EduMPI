@@ -113,7 +113,7 @@ int mca_sharedfp_sm_file_open (struct ompi_communicator_t *comm,
 #ifndef ENABLE_ANALYSIS
     err = comm->c_coll->coll_bcast (&int_pid, 1, MPI_INT, 0, comm, comm->c_coll->coll_bcast_module );
 #else
-    err = comm->c_coll->coll_bcast (&int_pid, 1, MPI_INT, 0, comm, comm->c_coll->coll_bcast_module, NULL);
+    err = comm->c_coll->coll_bcast (&int_pid, 1, MPI_INT, 0, comm, comm->c_coll->coll_bcast_module, NULL );
 #endif
     if ( OMPI_SUCCESS != err ) {
         opal_output(0,"mca_sharedfp_sm_file_open: Error in bcast operation \n");
@@ -156,7 +156,7 @@ int mca_sharedfp_sm_file_open (struct ompi_communicator_t *comm,
 #ifndef ENABLE_ANALYSIS
     err = comm->c_coll->coll_barrier (comm, comm->c_coll->coll_barrier_module );
 #else
-    err = comm->c_coll->coll_barrier (comm, comm->c_coll->coll_barrier_module, NULL);
+    err = comm->c_coll->coll_barrier (comm, comm->c_coll->coll_barrier_module, NULL );
 #endif
     if ( OMPI_SUCCESS != err ) {
         opal_output(0,"mca_sharedfp_sm_file_open: Error in barrier operation \n");
@@ -234,7 +234,7 @@ int mca_sharedfp_sm_file_open (struct ompi_communicator_t *comm,
 #ifndef ENABLE_ANALYSIS
     err = comm->c_coll->coll_barrier (comm, comm->c_coll->coll_barrier_module );
 #else
-    err = comm->c_coll->coll_barrier (comm, comm->c_coll->coll_barrier_module, NULL);
+    err = comm->c_coll->coll_barrier (comm, comm->c_coll->coll_barrier_module, NULL );
 #endif
     if ( OMPI_SUCCESS != err ) {
         opal_output(0,"mca_sharedfp_sm_file_open: Error in barrier operation \n");
@@ -274,7 +274,7 @@ int mca_sharedfp_sm_file_close (ompio_file_t *fh)
 #ifndef ENABLE_ANALYSIS
     fh->f_comm->c_coll->coll_barrier (fh->f_comm, fh->f_comm->c_coll->coll_barrier_module );
 #else
-    fh->f_comm->c_coll->coll_barrier (fh->f_comm, fh->f_comm->c_coll->coll_barrier_module, NULL);
+    fh->f_comm->c_coll->coll_barrier (fh->f_comm, fh->f_comm->c_coll->coll_barrier_module, NULL );
 #endif
 
     file_data = (sm_data_global*)(sh->selected_module_data);

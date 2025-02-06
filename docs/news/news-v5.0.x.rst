@@ -4,9 +4,9 @@ Open MPI v5.0.x series
 This file contains all the NEWS updates for the Open MPI v5.0.x
 series, in reverse chronological order.
 
-Open MPI version 5.0.0rc12
+Open MPI version 5.0.0rc14
 --------------------------
-:Date: 19 May 2023
+:Date: 17 October 2023
 
 .. admonition:: The MPIR API has been removed
    :class: warning
@@ -66,30 +66,28 @@ Open MPI version 5.0.0rc12
                 Libevent symbols and then statically pulled the
                 library into ``libmpi.so``.
 
-- Changes since rc11:
+- Changes since rc13:
 
-  - ``accelerator/rocm``: add SYNC_MEMOPS support.
-  - Update PMIx, PRRTe, and OAC submodule pointers.
-  - Fix ``mca_btl_ofi_flush()`` in multithreaded environments..
-  - ``smcuda``: fixed an edge case when building MCA components as
-    dynamic shared objects.
-  - Fix ``MPI_Session_init()`` bug if all previous sessions are
-    finalized.
-  - Fix `mpi4py <https://mpi4py.github.io/>`_ hang in
-    ``MPI_Intercomm_create_from_groups()``.
-  - Fix finalization segfault with OSHMEM 4.1.5.
-  - Improve AVX detection. Fixes ``op/avx`` link failure with the
-    ``nvhpc`` compiler.
-  - Fix incorrect results with ``pml/ucx`` using Intel compiler.
-  - Fix segfault when broadcasting large MPI structs.
-  - Add platform files for Google Cloud HPC.
-  - UCC/HCOLL: Fix ``MPI_Waitall()`` for non blokcing collectives.
-  - Fix pre-built docs check.
+  - Update PMIx to hash: ``f8f578392ec77dd7a1d76ca697da4f15afcb0161``.
+  - Update PRRTE to hash: ``bb4085053a0b268ae2a2e04ed56387f53e4a3e7a``.
+  - Documentation updates
+  - Fix build case with --disable-prrte
+  - Update PRRTe and PMIx pointers to pull in fixes, including spurious log messages, and also
+    RPM fixes.
+  - pcomm: fix fortran interface for precv/psend.
+  - Fix UCX support level check.
+  - Add support for MPI_ERR_VALUE_TOO_LARGE
+  - ofi - add MCA parameters to not use FI_HMEM
+    This commit adds two MCA parameters:
+    mtl_ofi_disable_hmem
+    btl_ofi_disable_hmem
+  - oshmem:
+    Add symmetric remote key handling
+    Fixed DEVICE_NIC_MEM support to use RDMA memory type.
+  - Fix a small issue in properly setting filename when building the empty schizo rst file.
 
 - All other notable updates for v5.0.0:
 
-  - Update PMIx to the ``v4.2`` branch - current hash: ``f34a7ce2``.
-  - Update PRRTE to the ``v3.0`` branch - current hash: ``c4925aa5cc``.
   - New Features:
 
     - ULFM Fault Tolerance support has been added. See :ref:`the ULFM
@@ -154,9 +152,10 @@ Open MPI version 5.0.0rc12
 
       - Many MPI one-sided and RDMA emulation fixes for the ``tcp`` BTL.
 
-        - This patch series fixs many issues when running with ``--mca
-          osc rdma --mca btl tcp``, i.e., TCP support for one sided
-          MPI calls.
+        This patch series fixs many issues when running with ``--mca
+        osc rdma --mca btl tcp``, i.e., TCP support for one sided
+        MPI calls.
+
       - Many MPI one-sided fixes for the ``uct`` BTL.
       - Added support for ``acc_single_intrinsic`` to the one-sided
         ``ucx`` component.
@@ -255,6 +254,7 @@ Open MPI version 5.0.0rc12
       - Sophia Fang
       - Rick Gleitz
       - Colton Kammes
+      - Quincey Koziol
       - Robert Langfield
       - Nick Papior
       - Luz Paz
@@ -265,6 +265,7 @@ Open MPI version 5.0.0rc12
       - Fangcong Yin
       - Seth Zegelstein
       - Yixin Zhang
+      - William Zhang
 
   - Build updates and fixes:
 

@@ -36,8 +36,21 @@
  *   each node receives from node (rank-2)%p recvcounts[(rank+2)%p] elements */
 static int nbc_allgatherv_init(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, const int *recvcounts, const int *displs,
                                MPI_Datatype recvtype, struct ompi_communicator_t *comm, ompi_request_t ** request,
-                               mca_coll_base_module_t *module, bool persistent)
+                               mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                               , qentry **q
+#endif
+                               )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int rank, p, res, speer, rpeer;
   MPI_Aint rcvext;
   NBC_Schedule *schedule;
@@ -90,14 +103,22 @@ static int nbc_allgatherv_init(const void* sendbuf, int sendcount, MPI_Datatype 
     rpeer = (rank - r + p) % p;
     rbuf = (char *)recvbuf + displs[rpeer] * rcvext;
 
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_recv (rbuf, false, recvcounts[rpeer], recvtype, rpeer, schedule, false);
+#else
+    res = NBC_Sched_recv (rbuf, false, recvcounts[rpeer], recvtype, rpeer, schedule, false, &item);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       OBJ_RELEASE(schedule);
       return res;
     }
 
     /* send to rank r - not from the sendbuf to optimize MPI_IN_PLACE */
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_send (sbuf, false, recvcounts[rank], recvtype, speer, schedule, false);
+#else
+    res = NBC_Sched_send (sbuf, false, recvcounts[rank], recvtype, speer, schedule, false, &item);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       OBJ_RELEASE(schedule);
       return res;
@@ -126,9 +147,21 @@ int ompi_coll_libnbc_iallgatherv(const void* sendbuf, int sendcount, MPI_Datatyp
                                  , qentry **q
 #endif
                                  ) {
-
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+            memcpy(item->usedAlgorithm, "sched_linear", 12);
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_allgatherv_init(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype,
+                                  comm, request, module, false, &item);
+#else
     int res = nbc_allgatherv_init(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype,
                                   comm, request, module, false);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -145,8 +178,22 @@ int ompi_coll_libnbc_iallgatherv(const void* sendbuf, int sendcount, MPI_Datatyp
 
 static int nbc_allgatherv_inter_init(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, const int *recvcounts, const int *displs,
                                      MPI_Datatype recvtype, struct ompi_communicator_t *comm, ompi_request_t ** request,
-                                     mca_coll_base_module_t *module, bool persistent)
+                                     mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                                     , qentry **q
+#endif
+                                     )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
+
   int res, rsize;
   MPI_Aint rcvext;
   NBC_Schedule *schedule;
@@ -170,7 +217,11 @@ static int nbc_allgatherv_inter_init(const void* sendbuf, int sendcount, MPI_Dat
     char *rbuf = (char *) recvbuf + displs[r] * rcvext;
 
     if (recvcounts[r]) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_recv (rbuf, false, recvcounts[r], recvtype, r, schedule, false);
+#else
+      res = NBC_Sched_recv (rbuf, false, recvcounts[r], recvtype, r, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         OBJ_RELEASE(schedule);
         return res;
@@ -180,7 +231,11 @@ static int nbc_allgatherv_inter_init(const void* sendbuf, int sendcount, MPI_Dat
 
   if (sendcount) {
     for (int r = 0 ; r < rsize ; ++r) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send (sendbuf, false, sendcount, sendtype, r, schedule, false);
+#else
+      res = NBC_Sched_send (sendbuf, false, sendcount, sendtype, r, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         OBJ_RELEASE(schedule);
         return res;
@@ -210,9 +265,20 @@ int ompi_coll_libnbc_iallgatherv_inter(const void* sendbuf, int sendcount, MPI_D
                                        , qentry **q
 #endif
                                        ) {
-
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_allgatherv_inter_init(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype,
+                                        comm, request, module, false, &item);
+#else
     int res = nbc_allgatherv_inter_init(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype,
                                         comm, request, module, false);
+#endif
 
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
@@ -231,10 +297,24 @@ int ompi_coll_libnbc_iallgatherv_inter(const void* sendbuf, int sendcount, MPI_D
 int ompi_coll_libnbc_allgatherv_init(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, const int *recvcounts, const int *displs,
                                      MPI_Datatype recvtype, struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
                                      mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                     , qentry **q
+#endif
                                      ) {
-
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_allgatherv_init(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype,
+                                  comm, request, module, true, &item);
+#else
     int res = nbc_allgatherv_init(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype,
                                   comm, request, module, true);
+#endif
 
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
@@ -245,10 +325,25 @@ int ompi_coll_libnbc_allgatherv_init(const void* sendbuf, int sendcount, MPI_Dat
 
 int ompi_coll_libnbc_allgatherv_inter_init(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, const int *recvcounts, const int *displs,
                                            MPI_Datatype recvtype, struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                           mca_coll_base_module_t *module) {
-
+                                           mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                           , qentry **q
+#endif
+                                           ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_allgatherv_inter_init(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype,
+                                        comm, request, module, true, &item);
+#else
     int res = nbc_allgatherv_inter_init(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype,
                                         comm, request, module, true);
+#endif
 
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;

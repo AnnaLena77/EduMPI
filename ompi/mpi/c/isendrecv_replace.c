@@ -116,6 +116,12 @@ int MPI_Isendrecv_replace(void * buf, int count, MPI_Datatype datatype,
                          MPI_Comm comm, MPI_Request *request)
 
 {
+    #ifdef ENABLE_ANALYSIS
+    qentry *item = getWritingRingPos();
+    clock_gettime(CLOCK_REALTIME, &item->start);
+    initQentry(&item, dest, "MPI_Isendrecv_replace", 21, 0, 0, "p2p", 3, datatype, datatype, comm, 0, NULL);
+    #endif
+    
     int rc = MPI_SUCCESS;
     size_t max_data;
     uint32_t iov_count;
@@ -216,7 +222,7 @@ int MPI_Isendrecv_replace(void * buf, int count, MPI_Datatype datatype,
                                 source, recvtag, comm, &context->subreq[nreqs++]));
 #else
         rc = MCA_PML_CALL(irecv(buf, count, datatype,
-                                source, recvtag, comm, &context->subreq[nreqs++], NULL));
+                                source, recvtag, comm, &context->subreq[nreqs++], &item));
 #endif
         if (MPI_SUCCESS != rc) {
             OBJ_RELEASE(context);
@@ -233,7 +239,7 @@ int MPI_Isendrecv_replace(void * buf, int count, MPI_Datatype datatype,
 #else
         rc = MCA_PML_CALL(isend(context->iov.iov_base, context->packed_size, MPI_PACKED, dest,
                                sendtag, MCA_PML_BASE_SEND_STANDARD, comm, 
-                                &context->subreq[nreqs++], NULL));
+                                &context->subreq[nreqs++], &item));
 #endif
         if (MPI_SUCCESS != rc) {
             OBJ_RELEASE(context);
@@ -267,6 +273,9 @@ int MPI_Isendrecv_replace(void * buf, int count, MPI_Datatype datatype,
 
     ompi_comm_request_start (crequest);
     *request = &crequest->super;
-
+    
+#ifdef ENABLE_ANALYSIS
+    clock_gettime(CLOCK_REALTIME, &item->end);
+#endif
     return rc;
 }

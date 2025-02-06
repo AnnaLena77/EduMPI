@@ -2,7 +2,7 @@
  * Copyright (c) 2004-2007 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2018 The University of Tennessee and The University
+ * Copyright (c) 2004-2021 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2008 High Performance Computing Center Stuttgart,
@@ -44,45 +44,9 @@ int MPI_Recv(void *buf, int count, MPI_Datatype type, int source,
              int tag, MPI_Comm comm, MPI_Status *status)
 {
     #ifdef ENABLE_ANALYSIS
-    qentry *item = q_qentry;
-    initQentry(&item);
-    //item->start
-    clock_gettime(CLOCK_REALTIME, &item->starts);
-    //item->operation
-    memcpy(item->function, "MPI_Recv", 8);
-    memcpy(item->communicationType, "p2p", 3);
-    //item->blocking
-    item->blocking = 1;
-    //item->datatype
-    //item->datatype
-    if(type==MPI_INT){
-        memcpy(item->datatype, "MPI_INT", 7); 
-    }
-    else if(type==MPI_CHAR){
-        memcpy(item->datatype, "MPI_CHAR", 8);
-    }
-    else if(type==MPI_DOUBLE){
-        memcpy(item->datatype, "MPI_DOUBLE", 10);
-    }
-    else if(type==MPI_LONG){
-        memcpy(item->datatype, "MPI_LONG", 8);
-    } else {
-        //char type_name[MPI_MAX_OBJECT_NAME];
-        int type_name_length;
-        MPI_Type_get_name(type, item->datatype, &type_name_length);
-       // memcpy(item->datatype, type_name, type_name_length);
-    }
-    //item->communicator
-    if(comm == MPI_COMM_WORLD){
-        memcpy(item->communicationArea, "MPI_COMM_WORLD", 14);
-    } else {
-        //char comm_name[MPI_MAX_OBJECT_NAME];
-        int comm_name_length;
-        MPI_Comm_get_name(comm, item->communicationArea, &comm_name_length);
-        //memcpy(item->communicationArea, comm_name, comm_name_length);
-    }
-    //item->partnerrank
-    item->partnerrank = source; 
+    qentry *item = getWritingRingPos();
+    clock_gettime(CLOCK_REALTIME, &item->start);
+    initQentry(&item, source, "MPI_Recv", 8, 0, 0, "p2p", 3, NULL, type, comm, 1, NULL);
     #endif
     int rc = MPI_SUCCESS;
 
@@ -114,7 +78,7 @@ int MPI_Recv(void *buf, int count, MPI_Datatype type, int source,
 
     if (MPI_PROC_NULL == source) {
         if (MPI_STATUS_IGNORE != status) {
-            *status = ompi_request_empty.req_status;
+            OMPI_COPY_STATUS(status, ompi_request_empty.req_status, false);
         }
         return MPI_SUCCESS;
     }
@@ -122,9 +86,13 @@ int MPI_Recv(void *buf, int count, MPI_Datatype type, int source,
     rc = MCA_PML_CALL(recv(buf, count, type, source, tag, comm, status));
 #else
     rc = MCA_PML_CALL(recv(buf, count, type, source, tag, comm, status, &item));
-    writeIntoFile(&item);
+    if(item->partnerrank == -1){
+        item->partnerrank = status->MPI_SOURCE;
+    }
+    //writeIntoFile(&item);
     //free(item);
     //qentryIntoQueue(&item);
+    clock_gettime(CLOCK_REALTIME, &item->end);
 #endif
     OMPI_ERRHANDLER_RETURN(rc, comm, rc, FUNC_NAME);
 }

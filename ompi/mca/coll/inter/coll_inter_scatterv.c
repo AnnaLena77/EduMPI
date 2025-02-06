@@ -50,7 +50,6 @@ mca_coll_inter_scatterv_inter(const void *sbuf, const int *scounts,
 #endif
                               )
 {
-
 #ifdef ENABLE_ANALYSIS
      qentry *item;
     if(q!=NULL){
@@ -61,10 +60,8 @@ mca_coll_inter_scatterv_inter(const void *sbuf, const int *scounts,
     }
     else item = NULL;
 #endif
-
     int i, rank, size, err, size_local;
     size_t total = 0;
-
     int *counts=NULL,*displace=NULL;
     char *ptmp_free=NULL, *ptmp=NULL;
     ompi_datatype_t *ndtype;

@@ -32,7 +32,7 @@
 #include "ompi/peruse/peruse-internal.h"
 #include "ompi/message/message.h"
 #include "ompi/memchecker.h"
-#include "ompi/mpi/c/init.h"
+//#include "ompi/mpi/c/init.h"
 
 /**
  * Single usage request. As we allow recursive calls to recv
@@ -49,8 +49,22 @@ int mca_pml_ob1_irecv_init(void *addr,
                            int src,
                            int tag,
                            struct ompi_communicator_t *comm,
-                           struct ompi_request_t **request)
+                           struct ompi_request_t **request
+#ifdef ENABLE_ANALYSIS
+                           , qentry **q
+#endif
+                           )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL){
+            item = *q;
+            } else item = NULL;
+    } else {
+        item = NULL;
+    }
+#endif
     mca_pml_ob1_recv_request_t *recvreq;
     MCA_PML_OB1_RECV_REQUEST_ALLOC(recvreq);
     if (NULL == recvreq)
@@ -60,6 +74,13 @@ int mca_pml_ob1_irecv_init(void *addr,
     MCA_PML_OB1_RECV_REQUEST_INIT(recvreq,
                                    addr,
                                    count, datatype, src, tag, comm, true);
+
+#ifdef ENABLE_ANALYSIS
+    if(item!=NULL){ 
+        recvreq->q = item;
+        clock_gettime(CLOCK_REALTIME, &recvreq->activate);
+    }
+#endif
 
     PERUSE_TRACE_COMM_EVENT (PERUSE_COMM_REQ_ACTIVATE,
                              &((recvreq)->req_recv.req_base),
@@ -91,10 +112,8 @@ int mca_pml_ob1_irecv(void *addr,
     if(q!=NULL){
         if(*q!=NULL){
             item = *q;
-            item->blocking = 0;
             item->recvcount = item->recvcount + count;
-        	   item->count = item->count + count;
-        	   item->datasize = item->datasize + count*sizeof(datatype);
+        	   //item->recvDatasize = item->recvDatasize + count*sizeof(datatype);
         	   //printf("Datasize aus irecv: %d\n", item->datasize);
             } else item = NULL;
     } else {
@@ -111,17 +130,17 @@ int mca_pml_ob1_irecv(void *addr,
                                    addr,
                                    count, datatype, src, tag, comm, false);
 #ifdef ENABLE_ANALYSIS
-    if(item!=NULL) gettimeofday(&item->initializeRequest, NULL);
+    if(item!=NULL){ 
+        recvreq->q = item;
+        clock_gettime(CLOCK_REALTIME, &recvreq->activate);
+    }
 #endif
 
     PERUSE_TRACE_COMM_EVENT (PERUSE_COMM_REQ_ACTIVATE,
                              &((recvreq)->req_recv.req_base),
                              PERUSE_RECV);
-#ifndef ENABLE_ANALYSIS
+
     MCA_PML_OB1_RECV_REQUEST_START(recvreq);
-#else
-    MCA_PML_OB1_RECV_REQUEST_START(recvreq, &item);
-#endif
     *request = (ompi_request_t *) recvreq;
     return OMPI_SUCCESS;
 }
@@ -152,8 +171,7 @@ int mca_pml_ob1_recv(void *addr,
             item = *q;
             item->blocking = 1;
             item->recvcount = item->recvcount + count;
-        	   item->count = item->count + count;
-        	   item->datasize = item->datasize + count*sizeof(datatype);
+        	   //item->recvDatasize = item->recvDatasize + count*sizeof(datatype);
         	   //printf("Datasize aus recv: %d\n", item->datasize);
         } else item = NULL;
     }
@@ -178,17 +196,20 @@ int mca_pml_ob1_recv(void *addr,
     recvreq->req_recv.req_base.req_type = MCA_PML_REQUEST_RECV;
     MCA_PML_OB1_RECV_REQUEST_INIT(recvreq, addr, count, datatype,
                                   src, tag, comm, false);
+#ifdef ENABLE_ANALYSIS
+    if(item!=NULL){ 
+        recvreq->q = item;
+        clock_gettime(CLOCK_REALTIME, &recvreq->activate);
+    }
+#endif
+
 
     PERUSE_TRACE_COMM_EVENT (PERUSE_COMM_REQ_ACTIVATE,
                              &(recvreq->req_recv.req_base),
                              PERUSE_RECV);
-#ifndef ENABLE_ANALYSIS
     MCA_PML_OB1_RECV_REQUEST_START(recvreq);
-#else
-    MCA_PML_OB1_RECV_REQUEST_START(recvreq, &item);
-#endif
 #ifdef ENABLE_ANALYSIS
-    if(item!=NULL) gettimeofday(&item->requestWaitCompletion, NULL);
+    if(item!=NULL) clock_gettime(CLOCK_REALTIME, &item->requestWaitCompletion);
 #endif
     ompi_request_wait_completion(&recvreq->req_recv.req_base.req_ompi);
 
@@ -231,7 +252,7 @@ int mca_pml_ob1_recv(void *addr,
     } else {
         mca_pml_ob1_recv_request_fini (recvreq);
 #ifdef ENABLE_ANALYSIS
-    if(item!=NULL) gettimeofday(&item->requestFini, NULL);
+    if(item!=NULL) clock_gettime(CLOCK_REALTIME, &item->requestFini);
 #endif
         mca_pml_ob1_recvreq = recvreq;
     }
@@ -300,6 +321,14 @@ mca_pml_ob1_imrecv( void *buf,
                                   src, tag, comm, false);
     OBJ_RELEASE(comm);
 
+#ifdef ENABLE_ANALYSIS
+    if(item!=NULL){ 
+        recvreq->q = item;
+        clock_gettime(CLOCK_REALTIME, &recvreq->activate);
+    }
+#endif
+
+
     PERUSE_TRACE_COMM_EVENT (PERUSE_COMM_REQ_ACTIVATE,
                              &((recvreq)->req_recv.req_base),
                              PERUSE_RECV);
@@ -312,6 +341,7 @@ mca_pml_ob1_imrecv( void *buf,
     recvreq->req_rdma_idx = 0;
     recvreq->req_pending = false;
     recvreq->req_ack_sent = false;
+    
 
     MCA_PML_BASE_RECV_START(&recvreq->req_recv);
 
@@ -410,6 +440,13 @@ mca_pml_ob1_mrecv( void *buf,
                                   count, datatype,
                                   src, tag, comm, false);
     OBJ_RELEASE(comm);
+
+#ifdef ENABLE_ANALYSIS
+    if(item!=NULL){ 
+        recvreq->q = item;
+        clock_gettime(CLOCK_REALTIME, &recvreq->activate);
+    }
+#endif
 
     PERUSE_TRACE_COMM_EVENT (PERUSE_COMM_REQ_ACTIVATE,
                              &((recvreq)->req_recv.req_base),

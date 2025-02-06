@@ -585,7 +585,6 @@ static int allocate_state_shared (ompi_osc_rdma_module_t *module, void **base, s
     /* CPU atomics can be used if every process is on the same node or the NIC allows mixing CPU and NIC atomics */
     module->single_node     = local_size == global_size;
 
-
     if (module->single_node) {
         use_cpu_atomics = true;
     } else if (module->use_accelerated_btl) {
@@ -1140,7 +1139,6 @@ static int ompi_osc_rdma_query_accelerated_btls (ompi_communicator_t *comm, ompi
             return OMPI_ERR_NOT_FOUND;
         }
         examine_btl = examine_bml_btl->btl;
-
         /* skip any BTL which doesn't meet our requirements */
         if (!ompi_osc_rdma_check_accelerated_btl(examine_btl)) {
             continue;
@@ -1464,7 +1462,7 @@ static int ompi_osc_rdma_component_select (struct ompi_win_t *win, void **base, 
 
     opal_output_verbose(MCA_BASE_VERBOSE_INFO, ompi_osc_base_framework.framework_output,
                         "creating osc/rdma window of flavor %d with id %s",
-                        flavor, ompi_comm_print_cid (module->comm));
+                        flavor, ompi_comm_print_cid(module->comm));
 
     /* peer data */
     if (world_size > init_limit) {

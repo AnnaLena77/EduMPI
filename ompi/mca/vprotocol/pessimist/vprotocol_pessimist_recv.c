@@ -12,7 +12,7 @@
 #include "ompi/request/request.h"
 #include "ompi/mca/pml/base/pml_base_recvreq.h"
 #include "vprotocol_pessimist.h"
-#include "ompi/mpi/c/init.h"
+//#include "ompi/mpi/c/init.h"
 
 
 

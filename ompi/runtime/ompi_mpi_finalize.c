@@ -132,6 +132,9 @@ int ompi_mpi_finalize(void)
                            "mpi_finalize:invoked_multiple_times",
                            true, hostname, pid);
         }
+#ifdef ENABLE_ANALYSIS
+        free(ringbuffer);
+#endif
         return MPI_ERR_OTHER;
     }
     opal_atomic_wmb();
@@ -308,6 +311,11 @@ int ompi_mpi_finalize(void)
     opal_atomic_swap_32(&ompi_mpi_state, OMPI_MPI_STATE_FINALIZE_COMPLETED);
 
     ompi_hook_base_mpi_finalize_bottom();
+#ifdef ENABLE_ANALYSIS
+    if(ringbuffer != NULL){
+        free(ringbuffer);
+    }
+#endif
 
     return ret;
 }

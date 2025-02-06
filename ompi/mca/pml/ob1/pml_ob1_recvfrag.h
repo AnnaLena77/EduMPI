@@ -117,7 +117,8 @@ do {                                                                    \
  */
 
 extern void mca_pml_ob1_recv_frag_callback_match (mca_btl_base_module_t *btl,
-                                                  const mca_btl_base_receive_descriptor_t *descriptor);
+                                                  const mca_btl_base_receive_descriptor_t *descriptor
+                                                  );
 
 /**
  *  Callback from BTL on receipt of a recv_frag (rndv).

@@ -22,12 +22,12 @@
 #include <stdio.h>
 #include <time.h>
 
-#include "opal/constants.h"
-#include "opal/mca/threads/condition.h"
-#include "opal/mca/threads/threads.h"
-#include "opal/runtime/opal.h"
-#include "opal/sys/atomic.h"
 #include "support.h"
+#include "opal/runtime/opal.h"
+#include "opal/constants.h"
+#include "opal/mca/threads/threads.h"
+#include "opal/mca/threads/condition.h"
+#include "opal/sys/atomic.h"
 
 static opal_mutex_t mutex;
 static opal_condition_t thr1_cond;
@@ -36,9 +36,11 @@ static opal_condition_t thr2_cond;
 static volatile int thr1_count = 0;
 static volatile int thr2_count = 0;
 
+
 #define TEST_COUNT 100000
 
-static void *thr1_run(opal_object_t *obj)
+
+static void* thr1_run(opal_object_t* obj)
 {
     clock_t c1, c2;
     c1 = clock();
@@ -58,7 +60,7 @@ static void *thr1_run(opal_object_t *obj)
     return NULL;
 }
 
-static void *thr2_run(opal_object_t *obj)
+static void* thr2_run(opal_object_t* obj)
 {
     clock_t c1, c2;
     c1 = clock();
@@ -83,8 +85,8 @@ static void *thr2_run(opal_object_t *obj)
 int main(int argc, char **argv)
 {
     int rc;
-    opal_thread_t *thr1;
-    opal_thread_t *thr2;
+    opal_thread_t* thr1;
+    opal_thread_t* thr2;
 
     test_init("opal_condition_t");
 

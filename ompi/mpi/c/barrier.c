@@ -41,11 +41,9 @@ static const char FUNC_NAME[] = "MPI_Barrier";
 int MPI_Barrier(MPI_Comm comm)
 {
 #ifdef ENABLE_ANALYSIS
-    qentry *item = (qentry*)malloc(sizeof(qentry));
-    initQentry(&item);
-    gettimeofday(&item->start, NULL);
-    strcpy(item->function, "MPI_Barrier");
-    strcpy(item->communicationType, "collective");
+    qentry *item = getWritingRingPos();
+    clock_gettime(CLOCK_REALTIME, &item->start);
+    initQentry(&item, -1, "MPI_Barrier", 11, 0, 0, "collective", 10, NULL, NULL, comm, 1, NULL);
 #endif 
 
   int err = MPI_SUCCESS;
@@ -86,6 +84,7 @@ int MPI_Barrier(MPI_Comm comm)
 #else
       err = comm->c_coll->coll_barrier(comm, comm->c_coll->coll_barrier_module, &item);
       //qentryIntoQueue(&item);
+      clock_gettime(CLOCK_REALTIME, &item->end);
 #endif
     }
   }
@@ -99,6 +98,7 @@ int MPI_Barrier(MPI_Comm comm)
 #else
       err = comm->c_coll->coll_barrier(comm, comm->c_coll->coll_barrier_module, &item);
       //qentryIntoQueue(&item);
+      clock_gettime(CLOCK_REALTIME, &item->end);
 #endif
   }
 

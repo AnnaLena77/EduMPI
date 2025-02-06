@@ -168,7 +168,6 @@ mca_coll_basic_bcast_lin_inter(void *buff, int count,
 #endif
                                )
 {
-printf("coll_basic_bcast\n");
 #ifdef ENABLE_ANALYSIS
     qentry *item;
     if(q!=NULL){

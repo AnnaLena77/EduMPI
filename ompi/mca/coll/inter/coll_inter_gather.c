@@ -100,7 +100,6 @@ mca_coll_inter_gather_inter(const void *sbuf, int scount,
 	    /* First process sends data to the root */
 
 #ifndef ENABLE_ANALYSIS
-
 	    err = MCA_PML_CALL(send(ptmp, scount*(size_t)size_local, sdtype, root,
 				    MCA_COLL_BASE_TAG_GATHER,
 				    MCA_PML_BASE_SEND_STANDARD, comm));

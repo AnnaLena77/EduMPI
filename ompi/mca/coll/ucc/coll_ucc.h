@@ -269,7 +269,7 @@ int mca_coll_ucc_iallgather(const void *sbuf, int scount, struct ompi_datatype_t
 			, qentry **q
 #endif
                             );
-
+                            
 int mca_coll_ucc_allgatherv(const void *sbuf, int scount, struct ompi_datatype_t *sdtype,
                             void* rbuf, const int *rcounts, const int *rdisps,
                             struct ompi_datatype_t *rdtype,

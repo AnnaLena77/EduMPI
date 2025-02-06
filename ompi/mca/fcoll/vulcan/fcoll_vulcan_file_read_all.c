@@ -34,4 +34,3 @@ int mca_fcoll_vulcan_file_read_all (struct ompio_file_t *fh,
 {
     return mca_common_ompio_base_file_read_all (fh, buf, count, datatype, status);
 }
-

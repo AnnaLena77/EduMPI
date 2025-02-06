@@ -17,7 +17,7 @@
  *                         and Technology (RIST).  All rights reserved.
  * Copyright (c) 2016-2017 IBM Corporation. All rights reserved.
  * Copyright (c) 2018      DataDirect Networks. All rights reserved.
- * Copyright (c) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2022      Advanced Micro Devices, Inc. All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -277,6 +277,7 @@ static int close_component(void)
 {
     mca_common_ompio_request_fini ();
     mca_common_ompio_buffer_alloc_fini();
+    OBJ_DESTRUCT(&mca_io_ompio_mutex);
 
     return OMPI_SUCCESS;
 }

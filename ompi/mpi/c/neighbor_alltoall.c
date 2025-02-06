@@ -51,39 +51,9 @@ int MPI_Neighbor_alltoall(const void *sendbuf, int sendcount, MPI_Datatype sendt
                           MPI_Comm comm)
 {
 #ifdef ENABLE_ANALYSIS
-    qentry *item = (qentry*)malloc(sizeof(qentry));
-    initQentry(&item);
-    gettimeofday(&item->start, NULL);
-    strcpy(item->function, "MPI_Neighbor_alltoall");
-    strcpy(item->communicationType, "collective");
-    //item->datatype
-    char *type_name = (char*) malloc(MPI_MAX_OBJECT_NAME);
-    int type_name_length;
-    MPI_Type_get_name(sendtype, type_name, &type_name_length);
-    strcpy(item->datatype, type_name);
-    free(type_name);
-
-    //item->communicator
-    char *comm_name = (char*) malloc(MPI_MAX_OBJECT_NAME);
-    int comm_name_length;
-    MPI_Comm_get_name(comm, comm_name, &comm_name_length);
-    strcpy(item->communicationArea, comm_name);
-    free(comm_name);
-    //item->processrank
-    int processrank;
-    MPI_Comm_rank(comm, &processrank);
-    item->processrank = processrank;
-    //item->partnerrank
-    item->partnerrank = -1;
-    item->blocking = 1;
-    
-    //item->processorname
-    char *proc_name = (char*)malloc(MPI_MAX_PROCESSOR_NAME);
-    int proc_name_length;
-    MPI_Get_processor_name(proc_name, &proc_name_length);
-    strcpy(item->processorname, proc_name);
-    free(proc_name);
-    
+    qentry *item = getWritingRingPos();
+    clock_gettime(CLOCK_REALTIME, &item->start);
+    initQentry(&item, -1, "MPI_Neighbor_alltoall", 21, 0, 0, "collective", 10, sendtype, recvtype, comm, 1, NULL);
 #endif 
 
     size_t sendtype_size, recvtype_size;
@@ -182,7 +152,8 @@ int MPI_Neighbor_alltoall(const void *sendbuf, int sendcount, MPI_Datatype sendt
     err = comm->c_coll->coll_neighbor_alltoall(sendbuf, sendcount, sendtype, recvbuf,
                                               recvcount, recvtype, comm,
                                               comm->c_coll->coll_neighbor_alltoall_module, &item);
-    qentryIntoQueue(&item);
+    //qentryIntoQueue(&item);
+    clock_gettime(CLOCK_REALTIME, &item->end);
 #endif
     OMPI_ERRHANDLER_RETURN(err, comm, err, FUNC_NAME);
 }

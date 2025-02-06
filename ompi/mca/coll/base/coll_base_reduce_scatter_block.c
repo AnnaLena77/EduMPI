@@ -71,7 +71,6 @@ ompi_coll_base_reduce_scatter_block_basic_linear(const void *sbuf, void *rbuf, i
         } else item = NULL;
     } else item = NULL;
 #endif
-
     int rank, size, err = OMPI_SUCCESS;
     size_t count;
     ptrdiff_t gap, span;
@@ -187,7 +186,6 @@ ompi_coll_base_reduce_scatter_block_basic_linear(const void *sbuf, void *rbuf, i
             }
             recv_buf = recv_buf_free - gap;
         }
-
 
         /* reduction */
 #ifndef ENABLE_ANALYSIS

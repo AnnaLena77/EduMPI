@@ -104,7 +104,6 @@ int mca_coll_han_comm_create_new(struct ompi_communicator_t *comm,
     if( OMPI_SUCCESS != rc ) {
         goto return_with_error;
     }
-
     if( local_procs == 1 ) {
         /* restore saved collectives */
         HAN_SUBCOM_LOAD_COLLECTIVE(fallbacks, comm, han_module, allgatherv);

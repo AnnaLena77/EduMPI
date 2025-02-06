@@ -45,6 +45,7 @@ int mca_coll_ucc_bcast(void *buf, int count, struct ompi_datatype_t *dtype,
                        )
 {
 #ifdef ENABLE_ANALYSIS
+   //printf("hello from ucc bcast\n");
     qentry *item;
     if(q!=NULL){
         if(*q!=NULL){
@@ -81,6 +82,7 @@ int mca_coll_ucc_ibcast(void *buf, int count, struct ompi_datatype_t *dtype,
                         )
 {
 #ifdef ENABLE_ANALYSIS
+//printf("hello from ucc bcast\n");
     qentry *item;
     if(q!=NULL){
         if(*q!=NULL){

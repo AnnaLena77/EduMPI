@@ -47,7 +47,7 @@ mca_coll_cuda_allreduce(const void *sbuf, void *rbuf, int count,
                         struct ompi_communicator_t *comm,
                         mca_coll_base_module_t *module
 #ifdef ENABLE_ANALYSIS
-		      , qentry **q
+                        , qentry **q
 #endif
                         );
 
@@ -58,7 +58,7 @@ int mca_coll_cuda_reduce(const void *sbuf, void *rbuf, int count,
                          struct ompi_communicator_t *comm,
                          mca_coll_base_module_t *module
 #ifdef ENABLE_ANALYSIS
-		       , qentry **q
+                        , qentry **q
 #endif
                          );
 
@@ -68,7 +68,7 @@ int mca_coll_cuda_exscan(const void *sbuf, void *rbuf, int count,
                          struct ompi_communicator_t *comm,
                          mca_coll_base_module_t *module
 #ifdef ENABLE_ANALYSIS
-		       , qentry **q
+                        , qentry **q
 #endif
                          );
 
@@ -78,7 +78,7 @@ int mca_coll_cuda_scan(const void *sbuf, void *rbuf, int count,
                        struct ompi_communicator_t *comm,
                        mca_coll_base_module_t *module
 #ifdef ENABLE_ANALYSIS
-		     , qentry **q
+                        , qentry **q
 #endif
                        );
 
@@ -89,7 +89,7 @@ mca_coll_cuda_reduce_scatter_block(const void *sbuf, void *rbuf, int rcount,
                                    struct ompi_communicator_t *comm,
                                    mca_coll_base_module_t *module
 #ifdef ENABLE_ANALYSIS
-			        , qentry **q
+                        , qentry **q
 #endif
                                    );
 

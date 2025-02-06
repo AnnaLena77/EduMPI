@@ -82,7 +82,11 @@ extern int mca_pml_monitoring_isend_init(const void *buf,
                                          int tag,
                                          mca_pml_base_send_mode_t mode,
                                          struct ompi_communicator_t* comm,
-                                         struct ompi_request_t **request);
+                                         struct ompi_request_t **request
+#ifdef ENABLE_ANALYSIS
+                                         , qentry **q
+#endif
+                                         );
 
 extern int mca_pml_monitoring_isend(const void *buf,
                                     size_t count,
@@ -91,7 +95,11 @@ extern int mca_pml_monitoring_isend(const void *buf,
                                     int tag,
                                     mca_pml_base_send_mode_t mode,
                                     struct ompi_communicator_t* comm,
-                                    struct ompi_request_t **request);
+                                    struct ompi_request_t **request
+#ifdef ENABLE_ANALYSIS
+                                    , qentry **q
+#endif
+                                    );
 
 extern int mca_pml_monitoring_send(const void *buf,
                                    size_t count,
@@ -99,7 +107,11 @@ extern int mca_pml_monitoring_send(const void *buf,
                                    int dst,
                                    int tag,
                                    mca_pml_base_send_mode_t mode,
-                                   struct ompi_communicator_t* comm);
+                                   struct ompi_communicator_t* comm
+#ifdef ENABLE_ANALYSIS
+                                    , qentry **q
+#endif
+                                   );
 
 extern int mca_pml_monitoring_irecv_init(void *buf,
                                          size_t count,
@@ -107,7 +119,11 @@ extern int mca_pml_monitoring_irecv_init(void *buf,
                                          int src,
                                          int tag,
                                          struct ompi_communicator_t* comm,
-                                         struct ompi_request_t **request);
+                                         struct ompi_request_t **request
+#ifdef ENABLE_ANALYSIS
+                                         , qentry **q
+#endif
+                                         );
 
 extern int mca_pml_monitoring_irecv(void *buf,
                                     size_t count,
@@ -115,7 +131,11 @@ extern int mca_pml_monitoring_irecv(void *buf,
                                     int src,
                                     int tag,
                                     struct ompi_communicator_t* comm,
-                                    struct ompi_request_t **request);
+                                    struct ompi_request_t **request
+#ifdef ENABLE_ANALYSIS
+                                    , qentry **q
+#endif
+                                    );
 
 extern int mca_pml_monitoring_recv(void *buf,
                                    size_t count,
@@ -123,19 +143,31 @@ extern int mca_pml_monitoring_recv(void *buf,
                                    int src,
                                    int tag,
                                    struct ompi_communicator_t* comm,
-                                   ompi_status_public_t* status);
+                                   ompi_status_public_t* status
+#ifdef ENABLE_ANALYSIS
+                                    , qentry **q
+#endif
+                                   );
 
 extern int mca_pml_monitoring_imrecv(void *buf,
                                      size_t count,
                                      ompi_datatype_t *datatype,
                                      struct ompi_message_t **message,
-                                     struct ompi_request_t **request);
+                                     struct ompi_request_t **request
+#ifdef ENABLE_ANALYSIS
+                                    , qentry **q
+#endif
+                                     );
 
 extern int mca_pml_monitoring_mrecv(void *buf,
                                     size_t count,
                                     ompi_datatype_t *datatype,
                                     struct ompi_message_t **message,
-                                    ompi_status_public_t* status);
+                                    ompi_status_public_t* status
+#ifdef ENABLE_ANALYSIS
+                                    , qentry **q
+#endif
+                                    );
 
 extern int mca_pml_monitoring_dump(struct ompi_communicator_t* comm,
                                    int verbose);

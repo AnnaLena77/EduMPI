@@ -53,7 +53,6 @@ mca_coll_inter_allgather_inter(const void *sbuf, int scount,
 #endif
                                )
 {
-
 #ifdef ENABLE_ANALYSIS
     qentry *item;
     if(q!=NULL){
@@ -62,9 +61,7 @@ mca_coll_inter_allgather_inter(const void *sbuf, int scount,
         } else item = NULL;
     } else item = NULL;
 #endif
-
     int rank, root = 0, size, rsize, err = OMPI_SUCCESS, i;
-
     char *ptmp_free = NULL, *ptmp = NULL;
     ptrdiff_t gap, span;
     void *rbuf_ptr;

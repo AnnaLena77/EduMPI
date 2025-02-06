@@ -6,19 +6,21 @@
  * abnormal program termination
  */
 
-#include "mpi.h"
 #include <stdio.h>
+#include "mpi.h"
 
 #include "opal/dss/dss.h"
 #include "opal/mca/pmix/pmix.h"
 #include "opal/util/output.h"
-#include "orte/constants.h"
 #include "orte/util/name_fns.h"
+#include "orte/constants.h"
 
 static volatile bool register_active = false;
 
-static void _event_fn(int status, const opal_process_name_t *source, opal_list_t *info,
-                      opal_list_t *results, opal_pmix_notification_complete_fn_t cbfunc,
+static void _event_fn(int status,
+                      const opal_process_name_t *source,
+                      opal_list_t *info, opal_list_t *results,
+                      opal_pmix_notification_complete_fn_t cbfunc,
                       void *cbdata)
 {
     opal_value_t *kv;
@@ -27,7 +29,7 @@ static void _event_fn(int status, const opal_process_name_t *source, opal_list_t
     /* the name of the terminating proc should be on the info list */
     proc.jobid = ORTE_JOBID_INVALID;
     proc.vpid = ORTE_VPID_INVALID;
-    OPAL_LIST_FOREACH (kv, info, opal_value_t) {
+    OPAL_LIST_FOREACH(kv, info, opal_value_t) {
         if (0 == strcmp(kv->key, OPAL_PMIX_EVENT_AFFECTED_PROC)) {
             proc.jobid = kv->data.name.jobid;
             proc.vpid = kv->data.name.vpid;
@@ -35,7 +37,8 @@ static void _event_fn(int status, const opal_process_name_t *source, opal_list_t
         }
     }
 
-    opal_output(0, "NOTIFIED OF TERMINATION OF PROC %s", ORTE_NAME_PRINT(&proc));
+    opal_output(0, "NOTIFIED OF TERMINATION OF PROC %s",
+                ORTE_NAME_PRINT(&proc));
 
     /* must let the notifier know we are done */
     if (NULL != cbfunc) {
@@ -43,15 +46,18 @@ static void _event_fn(int status, const opal_process_name_t *source, opal_list_t
     }
 }
 
-static void _register_fn(int status, size_t evhandler_ref, void *cbdata)
+static void _register_fn(int status,
+                         size_t evhandler_ref,
+                         void *cbdata)
 {
-    opal_list_t *codes = (opal_list_t *) cbdata;
+    opal_list_t *codes = (opal_list_t*)cbdata;
 
     OPAL_LIST_RELEASE(codes);
     register_active = false;
 }
 
-int main(int argc, char *argv[])
+
+int main(int argc, char* argv[])
 {
 
     int i;
@@ -76,8 +82,7 @@ int main(int argc, char *argv[])
     while (1) {
         i++;
         pi = i / 3.14159256;
-        if (i > 100)
-            i = 0;
+        if (i > 100) i = 0;
     }
 
     MPI_Finalize();

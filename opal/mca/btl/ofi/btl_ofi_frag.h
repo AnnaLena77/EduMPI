@@ -9,9 +9,9 @@
  * $HEADER$
  */
  
-#ifdef ENABLE_ANALYSIS
+/*#ifdef ENABLE_ANALYSIS
 #   include "ompi/mpi/c/init.h"
-#endif
+#endif*/
 
 #if !defined(MCA_BTL_OFI_FRAG_H)
 #    define MCA_BTL_OFI_FRAG_H

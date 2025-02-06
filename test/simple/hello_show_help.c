@@ -7,14 +7,14 @@
 
 #include "opal_config.h"
 
-#include "mpi.h"
-#include "opal/util/output.h"
 #include <stdio.h>
 #include <unistd.h>
+#include "mpi.h"
+#include "opal/util/output.h"
 
 #include "opal/util/show_help.h"
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
     int rank, size;
     int stream;
@@ -48,13 +48,9 @@ int main(int argc, char *argv[])
     MPI_Barrier(MPI_COMM_WORLD);
 
     if (0 == rank) {
-        opal_output(0,
-                    "============================================================================");
-        opal_output(0, "The test is now complete.  Please verify that the HNP output all the "
-                       "required\nmessages (you may see 1 or 2 more messages from the HNP after "
-                       "this message).");
-        opal_output(0,
-                    "============================================================================");
+        opal_output(0, "============================================================================");
+        opal_output(0, "The test is now complete.  Please verify that the HNP output all the required\nmessages (you may see 1 or 2 more messages from the HNP after this message).");
+        opal_output(0, "============================================================================");
     }
     MPI_Finalize();
 

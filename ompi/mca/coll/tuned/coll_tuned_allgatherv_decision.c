@@ -178,6 +178,7 @@ int ompi_coll_tuned_allgatherv_intra_do_this(const void *sbuf, int scount,
         return ompi_coll_base_allgatherv_intra_sparbit(sbuf, scount, sdtype,
                                                          rbuf, rcounts, rdispls, rdtype,
                                                          comm, module);
+
 #else
     case (0):
         return ompi_coll_tuned_allgatherv_intra_dec_fixed(sbuf, scount, sdtype,

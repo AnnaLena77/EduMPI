@@ -50,7 +50,7 @@ mca_sharedfp_sm_seek (ompio_file_t *fh,
     }
 
     sh = fh->f_sharedfp_data;
-    offset = off * fh->f_fview.f_etype_size;
+    offset = off * fh->f_etype_size;
 
     if( 0 == fh->f_rank ){
         if ( MPI_SEEK_SET == whence){
@@ -138,7 +138,7 @@ mca_sharedfp_sm_seek (ompio_file_t *fh,
 #ifndef ENABLE_ANALYSIS
     fh->f_comm->c_coll->coll_barrier ( fh->f_comm, fh->f_comm->c_coll->coll_barrier_module );
 #else
-    fh->f_comm->c_coll->coll_barrier ( fh->f_comm, fh->f_comm->c_coll->coll_barrier_module, NULL);
+    fh->f_comm->c_coll->coll_barrier ( fh->f_comm, fh->f_comm->c_coll->coll_barrier_module, NULL );
 #endif
 
     return ret;

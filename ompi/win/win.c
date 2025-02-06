@@ -43,7 +43,7 @@
 
 #include "ompi/runtime/params.h"
 
-#include "ompi/mpi/c/init.h"
+//#include "ompi/mpi/c/init.h"
 
 /*
  * Table for Fortran <-> C communicator handle conversion.  Note that
@@ -178,6 +178,11 @@ static int alloc_window(struct ompi_communicator_t *comm, opal_info_t *info, int
         opal_info_dup(info, &(win->super.s_info));
     }
 
+    /* Copy the info for the info layer */
+    win->super.s_info = OBJ_NEW(opal_info_t);
+    if (info) {
+        opal_info_dup(info, &(win->super.s_info));
+    }
 
     ret = opal_info_get_value_enum (win->super.s_info, "accumulate_ops", &acc_ops,
                                     OMPI_WIN_ACCUMULATE_OPS_SAME_OP_NO_OP,
@@ -278,6 +283,7 @@ ompi_win_create(void *base, size_t size,
 
     /* MPI-4 §12.2.7 requires us to remove all unknown keys from the info object */
     opal_info_remove_unreferenced(win->super.s_info);
+    *newwin = win;
 
     *newwin = win;
     return OMPI_SUCCESS;

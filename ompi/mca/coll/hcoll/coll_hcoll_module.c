@@ -449,7 +449,7 @@ OBJ_CLASS_INSTANCE(mca_coll_hcoll_module_t,
         mca_coll_hcoll_module_construct,
         mca_coll_hcoll_module_destruct);
 
-static void safety_valve(void) __opal_attribute_destructor__;
+static void safety_valve(void) __attribute__((destructor));
 void safety_valve(void) {
     opal_mem_hooks_unregister_release(mca_coll_hcoll_mem_release_cb);
 }

@@ -123,7 +123,7 @@ int mca_rcache_base_module_destroy(mca_rcache_base_module_t *module)
     return OPAL_ERR_NOT_FOUND;
 }
 
-static void safety_valve(void) __opal_attribute_destructor__;
+static void safety_valve(void) __attribute__((destructor));
 void safety_valve(void) {
     opal_mem_hooks_unregister_release(mca_rcache_base_mem_cb);
 }

@@ -23,6 +23,7 @@
 #include "ompi/mca/pml/pml.h"
 #include "coll_han_trigger.h"
 
+
 static int mca_coll_han_bcast_t0_task(void *task_args);
 static int mca_coll_han_bcast_t1_task(void *task_args);
 
@@ -33,7 +34,11 @@ mca_coll_han_set_bcast_args(mca_coll_han_bcast_args_t * args, mca_coll_task_t * 
                             struct ompi_communicator_t *up_comm,
                             struct ompi_communicator_t *low_comm,
                             int num_segments, int cur_seg, int w_rank, int last_seg_count,
-                            bool noop)
+                            bool noop, 
+#ifdef ENABLE_ANALYSIS
+                            qentry **q
+#endif
+                            )
 {
     args->cur_task = cur_task;
     args->buff = buff;
@@ -48,6 +53,9 @@ mca_coll_han_set_bcast_args(mca_coll_han_bcast_args_t * args, mca_coll_task_t * 
     args->w_rank = w_rank;
     args->last_seg_count = last_seg_count;
     args->noop = noop;
+#ifdef ENABLE_ANALYSIS
+    args->q = q;
+#endif
 }
 
 /*
@@ -73,6 +81,7 @@ mca_coll_han_bcast_intra(void *buf,
 #endif
                          )
 {
+//printf("hello from coll_han_bcast_intra\n");
 #ifdef ENABLE_ANALYSIS
     qentry *item;
     if(q!=NULL){
@@ -106,7 +115,6 @@ mca_coll_han_bcast_intra(void *buf,
         return han_module->previous_bcast(buf, count, dtype, root,
                                           comm, han_module->previous_bcast_module, &item);
 #endif
-
     }
     /* Topo must be initialized to know rank distribution which then is used to
      * determine if han can be used */
@@ -159,7 +167,11 @@ mca_coll_han_bcast_intra(void *buf,
     mca_coll_han_set_bcast_args(t, t0, (char *)buf, seg_count, dtype,
                                 root_up_rank, root_low_rank, up_comm, low_comm,
                                 num_segments, 0, w_rank, count - (num_segments - 1) * seg_count,
-                                low_rank != root_low_rank);
+                                low_rank != root_low_rank
+#ifdef ENABLE_ANALYSIS
+                                , &item
+#endif
+                                );
     /* Init the first task */
     init_task(t0, mca_coll_han_bcast_t0_task, (void *) t);
     issue_task(t0);
@@ -190,7 +202,23 @@ mca_coll_han_bcast_intra(void *buf,
 /* t0 task: issue and wait for the upper level ibcast of segment 0 */
 int mca_coll_han_bcast_t0_task(void *task_args)
 {
+//printf("hello from coll_han_bcast_t0_task\n");
     mca_coll_han_bcast_args_t *t = (mca_coll_han_bcast_args_t *) task_args;
+    
+    #ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(t->q!=NULL){
+        if(*(t->q)!=NULL) {
+            item = *(t->q);
+        }
+        else{
+             item = NULL;
+         }
+    }
+    else {
+         item = NULL;
+    }
+    #endif
 
     OPAL_OUTPUT_VERBOSE((30, mca_coll_han_component.han_output, "[%d]: in t0 %d\n", t->w_rank,
                          t->cur_seg));
@@ -203,7 +231,7 @@ int mca_coll_han_bcast_t0_task(void *task_args)
                                    t->up_comm, t->up_comm->c_coll->coll_bcast_module);
 #else
     t->up_comm->c_coll->coll_bcast((char *) t->buff, t->seg_count, t->dtype, t->root_up_rank,
-                                   t->up_comm, t->up_comm->c_coll->coll_bcast_module, NULL);
+                                   t->up_comm, t->up_comm->c_coll->coll_bcast_module, &item);
 #endif
     return OMPI_SUCCESS;
 }
@@ -216,7 +244,23 @@ int mca_coll_han_bcast_t0_task(void *task_args)
 
 int mca_coll_han_bcast_t1_task(void *task_args)
 {
+
+//printf("hello from coll_han_bcast_t1_task\n");
     mca_coll_han_bcast_args_t *t = (mca_coll_han_bcast_args_t *) task_args;
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(t->q!=NULL){
+        if(*(t->q)!=NULL) {
+            item = *(t->q);
+        }
+        else{
+             item = NULL;
+         }
+    }
+    else {
+         item = NULL;
+    }
+#endif
     ompi_request_t *ibcast_req = NULL;
     int tmp_count = t->seg_count;
     ptrdiff_t extent, lb;
@@ -239,7 +283,7 @@ int mca_coll_han_bcast_t1_task(void *task_args)
             t->up_comm->c_coll->coll_ibcast((char *) t->buff + extent * t->seg_count,
                                             tmp_count, t->dtype, t->root_up_rank,
                                             t->up_comm, &ibcast_req,
-                                            t->up_comm->c_coll->coll_ibcast_module, NULL);
+                                            t->up_comm->c_coll->coll_ibcast_module, &item);
 #endif
         }
     }
@@ -253,7 +297,7 @@ int mca_coll_han_bcast_t1_task(void *task_args)
 #else
     t->low_comm->c_coll->coll_bcast((char *) t->buff,
                                     tmp_count, t->dtype, t->root_low_rank, t->low_comm,
-                                    t->low_comm->c_coll->coll_bcast_module, NULL);
+                                    t->low_comm->c_coll->coll_bcast_module, &item);
 #endif
 
     if (NULL != ibcast_req) {
@@ -279,6 +323,7 @@ mca_coll_han_bcast_intra_simple(void *buf,
 #endif
                                 )
 {
+//printf("hello from coll_han_bcast_intra_simple\n");
 #ifdef ENABLE_ANALYSIS
     qentry *item;
     if(q!=NULL){
@@ -286,6 +331,7 @@ mca_coll_han_bcast_intra_simple(void *buf,
             item = *q;
         } else item = NULL;
     } else item = NULL;
+    //if(item == NULL) printf("In han_bcast_intra_simple NULL!\n");
 #endif
     /* create the subcommunicators */
     mca_coll_han_module_t *han_module = (mca_coll_han_module_t *)module;
@@ -348,7 +394,6 @@ mca_coll_han_bcast_intra_simple(void *buf,
                          w_rank, root_low_rank, root_up_rank));
 
     if (low_rank == root_low_rank) {
-
 #ifndef ENABLE_ANALYSIS
         up_comm->c_coll->coll_bcast(buf, count, dtype, root_up_rank,
                                     up_comm, up_comm->c_coll->coll_bcast_module);

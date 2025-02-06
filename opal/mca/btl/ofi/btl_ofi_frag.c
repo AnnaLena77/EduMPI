@@ -16,7 +16,9 @@
 #include "btl_ofi.h"
 #include "btl_ofi_endpoint.h"
 #include "btl_ofi_rdma.h"
+/*#ifdef ENABLE_ANALYSIS
 #include "ompi/mpi/c/init.h"
+#endif*/
 
 static void mca_btl_ofi_base_frag_constructor(mca_btl_ofi_base_frag_t *frag)
 {
@@ -159,7 +161,7 @@ int mca_btl_ofi_send(mca_btl_base_module_t *btl, mca_btl_base_endpoint_t *endpoi
 
     MCA_BTL_OFI_NUM_SEND_INC(ofi_btl);
 #ifdef ENABLE_ANALYSIS
-    if(item!=NULL) item->sent = time(NULL);
+    if(item!=NULL) clock_gettime(CLOCK_REALTIME, &item->sent);
 #endif
     return OPAL_SUCCESS;
 }

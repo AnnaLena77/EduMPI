@@ -32,7 +32,11 @@ int mca_coll_monitoring_barrier(struct ompi_communicator_t *comm,
 	}
     }
     mca_common_monitoring_coll_a2a(0, monitoring_module->data);
+#ifndef ENABLE_ANALYSIS
     return monitoring_module->real.coll_barrier(comm, monitoring_module->real.coll_barrier_module);
+#else
+    return monitoring_module->real.coll_barrier(comm, monitoring_module->real.coll_barrier_module, NULL);
+#endif
 }
 
 int mca_coll_monitoring_ibarrier(struct ompi_communicator_t *comm,
@@ -54,5 +58,9 @@ int mca_coll_monitoring_ibarrier(struct ompi_communicator_t *comm,
 	}
     }
     mca_common_monitoring_coll_a2a(0, monitoring_module->data);
+#ifndef ENABLE_ANALYSIS
     return monitoring_module->real.coll_ibarrier(comm, request, monitoring_module->real.coll_ibarrier_module);
+#else
+    return monitoring_module->real.coll_ibarrier(comm, request, monitoring_module->real.coll_ibarrier_module, NULL);
+#endif
 }

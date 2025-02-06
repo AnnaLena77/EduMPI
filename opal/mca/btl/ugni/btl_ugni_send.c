@@ -17,9 +17,10 @@
 #include "btl_ugni_frag.h"
 #include "btl_ugni_prepare.h"
 #include "btl_ugni_smsg.h"
-#ifdef ENABLE_ANALYSIS
+
+/*#ifdef ENABLE_ANALYSIS
 #  include "ompi/mpi/c/init.h"
-#endif
+#endif*/
 
 void mca_btl_ugni_wait_list_append(mca_btl_ugni_module_t *ugni_module,
                                    mca_btl_base_endpoint_t *endpoint,

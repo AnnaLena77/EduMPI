@@ -55,10 +55,9 @@ mca_coll_han_barrier_intra_simple(struct ompi_communicator_t *comm,
 
 #ifndef ENABLE_ANALYSIS
         return han_module->previous_barrier(comm, han_module->previous_barrier_module);
-#else 
+#else
         return han_module->previous_barrier(comm, han_module->previous_barrier_module, &item);
 #endif
-
     }
 
     low_comm = han_module->sub_comm[INTRA_NODE];

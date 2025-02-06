@@ -80,7 +80,11 @@ int mca_pml_ucx_del_comm(struct ompi_communicator_t* comm);
 
 int mca_pml_ucx_irecv_init(void *buf, size_t count, ompi_datatype_t *datatype,
                              int src, int tag, struct ompi_communicator_t* comm,
-                             struct ompi_request_t **request);
+                             struct ompi_request_t **request
+#ifdef ENABLE_ANALYSIS
+                             , qentry **q
+#endif
+                             );
 
 int mca_pml_ucx_irecv(void *buf, size_t count, ompi_datatype_t *datatype,
                         int src, int tag, struct ompi_communicator_t* comm,
@@ -101,7 +105,11 @@ int mca_pml_ucx_recv(void *buf, size_t count, ompi_datatype_t *datatype, int src
 int mca_pml_ucx_isend_init(const void *buf, size_t count, ompi_datatype_t *datatype,
                              int dst, int tag, mca_pml_base_send_mode_t mode,
                              struct ompi_communicator_t* comm,
-                             struct ompi_request_t **request);
+                             struct ompi_request_t **request
+#ifdef ENABLE_ANALYSIS
+                             , qentry **q
+#endif
+                             );
 
 int mca_pml_ucx_isend(const void *buf, size_t count, ompi_datatype_t *datatype,
                         int dst, int tag, mca_pml_base_send_mode_t mode,

@@ -53,38 +53,9 @@ int MPI_Ineighbor_alltoallv(const void *sendbuf, const int sendcounts[], const i
                             MPI_Request *request)
 {
 #ifdef ENABLE_ANALYSIS
-    qentry *item = (qentry*)malloc(sizeof(qentry));
-    initQentry(&item);
-    gettimeofday(&item->start, NULL);
-    strcpy(item->function, "MPI_Ineighbor_alltoallv");
-    strcpy(item->communicationType, "collective");
-    //item->datatype
-    char *type_name = (char*) malloc(MPI_MAX_OBJECT_NAME);
-    int type_name_length;
-    MPI_Type_get_name(sendtype, type_name, &type_name_length);
-    strcpy(item->datatype, type_name);
-    free(type_name);
-    //item->communicator
-    char *comm_name = (char*) malloc(MPI_MAX_OBJECT_NAME);
-    int comm_name_length;
-    MPI_Comm_get_name(comm, comm_name, &comm_name_length);
-    strcpy(item->communicationArea, comm_name);
-    free(comm_name);
-    //item->processrank
-    int processrank;
-    MPI_Comm_rank(comm, &processrank);
-    item->processrank = processrank;
-    //item->partnerrank
-    item->partnerrank = -1;
-    item->blocking = 0;
-    
-    //item->processorname
-    char *proc_name = (char*)malloc(MPI_MAX_PROCESSOR_NAME);
-    int proc_name_length;
-    MPI_Get_processor_name(proc_name, &proc_name_length);
-    strcpy(item->processorname, proc_name);
-    free(proc_name);
-    
+    qentry *item = getWritingRingPos();
+    clock_gettime(CLOCK_REALTIME, &item->start);
+    initQentry(&item, -1, "MPI_Ineighbor_alltoallv", 23, 0, 0, "collective", 10, sendtype, recvtype, comm, 0, NULL);
 #endif 
     int i, err;
     int indegree, outdegree;
@@ -186,7 +157,8 @@ int MPI_Ineighbor_alltoallv(const void *sendbuf, const int sendcounts[], const i
     err = comm->c_coll->coll_ineighbor_alltoallv(sendbuf, sendcounts, sdispls,
                                                 sendtype, recvbuf, recvcounts, rdispls,
                                                 recvtype, comm, request, comm->c_coll->coll_ineighbor_alltoallv_module, &item);
-    qentryIntoQueue(&item);
+    clock_gettime(CLOCK_REALTIME, &item->end);
+    //qentryIntoQueue(&item);
 #endif
     if (OPAL_LIKELY(OMPI_SUCCESS == err)) {
         ompi_coll_base_retain_datatypes(*request, sendtype, recvtype);

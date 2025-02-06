@@ -23,8 +23,22 @@
 
 /* Dissemination implementation of MPI_Ibarrier */
 static int nbc_barrier_init(struct ompi_communicator_t *comm, ompi_request_t ** request,
-                            mca_coll_base_module_t *module, bool persistent)
+                            mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                           , qentry **q
+#endif
+                            )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
+
   int rank, p, maxround, res, recvpeer, sendpeer;
   NBC_Schedule *schedule;
   ompi_coll_libnbc_module_t *libnbc_module = (ompi_coll_libnbc_module_t*) module;
@@ -53,14 +67,22 @@ static int nbc_barrier_init(struct ompi_communicator_t *comm, ompi_request_t ** 
       recvpeer = ((rank - (1 << round)) + p) % p;
 
       /* send msg to sendpeer */
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send (NULL, false, 0, MPI_BYTE, sendpeer, schedule, false);
+#else
+      res = NBC_Sched_send (NULL, false, 0, MPI_BYTE, sendpeer, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         OBJ_RELEASE(schedule);
         return res;
       }
 
       /* recv msg from recvpeer */
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_recv (NULL, false, 0, MPI_BYTE, recvpeer, schedule, false);
+#else
+      res = NBC_Sched_recv (NULL, false, 0, MPI_BYTE, recvpeer, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         OBJ_RELEASE(schedule);
         return res;
@@ -100,8 +122,23 @@ static int nbc_barrier_init(struct ompi_communicator_t *comm, ompi_request_t ** 
 }
 
 int ompi_coll_libnbc_ibarrier(struct ompi_communicator_t *comm, ompi_request_t ** request,
-                              mca_coll_base_module_t *module) {
+                              mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                              , qentry **q
+#endif
+                              ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_barrier_init(comm, request, module, false, &item);
+#else
     int res = nbc_barrier_init(comm, request, module, false);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -117,8 +154,21 @@ int ompi_coll_libnbc_ibarrier(struct ompi_communicator_t *comm, ompi_request_t *
 }
 
 static int nbc_barrier_inter_init(struct ompi_communicator_t *comm, ompi_request_t ** request,
-                                  mca_coll_base_module_t *module, bool persistent)
+                                  mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                                  , qentry **q
+#endif
+                                  )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int rank, res, rsize;
   NBC_Schedule *schedule;
   ompi_coll_libnbc_module_t *libnbc_module = (ompi_coll_libnbc_module_t*) module;
@@ -133,7 +183,11 @@ static int nbc_barrier_inter_init(struct ompi_communicator_t *comm, ompi_request
 
   if (0 == rank) {
     for (int peer = 1 ; peer < rsize ; ++peer) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_recv (NULL, false, 0, MPI_BYTE, peer, schedule, false);
+#else
+      res = NBC_Sched_recv (NULL, false, 0, MPI_BYTE, peer, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         OBJ_RELEASE(schedule);
         return res;
@@ -142,13 +196,21 @@ static int nbc_barrier_inter_init(struct ompi_communicator_t *comm, ompi_request
   }
 
   /* synchronize with the remote root */
+#ifndef ENABLE_ANALYSIS
   res = NBC_Sched_recv (NULL, false, 0, MPI_BYTE, 0, schedule, false);
+#else
+  res = NBC_Sched_recv (NULL, false, 0, MPI_BYTE, 0, schedule, false, &item);
+#endif
   if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
     OBJ_RELEASE(schedule);
     return res;
   }
 
+#ifndef ENABLE_ANALYSIS
   res = NBC_Sched_send (NULL, false, 0, MPI_BYTE, 0, schedule, false);
+#else
+  res = NBC_Sched_send (NULL, false, 0, MPI_BYTE, 0, schedule, false, &item);
+#endif
   if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
     OBJ_RELEASE(schedule);
     return res;
@@ -164,7 +226,11 @@ static int nbc_barrier_inter_init(struct ompi_communicator_t *comm, ompi_request
 
     /* inform remote peers that all local peers have entered the barrier */
     for (int peer = 1; peer < rsize ; ++peer) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send (NULL, false, 0, MPI_BYTE, peer, schedule, false);
+#else
+      res = NBC_Sched_send (NULL, false, 0, MPI_BYTE, peer, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         OBJ_RELEASE(schedule);
         return res;
@@ -187,8 +253,23 @@ static int nbc_barrier_inter_init(struct ompi_communicator_t *comm, ompi_request
 }
 
 int ompi_coll_libnbc_ibarrier_inter(struct ompi_communicator_t *comm, ompi_request_t ** request,
-                                    mca_coll_base_module_t *module) {
+                                    mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                    , qentry **q
+#endif
+                                    ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_barrier_inter_init(comm, request, module, false, &item);
+#else
     int res = nbc_barrier_inter_init(comm, request, module, false);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -204,8 +285,23 @@ int ompi_coll_libnbc_ibarrier_inter(struct ompi_communicator_t *comm, ompi_reque
 }
 
 int ompi_coll_libnbc_barrier_init(struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                  mca_coll_base_module_t *module) {
+                                  mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                  , qentry **q
+#endif
+                                  ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_barrier_init(comm, request, module, true, &item);
+#else
     int res = nbc_barrier_init(comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -214,8 +310,23 @@ int ompi_coll_libnbc_barrier_init(struct ompi_communicator_t *comm, MPI_Info inf
 }
 
 int ompi_coll_libnbc_barrier_inter_init(struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                        mca_coll_base_module_t *module) {
+                                        mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                        , qentry **q
+#endif
+                                        ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_barrier_inter_init(comm, request, module, true, &item);
+#else
     int res = nbc_barrier_inter_init(comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }

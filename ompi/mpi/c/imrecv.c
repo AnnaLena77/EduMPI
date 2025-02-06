@@ -33,34 +33,11 @@ static const char FUNC_NAME[] = "MPI_Imrecv";
 int MPI_Imrecv(void *buf, int count, MPI_Datatype type,
                MPI_Message *message, MPI_Request *request)
 {
-#ifdef ENABLE_ANALYSIS
-    qentry *item = (qentry*)malloc(sizeof(qentry));
-    //item->start
-    gettimeofday(&item->start, NULL);
-    //item->operation
-    strcpy(item->operation, "MPI_Imrecv");
-    //item->blocking
-    item->blocking = 0;
-    //item->datatype
-    char *type_name = (char*) malloc(MPI_MAX_OBJECT_NAME);
-    int type_name_length;
-    MPI_Type_get_name(type, type_name, &type_name_length);
-    strcpy(item->datatype, type_name);
-    free(type_name);
-
-    //item->processrank
-    int processrank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &processrank);
-    item->processrank = processrank;
-    
-    //item->processorname
-    char *proc_name = (char*)malloc(MPI_MAX_PROCESSOR_NAME);
-    int proc_name_length;
-    MPI_Get_processor_name(proc_name, &proc_name_length);
-    strcpy(item->processorname, proc_name);
-    free(proc_name);
-    
-#endif
+    #ifdef ENABLE_ANALYSIS
+    qentry *item = getWritingRingPos();
+    clock_gettime(CLOCK_REALTIME, &item->start);
+    initQentry(&item, -1, "MPI_Imrecv", 10, 0, 0, "p2p", 3, type, NULL, NULL, 0, NULL);
+    #endif
     
     int rc = MPI_SUCCESS;
     ompi_communicator_t *comm;
@@ -105,7 +82,8 @@ int MPI_Imrecv(void *buf, int count, MPI_Datatype type,
     rc = MCA_PML_CALL(imrecv(buf, count, type, message, request));
 #else
     rc = MCA_PML_CALL(imrecv(buf, count, type, message, request, &item));
-    qentryIntoQueue(&item);
+    clock_gettime(CLOCK_REALTIME, &item->end);
+    //qentryIntoQueue(&item);
 #endif
     OMPI_ERRHANDLER_RETURN(rc, comm, rc, FUNC_NAME);
 }

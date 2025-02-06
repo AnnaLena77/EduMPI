@@ -15,8 +15,7 @@ static inline ucc_status_t mca_coll_ucc_allgatherv_init(const void *sbuf, int sc
                                                         struct ompi_datatype_t *rdtype,
                                                         mca_coll_ucc_module_t *ucc_module,
                                                         ucc_coll_req_h *req,
-                                                        mca_coll_ucc_req_t *coll_req
-                                                        )
+                                                        mca_coll_ucc_req_t *coll_req)
 {
     ucc_datatype_t         ucc_sdt, ucc_rdt;
 

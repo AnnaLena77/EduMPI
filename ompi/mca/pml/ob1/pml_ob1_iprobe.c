@@ -37,11 +37,7 @@ int mca_pml_ob1_iprobe(int src,
     recvreq.req_recv.req_base.req_type = MCA_PML_REQUEST_IPROBE;
 
     MCA_PML_OB1_RECV_REQUEST_INIT(&recvreq, NULL, 0, &ompi_mpi_char.dt, src, tag, comm, false);
-#ifndef ENABLE_ANALYSIS
     MCA_PML_OB1_RECV_REQUEST_START(&recvreq);
-#else
-    MCA_PML_OB1_RECV_REQUEST_START(&recvreq, NULL);
-#endif
 
     if( REQUEST_COMPLETE( &(recvreq.req_recv.req_base.req_ompi)) ) {
         rc = recvreq.req_recv.req_base.req_ompi.req_status.MPI_ERROR;
@@ -71,11 +67,7 @@ int mca_pml_ob1_probe(int src,
     recvreq.req_recv.req_base.req_type = MCA_PML_REQUEST_PROBE;
 
     MCA_PML_OB1_RECV_REQUEST_INIT(&recvreq, NULL, 0, &ompi_mpi_char.dt, src, tag, comm, false);
-#ifndef ENABLE_ANALYSIS
     MCA_PML_OB1_RECV_REQUEST_START(&recvreq);
-#else
-    MCA_PML_OB1_RECV_REQUEST_START(&recvreq, NULL);
-#endif
 
     ompi_request_wait_completion(&recvreq.req_recv.req_base.req_ompi);
     rc = recvreq.req_recv.req_base.req_ompi.req_status.MPI_ERROR;
@@ -112,11 +104,7 @@ mca_pml_ob1_improbe(int src,
     /* initialize the request enough to probe and get the status */
     MCA_PML_OB1_RECV_REQUEST_INIT(recvreq, NULL, 0, &ompi_mpi_char.dt,
                                   src, tag, comm, false);
-#ifndef ENABLE_ANALYSIS
     MCA_PML_OB1_RECV_REQUEST_START(recvreq);
-#else
-    MCA_PML_OB1_RECV_REQUEST_START(recvreq, NULL);
-#endif
 
     if( REQUEST_COMPLETE( &(recvreq->req_recv.req_base.req_ompi)) ) {
         rc = recvreq->req_recv.req_base.req_ompi.req_status.MPI_ERROR;
@@ -169,11 +157,8 @@ mca_pml_ob1_mprobe(int src,
     /* initialize the request enough to probe and get the status */
     MCA_PML_OB1_RECV_REQUEST_INIT(recvreq, NULL, 0, &ompi_mpi_char.dt,
                                   src, tag, comm, false);
-#ifndef ENABLE_ANALYSIS
+
     MCA_PML_OB1_RECV_REQUEST_START(recvreq);
-#else
-    MCA_PML_OB1_RECV_REQUEST_START(recvreq, NULL);
-#endif
 
     ompi_request_wait_completion(&recvreq->req_recv.req_base.req_ompi);
     rc = recvreq->req_recv.req_base.req_ompi.req_status.MPI_ERROR;

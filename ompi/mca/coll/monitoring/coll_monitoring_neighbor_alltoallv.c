@@ -84,7 +84,7 @@ int mca_coll_monitoring_neighbor_alltoallv(const void *sbuf, const int *scounts,
 #ifndef ENABLE_ANALYSIS
     return monitoring_module->real.coll_neighbor_alltoallv(sbuf, scounts, sdisps, sdtype, rbuf, rcounts, rdisps, rdtype, comm, monitoring_module->real.coll_neighbor_alltoallv_module);
 #else
-    return monitoring_module->real.coll_neighbor_alltoallv(sbuf, scounts, sdisps, sdtype, rbuf, rcounts, rdisps, rdtype, comm, monitoring_module->real.coll_neighbor_alltoallv_module);
+    return monitoring_module->real.coll_neighbor_alltoallv(sbuf, scounts, sdisps, sdtype, rbuf, rcounts, rdisps, rdtype, comm, monitoring_module->real.coll_neighbor_alltoallv_module, &item);
 #endif
 }
 

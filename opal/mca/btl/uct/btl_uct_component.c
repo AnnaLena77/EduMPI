@@ -674,7 +674,7 @@ mca_btl_uct_component_t mca_btl_uct_component = {
         .btl_progress = mca_btl_uct_component_progress,
     }};
 
-static void safety_valve(void) __opal_attribute_destructor__;
+static void safety_valve(void) __attribute__((destructor));
 void safety_valve(void) {
     opal_mem_hooks_unregister_release(mca_btl_uct_mem_release_cb);
 }

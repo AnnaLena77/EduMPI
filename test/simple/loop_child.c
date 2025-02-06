@@ -1,12 +1,13 @@
-#include "mpi.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
 #include <pthread.h>
 #include <semaphore.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include "mpi.h"
 
-int main(int argc, char **argv)
+
+int main( int argc, char **argv )
 {
     MPI_Comm parent;
     MPI_Comm merged;
@@ -24,6 +25,6 @@ int main(int argc, char **argv)
     MPI_Comm_free(&merged);
     MPI_Comm_disconnect(&parent);
     MPI_Finalize();
-    printf("Child %d: exiting\n", (int) getpid());
+    printf("Child %d: exiting\n", (int)getpid());
     return 0;
 }

@@ -54,8 +54,6 @@ recheck_request_status:
             ompi_grequest_invoke_query(request, &request->req_status);
         }
         if (MPI_STATUS_IGNORE != status) {
-            /* make sure we get the correct status */
-            opal_atomic_rmb();
             OMPI_COPY_STATUS(status, request->req_status, false);
         }
         if( request->req_persistent ) {
@@ -129,8 +127,6 @@ int ompi_request_default_test_any(
                 ompi_grequest_invoke_query(request, &request->req_status);
             }
             if (MPI_STATUS_IGNORE != status) {
-                /* make sure we get the correct status */
-                opal_atomic_rmb();
                 OMPI_COPY_STATUS(status, request->req_status, false);
             }
 
@@ -187,7 +183,7 @@ int ompi_request_default_test_all(
     size_t num_completed = 0;
     ompi_request_t *request;
     int do_it_once = 0;
-
+    opal_atomic_mb();
     for (i = 0; i < count; i++) {
         request = requests[i];
 

@@ -127,7 +127,9 @@
 #include "opal/mca/rcache/rcache.h"
 #include "opal/prefetch.h" /* For OPAL_LIKELY */
 #include "opal/types.h"
+#ifdef ENABLE_ANALYSIS
 #include "ompi/mpi/c/init.h"
+#endif
 
 BEGIN_C_DECLS
 

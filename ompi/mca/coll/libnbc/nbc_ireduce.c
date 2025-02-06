@@ -9,7 +9,7 @@
  *                         reserved.
  * Copyright (c) 2014-2018 Research Organization for Information Science
  *                         and Technology (RIST).  All rights reserved.
- * Copyright (c) 2017      IBM Corporation.  All rights reserved.
+ * Copyright (c) 2017-2022 IBM Corporation.  All rights reserved.
  * Copyright (c) 2018      FUJITSU LIMITED.  All rights reserved.
  * $COPYRIGHT$
  *
@@ -26,6 +26,7 @@
 
 #include "nbc_internal.h"
 
+#ifndef ENABLE_ANALYSIS
 static inline int red_sched_binomial (int rank, int p, int root, const void *sendbuf, void *redbuf, char tmpredbuf, int count, MPI_Datatype datatype,
                                       MPI_Op op, char inplace, NBC_Schedule *schedule, void *tmpbuf);
 static inline int red_sched_chain (int rank, int p, int root, const void *sendbuf, void *recvbuf, int count, MPI_Datatype datatype,
@@ -37,6 +38,19 @@ static inline int red_sched_redscat_gather(
     int rank, int comm_size, int root, const void *sbuf, void *rbuf,
     char tmpredbuf, int count, MPI_Datatype datatype, MPI_Op op, char inplace,
     NBC_Schedule *schedule, void *tmp_buf, struct ompi_communicator_t *comm);
+#else
+static inline int red_sched_binomial (int rank, int p, int root, const void *sendbuf, void *redbuf, char tmpredbuf, int count, MPI_Datatype datatype,
+                                      MPI_Op op, char inplace, NBC_Schedule *schedule, void *tmpbuf, qentry **q);
+static inline int red_sched_chain (int rank, int p, int root, const void *sendbuf, void *recvbuf, int count, MPI_Datatype datatype,
+                                   MPI_Op op, MPI_Aint ext, size_t size, NBC_Schedule *schedule, void *tmpbuf, int fragsize, qentry **q);
+
+static inline int red_sched_linear (int rank, int rsize, int root, const void *sendbuf, void *recvbuf, void *tmpbuf, int count, MPI_Datatype datatype,
+                                    MPI_Op op, NBC_Schedule *schedule, qentry **q);
+static inline int red_sched_redscat_gather(
+    int rank, int comm_size, int root, const void *sbuf, void *rbuf,
+    char tmpredbuf, int count, MPI_Datatype datatype, MPI_Op op, char inplace,
+    NBC_Schedule *schedule, void *tmp_buf, struct ompi_communicator_t *comm, qentry **q);
+#endif
 
 #ifdef NBC_CACHE_SCHEDULE
 /* tree comparison function for schedule cache */
@@ -61,7 +75,20 @@ int NBC_Reduce_args_compare(NBC_Reduce_args *a, NBC_Reduce_args *b, void *param)
 /* the non-blocking reduce */
 static int nbc_reduce_init(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype,
                            MPI_Op op, int root, struct ompi_communicator_t *comm, ompi_request_t ** request,
-                           mca_coll_base_module_t *module, bool persistent) {
+                           mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                           , qentry **q
+#endif
+                           ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int rank, p, res, segsize;
   size_t size;
   MPI_Aint ext;
@@ -172,13 +199,28 @@ static int nbc_reduce_init(const void* sendbuf, void* recvbuf, int count, MPI_Da
     } else {
       switch(alg) {
         case NBC_RED_BINOMIAL:
+#ifdef ENABLE_ANALYSIS
+          if(item != NULL) memcpy(item->usedAlgorithm, "sched_binomial", 14);
+          res = red_sched_binomial(rank, p, root, sendbuf, redbuf, tmpredbuf, count, datatype, op, inplace, schedule, tmpbuf, &item);
+#else
           res = red_sched_binomial(rank, p, root, sendbuf, redbuf, tmpredbuf, count, datatype, op, inplace, schedule, tmpbuf);
+#endif
           break;
         case NBC_RED_CHAIN:
+#ifdef ENABLE_ANALYSIS
+          if(item != NULL) memcpy(item->usedAlgorithm, "sched_chain", 11);
+          res = red_sched_chain(rank, p, root, sendbuf, recvbuf, count, datatype, op, ext, size, schedule, tmpbuf, segsize, &item);
+#else
           res = red_sched_chain(rank, p, root, sendbuf, recvbuf, count, datatype, op, ext, size, schedule, tmpbuf, segsize);
+#endif
           break;
         case NBC_RED_REDSCAT_GATHER:
+#ifdef ENABLE_ANALYSIS
+          if(item != NULL) memcpy(item->usedAlgorithm, "sched_redscat_gather", 11);
+          res = red_sched_redscat_gather(rank, p, root, sendbuf, redbuf, tmpredbuf, count, datatype, op, inplace, schedule, tmpbuf, comm, &item);
+#else
           res = red_sched_redscat_gather(rank, p, root, sendbuf, redbuf, tmpredbuf, count, datatype, op, inplace, schedule, tmpbuf, comm);
+#endif
           break;
       }
     }
@@ -244,8 +286,20 @@ int ompi_coll_libnbc_ireduce(const void* sendbuf, void* recvbuf, int count, MPI_
                              , qentry **q
 #endif
                              ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_reduce_init(sendbuf, recvbuf, count, datatype, op, root,
+                              comm, request, module, false, &item);
+#else
     int res = nbc_reduce_init(sendbuf, recvbuf, count, datatype, op, root,
                               comm, request, module, false);
+#endif
     if (OPAL_LIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -262,7 +316,19 @@ int ompi_coll_libnbc_ireduce(const void* sendbuf, void* recvbuf, int count, MPI_
 static int nbc_reduce_inter_init(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype,
                                  MPI_Op op, int root, struct ompi_communicator_t *comm, ompi_request_t ** request,
                                  mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                                 , qentry **q
+#endif
                                  ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int rank, res, rsize;
   NBC_Schedule *schedule;
   ompi_coll_libnbc_module_t *libnbc_module = (ompi_coll_libnbc_module_t*) module;
@@ -284,7 +350,11 @@ static int nbc_reduce_inter_init(const void* sendbuf, void* recvbuf, int count, 
     return OMPI_ERR_OUT_OF_RESOURCE;
   }
 
+#ifndef ENABLE_ANALYSIS
   res = red_sched_linear (rank, rsize, root, sendbuf, recvbuf, (void *)(-gap), count, datatype, op, schedule);
+#else
+  res = red_sched_linear (rank, rsize, root, sendbuf, recvbuf, (void *)(-gap), count, datatype, op, schedule, &item);
+#endif
   if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
     OBJ_RELEASE(schedule);
     free(tmpbuf);
@@ -316,8 +386,20 @@ int ompi_coll_libnbc_ireduce_inter(const void* sendbuf, void* recvbuf, int count
 #endif
                                    ) {
 
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_reduce_inter_init(sendbuf, recvbuf, count, datatype, op, root,
+                                    comm, request, module, false, &item);
+#else
     int res = nbc_reduce_inter_init(sendbuf, recvbuf, count, datatype, op, root,
                                     comm, request, module, false);
+#endif
     if (OPAL_LIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -364,7 +446,20 @@ int ompi_coll_libnbc_ireduce_inter(const void* sendbuf, void* recvbuf, int count
   if (vrank == root) rank = 0; \
 }
 static inline int red_sched_binomial (int rank, int p, int root, const void *sendbuf, void *redbuf, char tmpredbuf, int count, MPI_Datatype datatype,
-                                      MPI_Op op, char inplace, NBC_Schedule *schedule, void *tmpbuf) {
+                                      MPI_Op op, char inplace, NBC_Schedule *schedule, void *tmpbuf
+#ifdef ENABLE_ANALYSIS
+                                      , qentry **q
+#endif
+                                      ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int vroot, vrank, vpeer, peer, res, maxr;
   char *rbuf, *lbuf, *buf;
   int tmprbuf, tmplbuf;
@@ -412,7 +507,11 @@ static inline int red_sched_binomial (int rank, int p, int root, const void *sen
       if (peer < p) {
         int tbuf;
         /* we have to wait until we have the data */
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_recv (rbuf, tmprbuf, count, datatype, peer, schedule, true);
+#else
+        res = NBC_Sched_recv (rbuf, tmprbuf, count, datatype, peer, schedule, true, &item);
+#endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
           return res;
         }
@@ -441,10 +540,18 @@ static inline int red_sched_binomial (int rank, int p, int root, const void *sen
       VRANK2RANK(peer, vpeer, vroot)
       if (firstred && !inplace) {
         /* we have to use the sendbuf in the first round .. */
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_send (sendbuf, false, count, datatype, peer, schedule, false);
+#else
+        res = NBC_Sched_send (sendbuf, false, count, datatype, peer, schedule, false, &item);
+#endif
       } else {
         /* and the redbuf in all remaining rounds */
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_send (lbuf, tmplbuf, count, datatype, peer, schedule, false);
+#else
+        res = NBC_Sched_send (lbuf, tmplbuf, count, datatype, peer, schedule, false, &item);
+#endif
       }
 
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
@@ -458,9 +565,17 @@ static inline int red_sched_binomial (int rank, int p, int root, const void *sen
   /* send to root if vroot ! root */
   if (vroot != root) {
     if (0 == rank) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send (redbuf, tmpredbuf, count, datatype, root, schedule, false);
+#else
+      res = NBC_Sched_send (redbuf, tmpredbuf, count, datatype, root, schedule, false, &item);
+#endif
     } else if (root == rank) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_recv (redbuf, tmpredbuf, count, datatype, vroot, schedule, false);
+#else
+      res = NBC_Sched_recv (redbuf, tmpredbuf, count, datatype, vroot, schedule, false, &item);
+#endif
     }
   }
 
@@ -469,7 +584,20 @@ static inline int red_sched_binomial (int rank, int p, int root, const void *sen
 
 /* chain send ... */
 static inline int red_sched_chain (int rank, int p, int root, const void *sendbuf, void *recvbuf, int count, MPI_Datatype datatype,
-                                   MPI_Op op, MPI_Aint ext, size_t size, NBC_Schedule *schedule, void *tmpbuf, int fragsize) {
+                                   MPI_Op op, MPI_Aint ext, size_t size, NBC_Schedule *schedule, void *tmpbuf, int fragsize
+#ifdef ENABLE_ANALYSIS
+                                   , qentry **q
+#endif
+                                   ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int res, vrank, rpeer, speer, numfrag, fragcount, thiscount;
   long offset;
 
@@ -499,9 +627,17 @@ static inline int red_sched_chain (int rank, int p, int root, const void *sendbu
     /* last node does not recv */
     if (vrank != p-1) {
       if (vrank == 0 && sendbuf != recvbuf) {
+#ifndef ENABLE_ANALYSIS
           res = NBC_Sched_recv ((char *)recvbuf+offset, false, thiscount, datatype, rpeer, schedule, true);
+#else
+          res = NBC_Sched_recv ((char *)recvbuf+offset, false, thiscount, datatype, rpeer, schedule, true, &item);
+#endif
         } else {
+#ifndef ENABLE_ANALYSIS
           res = NBC_Sched_recv ((char *)offset, true, thiscount, datatype, rpeer, schedule, true);
+#else
+          res = NBC_Sched_recv ((char *)offset, true, thiscount, datatype, rpeer, schedule, true, &item);
+#endif
         }
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
@@ -531,9 +667,17 @@ static inline int red_sched_chain (int rank, int p, int root, const void *sendbu
       /* rank p-1 has to send out of sendbuffer :) */
       /* the barrier here seems awkward but isn't!!!! */
       if (vrank == p-1) {
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_send ((char *) sendbuf + offset, false, thiscount, datatype, speer, schedule, true);
+#else
+        res = NBC_Sched_send ((char *) sendbuf + offset, false, thiscount, datatype, speer, schedule, true, &item);
+#endif
       } else {
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_send ((char *) offset, true, thiscount, datatype, speer, schedule, true);
+#else
+        res = NBC_Sched_send ((char *) offset, true, thiscount, datatype, speer, schedule, true, &item);
+#endif
       }
 
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
@@ -547,7 +691,20 @@ static inline int red_sched_chain (int rank, int p, int root, const void *sendbu
 
 /* simple linear algorithm for intercommunicators */
 static inline int red_sched_linear (int rank, int rsize, int root, const void *sendbuf, void *recvbuf, void *tmpbuf, int count, MPI_Datatype datatype,
-                                    MPI_Op op, NBC_Schedule *schedule) {
+                                    MPI_Op op, NBC_Schedule *schedule
+#ifdef ENABLE_ANALYSIS
+                                    , qentry **q
+#endif
+                                    ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int res;
   char *rbuf, *lbuf, *buf;
   int tmprbuf, tmplbuf;
@@ -570,13 +727,21 @@ static inline int red_sched_linear (int rank, int rsize, int root, const void *s
       tmplbuf = false;
     }
 
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_recv (lbuf, tmplbuf, count, datatype, 0, schedule, false);
+#else
+    res = NBC_Sched_recv (lbuf, tmplbuf, count, datatype, 0, schedule, false, &item);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       return res;
     }
 
     for (int peer = 1 ; peer < rsize ; ++peer) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_recv (rbuf, tmprbuf, count, datatype, peer, schedule, true);
+#else
+      res = NBC_Sched_recv (rbuf, tmprbuf, count, datatype, peer, schedule, true, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
       }
@@ -590,7 +755,11 @@ static inline int red_sched_linear (int rank, int rsize, int root, const void *s
       tmprbuf ^= 1; tmplbuf ^= 1;
     }
   } else if (MPI_PROC_NULL != root) {
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_send (sendbuf, false, count, datatype, root, schedule, true);
+#else
+    res = NBC_Sched_send (sendbuf, false, count, datatype, root, schedule, true, &item);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       return res;
     }
@@ -659,8 +828,21 @@ static inline int red_sched_linear (int rank, int rsize, int root, const void *s
 static inline int red_sched_redscat_gather(
     int rank, int comm_size, int root, const void *sbuf, void *rbuf,
     char tmpredbuf, int count, MPI_Datatype datatype, MPI_Op op, char inplace,
-    NBC_Schedule *schedule, void *tmp_buf, struct ompi_communicator_t *comm)
+    NBC_Schedule *schedule, void *tmp_buf, struct ompi_communicator_t *comm
+#ifdef ENABLE_ANALYSIS
+    , qentry **q
+#endif
+    )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
     int res = OMPI_SUCCESS;
     int *rindex = NULL, *rcount = NULL, *sindex = NULL, *scount = NULL;
 
@@ -712,12 +894,22 @@ static inline int red_sched_redscat_gather(
              * Send the left half of the input vector to the left neighbor,
              * Recv the right half of the input vector from the left neighbor
              */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send(rbuf, tmpredbuf, count_lhalf, datatype, rank - 1,
                                  schedule, false);
+#else
+            res = NBC_Sched_send(rbuf, tmpredbuf, count_lhalf, datatype, rank - 1,
+                                 schedule, false, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
 
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_recv((char *)tmp_buf + (ptrdiff_t)count_lhalf * extent,
                                  false, count_rhalf, datatype, rank - 1, schedule, true);
+#else
+            res = NBC_Sched_recv((char *)tmp_buf + (ptrdiff_t)count_lhalf * extent,
+                                 false, count_rhalf, datatype, rank - 1, schedule, true, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
 
             res = NBC_Sched_op((char *)tmp_buf + (ptrdiff_t)count_lhalf * extent,
@@ -726,8 +918,13 @@ static inline int red_sched_redscat_gather(
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
 
             /* Send the right half to the left neighbor */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)count_lhalf * extent,
                                  tmpredbuf, count_rhalf, datatype, rank - 1, schedule, true);
+#else
+            res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)count_lhalf * extent,
+                                 tmpredbuf, count_rhalf, datatype, rank - 1, schedule, true, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
 
             /* This process does not participate in recursive doubling phase */
@@ -739,12 +936,22 @@ static inline int red_sched_redscat_gather(
              * Send the right half of the input vector to the right neighbor,
              * Recv the left half of the input vector from the right neighbor
              */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)count_lhalf * extent,
                                  tmpredbuf, count_rhalf, datatype, rank + 1, schedule, false);
+#else
+            res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)count_lhalf * extent,
+                                 tmpredbuf, count_rhalf, datatype, rank + 1, schedule, false, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
 
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_recv((char *)tmp_buf, false, count_lhalf, datatype, rank + 1,
                                  schedule, true);
+#else
+            res = NBC_Sched_recv((char *)tmp_buf, false, count_lhalf, datatype, rank + 1,
+                                 schedule, true, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
 
             res = NBC_Sched_op(tmp_buf, false, rbuf, tmpredbuf, count_lhalf,
@@ -752,8 +959,13 @@ static inline int red_sched_redscat_gather(
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
 
             /* Recv the right half from the right neighbor */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_recv((char *)rbuf + (ptrdiff_t)count_lhalf * extent,
                                  tmpredbuf, count_rhalf, datatype, rank + 1, schedule, true);
+#else
+            res = NBC_Sched_recv((char *)rbuf + (ptrdiff_t)count_lhalf * extent,
+                                 tmpredbuf, count_rhalf, datatype, rank + 1, schedule, true, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
 
             vrank = rank / 2;
@@ -819,11 +1031,21 @@ static inline int red_sched_redscat_gather(
             }
 
             /* Send part of data from the rbuf, recv into the tmp_buf */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)sindex[step] * extent,
                                  tmpredbuf, scount[step], datatype, dest, schedule, false);
+#else
+            res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)sindex[step] * extent,
+                                 tmpredbuf, scount[step], datatype, dest, schedule, false, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_recv((char *)tmp_buf + (ptrdiff_t)rindex[step] * extent,
                                  false, rcount[step], datatype, dest, schedule, true);
+#else
+            res = NBC_Sched_recv((char *)tmp_buf + (ptrdiff_t)rindex[step] * extent,
+                                 false, rcount[step], datatype, dest, schedule, true, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
 
             /* Local reduce: rbuf[] = tmp_buf[] <op> rbuf[] */
@@ -874,15 +1096,25 @@ static inline int red_sched_redscat_gather(
                     wsize /= 2;
                 }
 
+#ifndef ENABLE_ANALYSIS
                 res = NBC_Sched_recv(rbuf, tmpredbuf, rcount[nsteps - 1], datatype,
                                      0, schedule, true);
+#else
+                res = NBC_Sched_recv(rbuf, tmpredbuf, rcount[nsteps - 1], datatype,
+                                     0, schedule, true, &item);
+#endif
                 if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
                 vrank = 0;
 
             } else if (vrank == 0) {
                 /* Send a data to the root */
+#ifndef ENABLE_ANALYSIS
                 res = NBC_Sched_send(rbuf, tmpredbuf, rcount[nsteps - 1], datatype,
                                      root, schedule, true);
+#else
+                res = NBC_Sched_send(rbuf, tmpredbuf, rcount[nsteps - 1], datatype,
+                                     root, schedule, true, &item);
+#endif
                 if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
                 vrank = -1;
             }
@@ -921,14 +1153,24 @@ static inline int red_sched_redscat_gather(
             if (vdest_tree == vroot_tree) {
                 /* Send data from rbuf and exit */
 
+#ifndef ENABLE_ANALYSIS
                 res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)rindex[step] * extent,
                                      tmpredbuf, rcount[step], datatype, dest, schedule, false);
+#else
+                res = NBC_Sched_send((char *)rbuf + (ptrdiff_t)rindex[step] * extent,
+                                     tmpredbuf, rcount[step], datatype, dest, schedule, false, &item);
+#endif
                 if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
                 break;
             } else {
                 /* Recv and continue */
+#ifndef ENABLE_ANALYSIS
                 res = NBC_Sched_recv((char *)rbuf + (ptrdiff_t)sindex[step] * extent,
                                      tmpredbuf, scount[step], datatype, dest, schedule, true);
+#else
+                res = NBC_Sched_recv((char *)rbuf + (ptrdiff_t)sindex[step] * extent,
+                                     tmpredbuf, scount[step], datatype, dest, schedule, true, &item);
+#endif
                 if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
             }
             step--;
@@ -949,9 +1191,25 @@ static inline int red_sched_redscat_gather(
 
 int ompi_coll_libnbc_reduce_init(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype,
                                  MPI_Op op, int root, struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                 mca_coll_base_module_t *module) {
+                                 mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                 , qentry **q
+#endif
+                                 ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_reduce_init(sendbuf, recvbuf, count, datatype, op, root,
+                              comm, request, module, true, &item);
+#else
     int res = nbc_reduce_init(sendbuf, recvbuf, count, datatype, op, root,
                               comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -962,9 +1220,24 @@ int ompi_coll_libnbc_reduce_init(const void* sendbuf, void* recvbuf, int count, 
 int ompi_coll_libnbc_reduce_inter_init(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype,
                                        MPI_Op op, int root, struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
                                        mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                       , qentry **q
+#endif
                                        ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_reduce_inter_init(sendbuf, recvbuf, count, datatype, op, root,
+                                    comm, request, module, true, &item);
+#else
     int res = nbc_reduce_inter_init(sendbuf, recvbuf, count, datatype, op, root,
                                     comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }

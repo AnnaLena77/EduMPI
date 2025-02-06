@@ -62,6 +62,7 @@ int mca_pml_ob1_start(size_t count, ompi_request_t** requests)
 
                     /* buffered sends can be mpi complete and pml incomplete. to support this
                      * case we need to allocate a new request. */
+#ifndef ENABLE_ANALYSIS
                     rc = mca_pml_ob1_isend_init (pml_request->req_addr,
                                                  pml_request->req_count,
                                                  pml_request->req_datatype,
@@ -70,6 +71,16 @@ int mca_pml_ob1_start(size_t count, ompi_request_t** requests)
                                                  sendreq->req_send.req_send_mode,
                                                  pml_request->req_comm,
                                                  &request);
+#else
+                    rc = mca_pml_ob1_isend_init (pml_request->req_addr,
+                                                 pml_request->req_count,
+                                                 pml_request->req_datatype,
+                                                 pml_request->req_peer,
+                                                 pml_request->req_tag,
+                                                 sendreq->req_send.req_send_mode,
+                                                 pml_request->req_comm,
+                                                 &request, NULL);
+#endif
                     if (OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
                         return rc;
                     }
@@ -104,11 +115,7 @@ int mca_pml_ob1_start(size_t count, ompi_request_t** requests)
             case MCA_PML_REQUEST_RECV:
             {
                 mca_pml_ob1_recv_request_t* recvreq = (mca_pml_ob1_recv_request_t*)pml_request;
-#ifndef ENABLE_ANALYSIS
                 MCA_PML_OB1_RECV_REQUEST_START(recvreq);
-#else
-                MCA_PML_OB1_RECV_REQUEST_START(recvreq, NULL);
-#endif
                 break;
             }
             default:

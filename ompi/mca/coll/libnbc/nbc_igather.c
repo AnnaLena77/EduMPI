@@ -12,7 +12,7 @@
  *                         and Technology (RIST).  All rights reserved.
  * Copyright (c) 2015      Los Alamos National Security, LLC. All rights
  *                         reserved.
- * Copyright (c) 2017      IBM Corporation.  All rights reserved.
+ * Copyright (c) 2017-2022 IBM Corporation.  All rights reserved.
  * Copyright (c) 2018      FUJITSU LIMITED.  All rights reserved.
  * $COPYRIGHT$
  *
@@ -47,7 +47,20 @@ int NBC_Gather_args_compare(NBC_Gather_args *a, NBC_Gather_args *b, void *param)
 static int nbc_gather_init(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf,
                            int recvcount, MPI_Datatype recvtype, int root,
                            struct ompi_communicator_t *comm, ompi_request_t ** request,
-                           mca_coll_base_module_t *module, bool persistent) {
+                           mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                           , qentry **q
+#endif
+                           ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int rank, p, res;
   MPI_Aint rcvext = 0;
   NBC_Schedule *schedule;
@@ -96,7 +109,11 @@ static int nbc_gather_init(const void* sendbuf, int sendcount, MPI_Datatype send
     /* send to root */
     if (rank != root) {
       /* send msg to root */
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send(sendbuf, false, sendcount, sendtype, root, schedule, false);
+#else
+      res = NBC_Sched_send(sendbuf, false, sendcount, sendtype, root, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         OBJ_RELEASE(schedule);
         return res;
@@ -116,7 +133,11 @@ static int nbc_gather_init(const void* sendbuf, int sendcount, MPI_Datatype send
           }
         } else {
           /* root receives message to the right buffer */
+#ifndef ENABLE_ANALYSIS
           res = NBC_Sched_recv (rbuf, false, recvcount, recvtype, i, schedule, false);
+#else
+          res = NBC_Sched_recv (rbuf, false, recvcount, recvtype, i, schedule, false, &item);
+#endif
           if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
             OBJ_RELEASE(schedule);
             return res;
@@ -181,8 +202,20 @@ int ompi_coll_libnbc_igather(const void* sendbuf, int sendcount, MPI_Datatype se
                              , qentry **q
 #endif
                              ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_gather_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root,
+                              comm, request, module, false, &item);
+#else
     int res = nbc_gather_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root,
                               comm, request, module, false);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -200,7 +233,20 @@ int ompi_coll_libnbc_igather(const void* sendbuf, int sendcount, MPI_Datatype se
 static int nbc_gather_inter_init (const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf,
                                   int recvcount, MPI_Datatype recvtype, int root,
                                   struct ompi_communicator_t *comm, ompi_request_t ** request,
-                                  mca_coll_base_module_t *module, bool persistent) {
+                                  mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                                  , qentry **q
+#endif
+                                  ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
     int res, rsize;
     MPI_Aint rcvext = 0;
     NBC_Schedule *schedule;
@@ -225,7 +271,11 @@ static int nbc_gather_inter_init (const void* sendbuf, int sendcount, MPI_Dataty
     /* send to root */
     if (root != MPI_ROOT && root != MPI_PROC_NULL) {
         /* send msg to root */
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_send (sendbuf, false, sendcount, sendtype, root, schedule, false);
+#else
+        res = NBC_Sched_send (sendbuf, false, sendcount, sendtype, root, schedule, false, &item);
+#endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
           OBJ_RELEASE(schedule);
           return res;
@@ -234,7 +284,11 @@ static int nbc_gather_inter_init (const void* sendbuf, int sendcount, MPI_Dataty
         for (int i = 0 ; i < rsize ; ++i) {
             rbuf = ((char *)recvbuf) + ((MPI_Aint) rcvext * i * recvcount);
             /* root receives message to the right buffer */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_recv (rbuf, false, recvcount, recvtype, i, schedule, false);
+#else
+            res = NBC_Sched_recv (rbuf, false, recvcount, recvtype, i, schedule, false, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
               OBJ_RELEASE(schedule);
               return res;
@@ -265,8 +319,20 @@ int ompi_coll_libnbc_igather_inter(const void* sendbuf, int sendcount, MPI_Datat
                                    , qentry **q
 #endif  
                                    ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_gather_inter_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root,
+                                    comm, request, module, false, &item);
+#else
     int res = nbc_gather_inter_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root,
                                     comm, request, module, false);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -284,9 +350,25 @@ int ompi_coll_libnbc_igather_inter(const void* sendbuf, int sendcount, MPI_Datat
 int ompi_coll_libnbc_gather_init(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf,
                                  int recvcount, MPI_Datatype recvtype, int root,
                                  struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                 mca_coll_base_module_t *module) {
+                                 mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                 , qentry **q
+#endif
+                                 ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_gather_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root,
+                              comm, request, module, true, &item);
+#else
     int res = nbc_gather_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root,
                               comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -297,9 +379,25 @@ int ompi_coll_libnbc_gather_init(const void* sendbuf, int sendcount, MPI_Datatyp
 int ompi_coll_libnbc_gather_inter_init(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf,
                                        int recvcount, MPI_Datatype recvtype, int root,
                                        struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                       mca_coll_base_module_t *module) {
+                                       mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                       , qentry **q
+#endif
+                                       ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_gather_inter_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root,
+                                    comm, request, module, true, &item);
+#else
     int res = nbc_gather_inter_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype, root,
                                     comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }

@@ -119,7 +119,21 @@ static int nbc_schedule_round_append (NBC_Schedule *schedule, void *data, int da
 }
 
 /* this function puts a send into the schedule */
-static int NBC_Sched_send_internal (const void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int dest, bool local, NBC_Schedule *schedule, bool barrier) {
+static int NBC_Sched_send_internal (const void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int dest, bool local, NBC_Schedule *schedule, bool barrier
+#ifdef ENABLE_ANALYSIS
+    , qentry **q
+#endif
+) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+    else item = NULL;
+#endif
   NBC_Args_send send_args;
   int ret;
 
@@ -131,6 +145,13 @@ static int NBC_Sched_send_internal (const void* buf, char tmpbuf, size_t count, 
   send_args.datatype = datatype;
   send_args.dest = dest;
   send_args.local = local;
+#ifdef ENABLE_ANALYSIS
+if(item != NULL){
+    send_args.q = item;
+} else {
+    send_args.q = NULL;
+}
+#endif
 
   /* append to the round-schedule */
   ret = nbc_schedule_round_append (schedule, &send_args, sizeof (send_args), barrier);
@@ -143,16 +164,64 @@ static int NBC_Sched_send_internal (const void* buf, char tmpbuf, size_t count, 
   return OMPI_SUCCESS;
 }
 
-int NBC_Sched_send (const void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int dest, NBC_Schedule *schedule, bool barrier) {
+int NBC_Sched_send (const void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int dest, NBC_Schedule *schedule, bool barrier
+#ifdef ENABLE_ANALYSIS
+    , qentry **q
+#endif
+) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+    else item = NULL;
+    return NBC_Sched_send_internal (buf, tmpbuf, count, datatype, dest, false, schedule, barrier, &item);
+#else
   return NBC_Sched_send_internal (buf, tmpbuf, count, datatype, dest, false, schedule, barrier);
+#endif
 }
 
-int NBC_Sched_local_send (const void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int dest, NBC_Schedule *schedule, bool barrier) {
-  return NBC_Sched_send_internal (buf, tmpbuf, count, datatype, dest, true, schedule, barrier);
+int NBC_Sched_local_send (const void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int dest, NBC_Schedule *schedule, bool barrier
+#ifdef ENABLE_ANALYSIS
+    , qentry **q
+#endif
+) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+    else item = NULL;
+    return NBC_Sched_send_internal (buf, tmpbuf, count, datatype, dest, true, schedule, barrier, &item);
+#else
+    return NBC_Sched_send_internal (buf, tmpbuf, count, datatype, dest, true, schedule, barrier);
+#endif
 }
 
 /* this function puts a receive into the schedule */
-static int NBC_Sched_recv_internal (void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int source, bool local, NBC_Schedule *schedule, bool barrier) {
+static int NBC_Sched_recv_internal (void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int source, bool local, NBC_Schedule *schedule, bool barrier
+#ifdef ENABLE_ANALYSIS
+    , qentry **q
+#endif
+) {
+
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+    else item = NULL;
+#endif
+
   NBC_Args_recv recv_args;
   int ret;
 
@@ -164,6 +233,13 @@ static int NBC_Sched_recv_internal (void* buf, char tmpbuf, size_t count, MPI_Da
   recv_args.datatype = datatype;
   recv_args.source = source;
   recv_args.local = local;
+#ifdef ENABLE_ANALYSIS
+if(item != NULL){
+    recv_args.q = item;
+} else {
+    recv_args.q = NULL;
+}
+#endif
 
   /* append to the round-schedule */
   ret = nbc_schedule_round_append (schedule, &recv_args, sizeof (recv_args), barrier);
@@ -176,12 +252,44 @@ static int NBC_Sched_recv_internal (void* buf, char tmpbuf, size_t count, MPI_Da
   return OMPI_SUCCESS;
 }
 
-int NBC_Sched_recv (void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int source, NBC_Schedule *schedule, bool barrier) {
+int NBC_Sched_recv (void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int source, NBC_Schedule *schedule, bool barrier
+#ifdef ENABLE_ANALYSIS
+   , qentry **q
+#endif
+) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+    else item = NULL;
+    return NBC_Sched_recv_internal(buf, tmpbuf, count, datatype, source, false, schedule, barrier, &item);
+#else
   return NBC_Sched_recv_internal(buf, tmpbuf, count, datatype, source, false, schedule, barrier);
+#endif
 }
 
-int NBC_Sched_local_recv (void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int source, NBC_Schedule *schedule, bool barrier) {
+int NBC_Sched_local_recv (void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int source, NBC_Schedule *schedule, bool barrier
+#ifdef ENABLE_ANALYSIS
+    , qentry **q
+#endif
+) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+    else item = NULL;
+    return NBC_Sched_recv_internal(buf, tmpbuf, count, datatype, source, true, schedule, barrier, &item);
+#else
   return NBC_Sched_recv_internal(buf, tmpbuf, count, datatype, source, true, schedule, barrier);
+#endif
 }
 
 /* this function puts an operation into the schedule */
@@ -438,7 +546,7 @@ static inline int NBC_Start_round(NBC_Handle *handle) {
   NBC_Args_copy     copyargs;
   NBC_Args_unpack unpackargs;
   void *buf1,  *buf2;
-
+  
   /* get round-schedule address */
   ptr = handle->schedule->data + handle->row_offset;
 
@@ -453,6 +561,13 @@ static inline int NBC_Start_round(NBC_Handle *handle) {
       case SEND:
         NBC_DEBUG(5,"  SEND (offset %li) ", offset);
         NBC_GET_BYTES(ptr,sendargs);
+#ifdef ENABLE_ANALYSIS
+        qentry* senditem = NULL;
+        if(sendargs.q != NULL){
+            senditem = sendargs.q;
+        }
+#endif
+
         NBC_DEBUG(5,"*buf: %p, count: %i, type: %p, dest: %i, tag: %i)\n", sendargs.buf,
                   sendargs.count, sendargs.datatype, sendargs.dest, handle->tag);
         /* get an additional request */
@@ -479,7 +594,7 @@ static inline int NBC_Start_round(NBC_Handle *handle) {
 #else
         res = MCA_PML_CALL(isend(buf1, sendargs.count, sendargs.datatype, sendargs.dest, handle->tag,
                                  MCA_PML_BASE_SEND_STANDARD, sendargs.local?handle->comm->c_local_comm:handle->comm,
-                                 handle->req_array+handle->req_count - 1, NULL));
+                                 handle->req_array+handle->req_count - 1, &senditem));
 #endif
         if (OMPI_SUCCESS != res) {
           NBC_Error ("Error in MPI_Isend(%lu, %i, %p, %i, %i, %lu) (%i)", (unsigned long)buf1, sendargs.count,
@@ -493,6 +608,13 @@ static inline int NBC_Start_round(NBC_Handle *handle) {
       case RECV:
         NBC_DEBUG(5, "  RECV (offset %li) ", offset);
         NBC_GET_BYTES(ptr,recvargs);
+#ifdef ENABLE_ANALYSIS
+        qentry* recvitem = NULL;
+        if(recvargs.q != NULL){
+            recvitem = recvargs.q;
+        }
+#endif
+
         NBC_DEBUG(5, "*buf: %p, count: %i, type: %p, source: %i, tag: %i)\n", recvargs.buf, recvargs.count,
                   recvargs.datatype, recvargs.source, handle->tag);
         /* get an additional request - TODO: req_count NOT thread safe */
@@ -518,7 +640,7 @@ static inline int NBC_Start_round(NBC_Handle *handle) {
                                  handle->req_array+handle->req_count-1));
 #else
         res = MCA_PML_CALL(irecv(buf1, recvargs.count, recvargs.datatype, recvargs.source, handle->tag, recvargs.local?handle->comm->c_local_comm:handle->comm,
-                                 handle->req_array+handle->req_count-1, NULL));
+                                 handle->req_array+handle->req_count-1, &recvitem));
 #endif
         if (OMPI_SUCCESS != res) {
           NBC_Error("Error in MPI_Irecv(%lu, %i, %p, %i, %i, %lu) (%i)", (unsigned long)buf1, recvargs.count,

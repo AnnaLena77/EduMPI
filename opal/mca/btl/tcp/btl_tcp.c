@@ -40,7 +40,6 @@
 #include "btl_tcp_frag.h"
 #include "btl_tcp_proc.h"
 
-
 static int mca_btl_tcp_register_error_cb(struct mca_btl_base_module_t *btl,
                                          mca_btl_base_module_error_cb_fn_t cbfunc);
 

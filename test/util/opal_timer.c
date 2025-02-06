@@ -20,10 +20,11 @@
 
 #include <unistd.h>
 
-#include "opal/mca/timer/base/base.h"
 #include "opal/runtime/opal.h"
+#include "opal/mca/timer/base/base.h"
 
-int main(int argc, char *argv[])
+int
+main(int argc, char *argv[])
 {
     opal_timer_t start, end, diff;
 
@@ -38,7 +39,8 @@ int main(int argc, char *argv[])
     sleep(1);
     end = opal_timer_base_get_cycles();
     diff = end - start;
-    printf("    Slept approximately %llu cycles, or %llu us\n", (unsigned long long) diff,
+    printf("    Slept approximately %llu cycles, or %llu us\n",
+           (unsigned long long) diff,
            (unsigned long long) ((diff * 1000000) / opal_timer_base_get_freq()));
 #else
     printf("--> cycle count not supported\n");

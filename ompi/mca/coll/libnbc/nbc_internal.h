@@ -103,6 +103,9 @@ typedef struct {
   int dest;
   char tmpbuf;
   bool local;
+#ifdef ENABLE_ANALYSIS
+  qentry *q;
+#endif
 } NBC_Args_send;
 
 /* the receive argument struct */
@@ -114,6 +117,9 @@ typedef struct {
   char tmpbuf;
   int source;
   bool local;
+#ifdef ENABLE_ANALYSIS
+  qentry *q;
+#endif
 } NBC_Args_recv;
 
 /* the operation argument struct */
@@ -153,6 +159,7 @@ typedef struct {
 } NBC_Args_unpack;
 
 /* internal function prototypes */
+#ifndef ENABLE_ANALYSIS
 int NBC_Sched_send (const void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int dest, NBC_Schedule *schedule, bool barrier);
 int NBC_Sched_local_send (const void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int dest,NBC_Schedule *schedule, bool barrier);
 int NBC_Sched_recv (void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int source, NBC_Schedule *schedule, bool barrier);
@@ -166,6 +173,22 @@ int NBC_Sched_unpack (void *inbuf, char tmpinbuf, size_t count, MPI_Datatype dat
 
 int NBC_Sched_barrier (NBC_Schedule *schedule);
 int NBC_Sched_commit (NBC_Schedule *schedule);
+#else
+int NBC_Sched_send (const void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int dest, NBC_Schedule *schedule, bool barrier, qentry **q);
+int NBC_Sched_local_send (const void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int dest,NBC_Schedule *schedule, bool barrier, qentry **q);
+int NBC_Sched_recv (void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int source, NBC_Schedule *schedule, bool barrier, qentry **q);
+int NBC_Sched_local_recv (void* buf, char tmpbuf, size_t count, MPI_Datatype datatype, int source, NBC_Schedule *schedule, bool barrier, qentry **q);
+int NBC_Sched_op (const void* buf1, char tmpbuf1, void* buf2, char tmpbuf2, size_t count, MPI_Datatype datatype,
+                  MPI_Op op, NBC_Schedule *schedule, bool barrier);
+int NBC_Sched_copy (void *src, char tmpsrc, size_t srccount, MPI_Datatype srctype, void *tgt, char tmptgt, size_t tgtcount,
+                    MPI_Datatype tgttype, NBC_Schedule *schedule, bool barrier);
+int NBC_Sched_unpack (void *inbuf, char tmpinbuf, size_t count, MPI_Datatype datatype, void *outbuf, char tmpoutbuf,
+                      NBC_Schedule *schedule, bool barrier);
+
+int NBC_Sched_barrier (NBC_Schedule *schedule);
+int NBC_Sched_commit (NBC_Schedule *schedule);
+#endif
+
 
 #ifdef NBC_CACHE_SCHEDULE
 /* this is a dummy structure which is used to get the schedule out of

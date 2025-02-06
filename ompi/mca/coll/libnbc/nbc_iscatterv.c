@@ -31,7 +31,20 @@
 static int nbc_scatterv_init(const void* sendbuf, const int *sendcounts, const int *displs, MPI_Datatype sendtype,
                              void* recvbuf, int recvcount, MPI_Datatype recvtype, int root,
                              struct ompi_communicator_t *comm, ompi_request_t ** request,
-                             mca_coll_base_module_t *module, bool persistent) {
+                             mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                             , qentry **q
+#endif
+                             ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int rank, p, res;
   MPI_Aint sndext;
   NBC_Schedule *schedule;
@@ -71,7 +84,11 @@ static int nbc_scatterv_init(const void* sendbuf, const int *sendcounts, const i
         }
       } else {
         /* root sends the right buffer to the right receiver */
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_send (sbuf, false, sendcounts[i], sendtype, i, schedule, false);
+#else
+        res = NBC_Sched_send (sbuf, false, sendcounts[i], sendtype, i, schedule, false, &item);
+#endif
       }
 
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
@@ -81,7 +98,11 @@ static int nbc_scatterv_init(const void* sendbuf, const int *sendcounts, const i
     }
   } else {
     /* recv msg from root */
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_recv (recvbuf, false, recvcount, recvtype, root, schedule, false);
+#else
+    res = NBC_Sched_recv (recvbuf, false, recvcount, recvtype, root, schedule, false, &item);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       OBJ_RELEASE(schedule);
       return res;
@@ -111,8 +132,20 @@ int ompi_coll_libnbc_iscatterv(const void* sendbuf, const int *sendcounts, const
                                , qentry **q
 #endif
                                ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_scatterv_init(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root,
+                                comm, request, module, false, &item);
+#else
     int res = nbc_scatterv_init(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root,
                                 comm, request, module, false);
+#endif
     if (OPAL_LIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -129,7 +162,20 @@ int ompi_coll_libnbc_iscatterv(const void* sendbuf, const int *sendcounts, const
 static int nbc_scatterv_inter_init (const void* sendbuf, const int *sendcounts, const int *displs, MPI_Datatype sendtype,
                                     void* recvbuf, int recvcount, MPI_Datatype recvtype, int root,
                                     struct ompi_communicator_t *comm, ompi_request_t ** request,
-                                    mca_coll_base_module_t *module, bool persistent) {
+                                    mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                                    , qentry **q
+#endif
+                                    ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
     int res, rsize;
     MPI_Aint sndext;
     NBC_Schedule *schedule;
@@ -146,7 +192,11 @@ static int nbc_scatterv_inter_init (const void* sendbuf, const int *sendcounts, 
     /* receive from root */
     if (MPI_ROOT != root && MPI_PROC_NULL != root) {
         /* recv msg from root */
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_recv(recvbuf, false, recvcount, recvtype, root, schedule, false);
+#else
+        res = NBC_Sched_recv(recvbuf, false, recvcount, recvtype, root, schedule, false, &item);
+#endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
             OBJ_RELEASE(schedule);
             return res;
@@ -162,7 +212,11 @@ static int nbc_scatterv_inter_init (const void* sendbuf, const int *sendcounts, 
         for (int i = 0 ; i < rsize ; ++i) {
             sbuf = (char *)sendbuf + displs[i] * sndext;
             /* root sends the right buffer to the right receiver */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send (sbuf, false, sendcounts[i], sendtype, i, schedule, false);
+#else
+            res = NBC_Sched_send (sbuf, false, sendcounts[i], sendtype, i, schedule, false, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
                 OBJ_RELEASE(schedule);
                 return res;
@@ -193,8 +247,20 @@ int ompi_coll_libnbc_iscatterv_inter(const void* sendbuf, const int *sendcounts,
                                      , qentry **q
 #endif
                                      ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_scatterv_init(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root,
+                                comm, request, module, true, &item);
+#else
     int res = nbc_scatterv_inter_init(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root,
                                       comm, request, module, false);
+#endif
     if (OPAL_LIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -211,9 +277,25 @@ int ompi_coll_libnbc_iscatterv_inter(const void* sendbuf, const int *sendcounts,
 int ompi_coll_libnbc_scatterv_init(const void* sendbuf, const int *sendcounts, const int *displs, MPI_Datatype sendtype,
                                    void* recvbuf, int recvcount, MPI_Datatype recvtype, int root,
                                    struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                   mca_coll_base_module_t *module) {
+                                   mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                   , qentry **q
+#endif
+                                   ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_scatterv_init(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root,
+                                comm, request, module, true, &item);
+#else
     int res = nbc_scatterv_init(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root,
                                 comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -224,9 +306,25 @@ int ompi_coll_libnbc_scatterv_init(const void* sendbuf, const int *sendcounts, c
 int ompi_coll_libnbc_scatterv_inter_init(const void* sendbuf, const int *sendcounts, const int *displs, MPI_Datatype sendtype,
                                          void* recvbuf, int recvcount, MPI_Datatype recvtype, int root,
                                          struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                         mca_coll_base_module_t *module) {
+                                         mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                         , qentry **q
+#endif
+                                         ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+        int res = nbc_scatterv_inter_init(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root,
+                                      comm, request, module, true, &item);
+#else
     int res = nbc_scatterv_inter_init(sendbuf, sendcounts, displs, sendtype, recvbuf, recvcount, recvtype, root,
                                       comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }

@@ -9,7 +9,7 @@
  *                         and Technology (RIST).  All rights reserved.
  * Copyright (c) 2015      Los Alamos National Security, LLC. All rights
  *                         reserved.
- * Copyright (c) 2017      IBM Corporation.  All rights reserved.
+ * Copyright (c) 2017-2022 IBM Corporation.  All rights reserved.
  * Copyright (c) 2018      FUJITSU LIMITED.  All rights reserved.
  * $COPYRIGHT$
  *
@@ -44,7 +44,20 @@ int NBC_Ineighbor_alltoall_args_compare(NBC_Ineighbor_alltoall_args *a, NBC_Inei
 static int nbc_neighbor_alltoall_init(const void *sbuf, int scount, MPI_Datatype stype, void *rbuf,
                                       int rcount, MPI_Datatype rtype, struct ompi_communicator_t *comm,
                                       ompi_request_t ** request,
-                                      mca_coll_base_module_t *module, bool persistent) {
+                                      mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                                      , qentry **q
+#endif
+                                      ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int res, indegree, outdegree, *srcs, *dsts;
   MPI_Aint sndext, rcvext;
   ompi_coll_libnbc_module_t *libnbc_module = (ompi_coll_libnbc_module_t*) module;
@@ -89,7 +102,11 @@ static int nbc_neighbor_alltoall_init(const void *sbuf, int scount, MPI_Datatype
 
     for (int i = 0 ; i < indegree ; ++i) {
       if (MPI_PROC_NULL != srcs[i]) {
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_recv ((char *) rbuf + (MPI_Aint) rcvext * i * rcount, true, rcount, rtype, srcs[i], schedule, false);
+#else
+        res = NBC_Sched_recv ((char *) rbuf + (MPI_Aint) rcvext * i * rcount, true, rcount, rtype, srcs[i], schedule, false, &item);
+#endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
           break;
         }
@@ -106,7 +123,11 @@ static int nbc_neighbor_alltoall_init(const void *sbuf, int scount, MPI_Datatype
 
     for (int i = 0 ; i < outdegree ; ++i) {
       if (MPI_PROC_NULL != dsts[i]) {
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_send ((char *) sbuf + (MPI_Aint) sndext * i * scount, false, scount, stype, dsts[i], schedule, false);
+#else
+        res = NBC_Sched_send ((char *) sbuf + (MPI_Aint) sndext * i * scount, false, scount, stype, dsts[i], schedule, false, &item);
+#endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
           break;
         }
@@ -174,8 +195,20 @@ int ompi_coll_libnbc_ineighbor_alltoall(const void *sbuf, int scount, MPI_Dataty
                                         , qentry **q
 #endif
                                         ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_neighbor_alltoall_init(sbuf, scount, stype, rbuf, rcount, rtype,
+                                         comm, request, module, false, &item);
+#else
     int res = nbc_neighbor_alltoall_init(sbuf, scount, stype, rbuf, rcount, rtype,
                                          comm, request, module, false);
+#endif
     if (OPAL_LIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -191,9 +224,25 @@ int ompi_coll_libnbc_ineighbor_alltoall(const void *sbuf, int scount, MPI_Dataty
 
 int ompi_coll_libnbc_neighbor_alltoall_init(const void *sbuf, int scount, MPI_Datatype stype, void *rbuf,
                                             int rcount, MPI_Datatype rtype, struct ompi_communicator_t *comm, MPI_Info info,
-                                            ompi_request_t ** request, mca_coll_base_module_t *module) {
+                                            ompi_request_t ** request, mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                            , qentry **q
+#endif
+                                            ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_neighbor_alltoall_init(sbuf, scount, stype, rbuf, rcount, rtype,
+                                         comm, request, module, true, &item);
+#else
     int res = nbc_neighbor_alltoall_init(sbuf, scount, stype, rbuf, rcount, rtype,
                                          comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }

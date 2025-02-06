@@ -9,7 +9,7 @@
  *                         and Technology (RIST). All rights reserved.
  * Copyright (c) 2015      Los Alamos National Security, LLC.  All rights
  *                         reserved.
- * Copyright (c) 2017      IBM Corporation.  All rights reserved.
+ * Copyright (c) 2017-2022 IBM Corporation.  All rights reserved.
  * Copyright (c) 2018      FUJITSU LIMITED.  All rights reserved.
  * $COPYRIGHT$
  *
@@ -23,11 +23,19 @@
 static inline int allgather_sched_linear(
     int rank, int comm_size, NBC_Schedule *schedule, const void *sendbuf,
     int scount, struct ompi_datatype_t *sdtype, void *recvbuf, int rcount,
-    struct ompi_datatype_t *rdtype);
+    struct ompi_datatype_t *rdtype
+#ifdef ENABLE_ANALYSIS
+    , qentry **q
+#endif
+    );
 static inline int allgather_sched_recursivedoubling(
     int rank, int comm_size, NBC_Schedule *schedule, const void *sbuf,
     int scount, struct ompi_datatype_t *sdtype, void *rbuf, int rcount,
-    struct ompi_datatype_t *rdtype);
+    struct ompi_datatype_t *rdtype
+#ifdef ENABLE_ANALYSIS
+    , qentry **q
+#endif
+    );
 
 #ifdef NBC_CACHE_SCHEDULE
 /* tree comparison function for schedule cache */
@@ -51,8 +59,23 @@ int NBC_Allgather_args_compare(NBC_Allgather_args *a, NBC_Allgather_args *b, voi
 
 static int nbc_allgather_init(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount,
                               MPI_Datatype recvtype, struct ompi_communicator_t *comm, ompi_request_t ** request,
-                              mca_coll_base_module_t *module, bool persistent)
+                              mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                              , qentry **q
+#endif
+                              )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+    else item = NULL;
+#endif
+
   int rank, p, res;
   MPI_Aint rcvext;
   NBC_Schedule *schedule;
@@ -132,12 +155,24 @@ static int nbc_allgather_init(const void* sendbuf, int sendcount, MPI_Datatype s
 
     switch (alg) {
       case NBC_ALLGATHER_LINEAR:
+#ifdef ENABLE_ANALYSIS
+        if(item != NULL) memcpy(item->usedAlgorithm, "sched_linear", 12);
+        res = allgather_sched_linear(rank, p, schedule, sendbuf, sendcount, sendtype,
+                                     recvbuf, recvcount, recvtype, &item);
+#else
         res = allgather_sched_linear(rank, p, schedule, sendbuf, sendcount, sendtype,
                                      recvbuf, recvcount, recvtype);
+#endif
         break;
       case NBC_ALLGATHER_RDBL:
+#ifdef ENABLE_ANALYSIS
+        if(item != NULL) memcpy(item->usedAlgorithm, "sched_recursivedoubling", 23);
+        res = allgather_sched_recursivedoubling(rank, p, schedule, sendbuf, sendcount,
+                                                sendtype, recvbuf, recvcount, recvtype, &item);
+#else
         res = allgather_sched_recursivedoubling(rank, p, schedule, sendbuf, sendcount,
                                                 sendtype, recvbuf, recvcount, recvtype);
+#endif
         break;
     }
 
@@ -198,8 +233,21 @@ int ompi_coll_libnbc_iallgather(const void* sendbuf, int sendcount, MPI_Datatype
 #endif
                                 )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+    else item = NULL;
+    int res = nbc_allgather_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype,
+                                 comm, request, module, false, &item);
+#else
     int res = nbc_allgather_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype,
                                  comm, request, module, false);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -216,8 +264,23 @@ int ompi_coll_libnbc_iallgather(const void* sendbuf, int sendcount, MPI_Datatype
 
 static int nbc_allgather_inter_init(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount,
                                     MPI_Datatype recvtype, struct ompi_communicator_t *comm, ompi_request_t ** request,
-                                    mca_coll_base_module_t *module, bool persistent)
+                                    mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                                    , qentry **q
+#endif
+                                    )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+    else item = NULL;
+#endif
+
   int res, rsize;
   MPI_Aint rcvext;
   NBC_Schedule *schedule;
@@ -242,14 +305,22 @@ static int nbc_allgather_inter_init(const void* sendbuf, int sendcount, MPI_Data
   for (int r = 0 ; r < rsize ; ++r) {
     /* recv from rank r */
     rbuf = (char *) recvbuf + (MPI_Aint) rcvext * r * recvcount;
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_recv (rbuf, false, recvcount, recvtype, r, schedule, false);
+#else
+    res = NBC_Sched_recv (rbuf, false, recvcount, recvtype, r, schedule, false, &item);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       OBJ_RELEASE(schedule);
       return res;
     }
 
     /* send to rank r */
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_send (sendbuf, false, sendcount, sendtype, r, schedule, false);
+#else
+    res = NBC_Sched_send (sendbuf, false, sendcount, sendtype, r, schedule, false, &item);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       OBJ_RELEASE(schedule);
       return res;
@@ -278,9 +349,21 @@ int ompi_coll_libnbc_iallgather_inter(const void* sendbuf, int sendcount, MPI_Da
                                           , qentry **q
 #endif
 				      ) {
-
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+    else item = NULL;
+    int res = nbc_allgather_inter_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype,
+                                       comm, request, module, false, &item);
+#else
     int res = nbc_allgather_inter_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype,
                                        comm, request, module, false);
+#endif
 
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
@@ -307,8 +390,22 @@ int ompi_coll_libnbc_iallgather_inter(const void* sendbuf, int sendcount, MPI_Da
 static inline int allgather_sched_linear(
     int rank, int comm_size, NBC_Schedule *schedule, const void *sendbuf,
     int scount, struct ompi_datatype_t *sdtype, void *recvbuf, int rcount,
-    struct ompi_datatype_t *rdtype)
+    struct ompi_datatype_t *rdtype
+#ifdef ENABLE_ANALYSIS
+    , qentry **q
+#endif
+    )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+    else item = NULL;
+#endif
     int res = OMPI_SUCCESS;
     ptrdiff_t rlb, rext;
 
@@ -319,11 +416,19 @@ static inline int allgather_sched_linear(
         if (remote != rank) {
             /* Recv from rank remote */
             char *rbuf = (char *)recvbuf + (MPI_Aint) rext * remote * rcount;
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_recv(rbuf, false, rcount, rdtype, remote, schedule, false);
+#else
+            res = NBC_Sched_recv(rbuf, false, rcount, rdtype, remote, schedule, false, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
 
             /* Send to rank remote - not from the sendbuf to optimize MPI_IN_PLACE */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send(sbuf, false, rcount, rdtype, remote, schedule, false);
+#else
+            res = NBC_Sched_send(sbuf, false, rcount, rdtype, remote, schedule, false, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
         }
     }
@@ -365,8 +470,23 @@ cleanup_and_return:
 static inline int allgather_sched_recursivedoubling(
     int rank, int comm_size, NBC_Schedule *schedule, const void *sbuf,
     int scount, struct ompi_datatype_t *sdtype, void *rbuf, int rcount,
-    struct ompi_datatype_t *rdtype)
+    struct ompi_datatype_t *rdtype
+#ifdef ENABLE_ANALYSIS
+    , qentry **q
+#endif
+    )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+    else item = NULL;
+#endif
+
     int res = OMPI_SUCCESS;
     ptrdiff_t rlb, rext;
     char *tmpsend = NULL, *tmprecv = NULL;
@@ -386,12 +506,22 @@ static inline int allgather_sched_recursivedoubling(
             sendblocklocation -= distance;
         }
 
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_send(tmpsend, false, (ptrdiff_t)distance * (ptrdiff_t)rcount,
                              rdtype, remote, schedule, false);
+#else
+        res = NBC_Sched_send(tmpsend, false, (ptrdiff_t)distance * (ptrdiff_t)rcount,
+                             rdtype, remote, schedule, false, &item);
+#endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
 
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_recv(tmprecv, false, (ptrdiff_t)distance * (ptrdiff_t)rcount,
                              rdtype, remote, schedule, true);
+#else
+        res = NBC_Sched_recv(tmprecv, false, (ptrdiff_t)distance * (ptrdiff_t)rcount,
+                             rdtype, remote, schedule, true, &item);
+#endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
     }
 
@@ -401,10 +531,25 @@ cleanup_and_return:
 
 int ompi_coll_libnbc_allgather_init(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount,
                                     MPI_Datatype recvtype, struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                    mca_coll_base_module_t *module) {
-
+                                    mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                    , qentry **q
+#endif
+                                    ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_allgather_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype,
+                                 comm, request, module, true, &item);
+#else
     int res = nbc_allgather_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype,
                                  comm, request, module, true);
+#endif
 
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
@@ -415,10 +560,26 @@ int ompi_coll_libnbc_allgather_init(const void* sendbuf, int sendcount, MPI_Data
 
 int ompi_coll_libnbc_allgather_inter_init(const void* sendbuf, int sendcount, MPI_Datatype sendtype, void* recvbuf, int recvcount,
                                           MPI_Datatype recvtype, struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                          mca_coll_base_module_t *module) {
-    
+                                          mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                          , qentry **q
+#endif
+                                          ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+    else item = NULL;
+    int res = nbc_allgather_inter_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype,
+                                       comm, request, module, true, &item);
+#else
     int res = nbc_allgather_inter_init(sendbuf, sendcount, sendtype, recvbuf, recvcount, recvtype,
                                        comm, request, module, true);
+#endif
 
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;

@@ -237,7 +237,6 @@ int mca_coll_hcoll_gather(const void *sbuf, int scount,
         } else item = NULL;
     } else item = NULL;
 #endif
-
     mca_coll_hcoll_module_t  *hcoll_module = (mca_coll_hcoll_module_t*)module;
     dte_data_representation_t stype;
     dte_data_representation_t rtype;
@@ -619,7 +618,6 @@ int mca_coll_hcoll_gatherv(const void* sbuf, int scount,
         } else item = NULL;
     } else item = NULL;
 #endif
-
     mca_coll_hcoll_module_t  *hcoll_module = (mca_coll_hcoll_module_t*)module;
     dte_data_representation_t stype;
     dte_data_representation_t rtype;
@@ -696,7 +694,6 @@ int mca_coll_hcoll_scatterv(const void* sbuf, const int *scounts, const int *dis
         } else item = NULL;
     } else item = NULL;
 #endif
-
     mca_coll_hcoll_module_t  *hcoll_module = (mca_coll_hcoll_module_t*)module;
     dte_data_representation_t stype;
     dte_data_representation_t rtype;
@@ -1176,7 +1173,6 @@ int mca_coll_hcoll_igatherv(const void* sbuf, int scount,
         } else item = NULL;
     } else item = NULL;
 #endif
-
     mca_coll_hcoll_module_t  *hcoll_module = (mca_coll_hcoll_module_t*)module;
     dte_data_representation_t stype;
     dte_data_representation_t rtype;

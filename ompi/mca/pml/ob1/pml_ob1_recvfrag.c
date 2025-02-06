@@ -297,7 +297,8 @@ static int mca_pml_ob1_recv_frag_match (mca_btl_base_module_t *btl,
                                         const mca_pml_ob1_match_hdr_t *hdr,
                                         const mca_btl_base_segment_t *segments,
                                         size_t num_segments,
-                                        int type);
+                                        int type
+                                        );
 
 /**
  * Match incoming frags against posted receives. If frag is not NULL then we assume
@@ -320,7 +321,8 @@ mca_pml_ob1_recv_frag_match_proc (mca_btl_base_module_t *btl,
                                   const mca_btl_base_segment_t *segments,
                                   size_t num_segments,
                                   int type,
-                                  mca_pml_ob1_recv_frag_t *frag);
+                                  mca_pml_ob1_recv_frag_t *frag
+                                  );
 
 static mca_pml_ob1_recv_request_t *match_one (mca_btl_base_module_t *btl,
                                               const mca_pml_ob1_match_hdr_t *hdr,
@@ -635,7 +637,6 @@ void mca_pml_ob1_recv_frag_callback_match (mca_btl_base_module_t *btl,
         }
     }
 }
-
 /**
  * Merge all out of sequence fragments into the matching queue, as if they were received now.
  */
@@ -672,6 +673,7 @@ int mca_pml_ob1_merge_cant_match( ompi_communicator_t * ompi_comm )
 void mca_pml_ob1_recv_frag_callback_rndv (mca_btl_base_module_t *btl,
                                           const mca_btl_base_receive_descriptor_t *descriptor)
 {
+    //printf("Recv_Frag_Callback_Rndv\n");
     const mca_btl_base_segment_t *segments = descriptor->des_segments;
     const mca_pml_ob1_hdr_t *hdr = (mca_pml_ob1_hdr_t *) segments->seg_addr.pval;
 
@@ -686,6 +688,7 @@ void mca_pml_ob1_recv_frag_callback_rndv (mca_btl_base_module_t *btl,
 void mca_pml_ob1_recv_frag_callback_rget (mca_btl_base_module_t *btl,
                                           const mca_btl_base_receive_descriptor_t *descriptor)
 {
+    //printf("Recv_Frag_Callback_rget\n");
     const mca_btl_base_segment_t *segments = descriptor->des_segments;
     const mca_pml_ob1_hdr_t *hdr = (mca_pml_ob1_hdr_t *) segments->seg_addr.pval;
 
@@ -700,6 +703,7 @@ void mca_pml_ob1_recv_frag_callback_rget (mca_btl_base_module_t *btl,
 void mca_pml_ob1_recv_frag_callback_ack (mca_btl_base_module_t *btl,
                                          const mca_btl_base_receive_descriptor_t *descriptor)
 {
+    //printf("Recv_Frag_Callback_ack\n");
     const mca_btl_base_segment_t *segments = descriptor->des_segments;
     const mca_pml_ob1_hdr_t *hdr = (mca_pml_ob1_hdr_t *) segments->seg_addr.pval;
     mca_pml_ob1_send_request_t* sendreq;
@@ -721,11 +725,7 @@ void mca_pml_ob1_recv_frag_callback_ack (mca_btl_base_module_t *btl,
             MCA_PML_OB1_RDMA_FRAG_RETURN(sendreq->rdma_frag);
             sendreq->rdma_frag = NULL;
         }
-#ifndef ENABLE_ANALYSIS
         send_request_pml_complete( sendreq );
-#else
-        send_request_pml_complete( sendreq, NULL );
-#endif
         return;
     }
 #endif /*OPAL_ENABLE_FT_MPI*/
@@ -771,19 +771,14 @@ void mca_pml_ob1_recv_frag_callback_ack (mca_btl_base_module_t *btl,
         sendreq->req_send.req_base.req_convertor.flags |= CONVERTOR_ACCELERATOR_ASYNC;
         sendreq->req_send.req_base.req_convertor.stream = stream;
     }
-
-#ifndef ENABLE_ANALYSIS
     if (send_request_pml_complete_check(sendreq) == false)
         mca_pml_ob1_send_request_schedule(sendreq);
-#else
-    if (send_request_pml_complete_check(sendreq, NULL) == false)
-        mca_pml_ob1_send_request_schedule(sendreq);
-#endif
 }
 
 void mca_pml_ob1_recv_frag_callback_frag (mca_btl_base_module_t *btl,
                                           const mca_btl_base_receive_descriptor_t *descriptor)
 {
+    //printf("Recv_Frag_Callback_fragh\n");
     const mca_btl_base_segment_t *segments = descriptor->des_segments;
     const mca_pml_ob1_hdr_t *hdr = (mca_pml_ob1_hdr_t *) segments->seg_addr.pval;
     mca_pml_ob1_recv_request_t* recvreq;
@@ -816,6 +811,7 @@ void mca_pml_ob1_recv_frag_callback_frag (mca_btl_base_module_t *btl,
 void mca_pml_ob1_recv_frag_callback_put (mca_btl_base_module_t *btl,
                                          const mca_btl_base_receive_descriptor_t *descriptor)
 {
+//printf("Recv_Frag_Callback_Put\n");
     const mca_btl_base_segment_t *segments = descriptor->des_segments;
     const mca_pml_ob1_hdr_t *hdr = (mca_pml_ob1_hdr_t *) segments->seg_addr.pval;
     mca_pml_ob1_send_request_t *sendreq;
@@ -832,6 +828,7 @@ void mca_pml_ob1_recv_frag_callback_put (mca_btl_base_module_t *btl,
 void mca_pml_ob1_recv_frag_callback_fin(mca_btl_base_module_t *btl,
                                         const mca_btl_base_receive_descriptor_t *descriptor)
 {
+    //printf("Recv_Frag_Callback_fin\n");
     const mca_btl_base_segment_t *segments = descriptor->des_segments;
     const mca_pml_ob1_fin_hdr_t *hdr = (mca_pml_ob1_fin_hdr_t *) segments->seg_addr.pval;
     mca_pml_ob1_rdma_frag_t *frag;
@@ -1059,7 +1056,8 @@ static int mca_pml_ob1_recv_frag_match (mca_btl_base_module_t *btl,
                                         const mca_pml_ob1_match_hdr_t *hdr,
                                         const mca_btl_base_segment_t *segments,
                                         size_t num_segments,
-                                        int type)
+                                        int type
+                                        )
 {
     /* local variables */
     uint16_t frag_msg_seq;
@@ -1167,7 +1165,8 @@ mca_pml_ob1_recv_frag_match_proc (mca_btl_base_module_t *btl,
                                   const mca_btl_base_segment_t *segments,
                                   size_t num_segments,
                                   int type,
-                                  mca_pml_ob1_recv_frag_t *frag)
+                                  mca_pml_ob1_recv_frag_t *frag
+                                  )
 {
     /* local variables */
     mca_pml_ob1_comm_t *comm = (mca_pml_ob1_comm_t *)comm_ptr->c_pml_comm;
@@ -1306,7 +1305,6 @@ void mca_pml_ob1_recv_frag_callback_cid (mca_btl_base_module_t* btl,
         /* just a response */
         return;
     }
-
     mca_pml_ob1_recv_frag_match (btl, hdr_match, segments, des->des_segment_count,
                                  hdr_match->hdr_common.hdr_type);
 }

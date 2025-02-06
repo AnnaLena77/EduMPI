@@ -57,7 +57,10 @@ int MPI_Psend_init(const void* buf, int partitions, MPI_Count count, MPI_Datatyp
         }
         OMPI_ERRHANDLER_CHECK(rc, MPI_COMM_WORLD, rc, FUNC_NAME);
     }
-
+//#ifndef ENABLE_ANALYSIS
     rc = mca_part.part_psend_init(buf, partitions, count, datatype, dest, tag, comm, info, request);
-    OMPI_ERRHANDLER_RETURN(rc, MPI_COMM_WORLD, rc, FUNC_NAME);
+/*#else
+    rc = mca_part.part_psend_init(buf, partitions, count, datatype, dest, tag, comm, info, request, NULL);
+#endif
+    OMPI_ERRHANDLER_RETURN(rc, MPI_COMM_WORLD, rc, FUNC_NAME);*/
 }

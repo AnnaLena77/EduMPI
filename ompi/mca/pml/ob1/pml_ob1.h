@@ -151,6 +151,7 @@ extern int mca_pml_ob1_mprobe( int dst,
                               struct ompi_message_t **message,
                               ompi_status_public_t* status );
 
+#ifndef ENABLE_ANALYSIS
 extern int mca_pml_ob1_isend_init( const void *buf,
                                    size_t count,
                                    ompi_datatype_t *datatype,
@@ -159,7 +160,7 @@ extern int mca_pml_ob1_isend_init( const void *buf,
                                    mca_pml_base_send_mode_t mode,
                                    struct ompi_communicator_t* comm,
                                    struct ompi_request_t **request );
-#ifndef ENABLE_ANALYSIS
+                                   
 extern int mca_pml_ob1_isend( const void *buf,
                               size_t count,
                               ompi_datatype_t *datatype,
@@ -177,6 +178,16 @@ extern int mca_pml_ob1_send( const void *buf,
                              mca_pml_base_send_mode_t mode,
                              struct ompi_communicator_t* comm);
 #else
+extern int mca_pml_ob1_isend_init( const void *buf,
+                                   size_t count,
+                                   ompi_datatype_t *datatype,
+                                   int dst,
+                                   int tag,
+                                   mca_pml_base_send_mode_t mode,
+                                   struct ompi_communicator_t* comm,
+                                   struct ompi_request_t **request, 
+                                   struct qentry **q);
+                                   
 extern int mca_pml_ob1_isend( const void *buf,
                               size_t count,
                               ompi_datatype_t *datatype,
@@ -195,6 +206,7 @@ extern int mca_pml_ob1_send( const void *buf,
                              struct ompi_communicator_t* comm, qentry **q );
 #endif
 
+#ifndef ENABLE_ANALYSIS
 extern int mca_pml_ob1_irecv_init( void *buf,
                                    size_t count,
                                    ompi_datatype_t *datatype,
@@ -202,8 +214,7 @@ extern int mca_pml_ob1_irecv_init( void *buf,
                                    int tag,
                                    struct ompi_communicator_t* comm,
                                    struct ompi_request_t **request );
-
-#ifndef ENABLE_ANALYSIS
+                                   
 extern int mca_pml_ob1_irecv( void *buf,
                               size_t count,
                               ompi_datatype_t *datatype,
@@ -232,6 +243,15 @@ extern int mca_pml_ob1_mrecv( void *buf,
                               struct ompi_message_t **message,
                               ompi_status_public_t* status);
 #else
+extern int mca_pml_ob1_irecv_init( void *buf,
+                                   size_t count,
+                                   ompi_datatype_t *datatype,
+                                   int src,
+                                   int tag,
+                                   struct ompi_communicator_t* comm,
+                                   struct ompi_request_t **request,
+                                   struct qentry **q );
+                                   
 extern int mca_pml_ob1_irecv( void *buf,
                               size_t count,
                               ompi_datatype_t *datatype,

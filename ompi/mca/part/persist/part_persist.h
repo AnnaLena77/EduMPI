@@ -253,7 +253,11 @@ mca_part_persist_progress(void)
                     req->persist_reqs = (ompi_request_t**) malloc(sizeof(ompi_request_t*)*(req->real_parts));
                     for(i = 0; i < req->real_parts; i++) {
                          void *buf = ((void*) (((char*)req->req_addr) + (bytes * i)));
+#ifndef ENABLE_ANALYSIS
                          err = MCA_PML_CALL(isend_init(buf, req->real_count, req->req_datatype, req->world_peer, req->my_send_tag+i, MCA_PML_BASE_SEND_STANDARD, ompi_part_persist.part_comm, &(req->persist_reqs[i])));
+#else
+                         err = MCA_PML_CALL(isend_init(buf, req->real_count, req->req_datatype, req->world_peer, req->my_send_tag+i, MCA_PML_BASE_SEND_STANDARD, ompi_part_persist.part_comm, &(req->persist_reqs[i]), NULL));
+#endif
                     }    
                 } else {
                     /* parse message */
@@ -273,7 +277,11 @@ mca_part_persist_progress(void)
                     req->flags = (int*) calloc(req->real_parts,sizeof(int));
                     for(i = 0; i < req->real_parts; i++) {
                          void *buf = ((void*) (((char*)req->req_addr) + (bytes * i)));
+#ifndef ENABLE_ANALYSIS
                          err = MCA_PML_CALL(irecv_init(buf, req->real_count, req->req_datatype, req->world_peer, req->my_send_tag+i, ompi_part_persist.part_comm, &(req->persist_reqs[i])));
+#else
+                         err = MCA_PML_CALL(irecv_init(buf, req->real_count, req->req_datatype, req->world_peer, req->my_send_tag+i, ompi_part_persist.part_comm, &(req->persist_reqs[i]), NULL));
+#endif
                     }
                     err = req->persist_reqs[0]->req_start(req->real_parts, (&(req->persist_reqs[0])));                     
 

@@ -369,41 +369,23 @@ int mca_pml_ob1_send_request_start_accelerator(mca_pml_ob1_send_request_t* sendr
                                                                            base,
                                                                            sendreq->req_send.req_bytes_packed,
                                                                            sendreq->req_rdma))) {
-#ifndef ENABLE_ANALYSIS
             rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
                                                      sendreq->req_send.req_bytes_packed);
-#else
-            rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
-                                                     sendreq->req_send.req_bytes_packed, NULL);
-#endif
             if( OPAL_UNLIKELY(OMPI_SUCCESS != rc) ) {
                 mca_pml_ob1_free_rdma_resources(sendreq);
             }
         } else {
             if (bml_btl->btl_flags & MCA_BTL_FLAGS_ACCELERATOR_PUT) {
-#ifndef ENABLE_ANALYSIS
                 rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, size,
                                                          MCA_PML_OB1_HDR_FLAGS_CONTIG);
-#else
-                rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, size,
-                                                         MCA_PML_OB1_HDR_FLAGS_CONTIG, NULL);
-#endif
             } else {
-#ifndef ENABLE_ANALYSIS
                 rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
-#else
-                rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0, NULL);
-#endif
             }
         }
     } else {
         /* Do not send anything with first rendezvous message as copying GPU
          * memory into RNDV message is expensive. */
-#ifndef ENABLE_ANALYSIS
         rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0);
-#else
-        rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, 0, 0, NULL);
-#endif
     }
     return rc;
 }

@@ -232,7 +232,6 @@ typedef struct am_rdma_operation_t am_rdma_operation_t;
 
 static OBJ_CLASS_INSTANCE(am_rdma_operation_t, opal_list_item_t, NULL, NULL);
 
-
 static inline bool am_rdma_is_atomic(am_rdma_type_t type)
 {
     return (MCA_BTL_BASE_AM_PUT != type && MCA_BTL_BASE_AM_GET != type);
@@ -419,7 +418,6 @@ static inline int am_rdma_advance(mca_btl_base_am_rdma_module_t *am_module,
     }
 
     if (send_descriptor) {
-
         assert(0 != (descriptor->des_flags & MCA_BTL_DES_SEND_ALWAYS_CALLBACK));
 #ifndef ENABLE_ANALYSIS
         ret = btl->btl_send(btl, endpoint, descriptor, am_rdma_tag(hdr->type));
@@ -430,7 +428,6 @@ static inline int am_rdma_advance(mca_btl_base_am_rdma_module_t *am_module,
             ret = OPAL_SUCCESS;
         }
         return ret;
-
     }
 
     /* queue for later to avoid btl_send in callback */
@@ -644,7 +641,6 @@ static int am_rdma_respond(mca_btl_base_module_t *btl,
 
     send_descriptor->des_cbfunc = NULL;
 
-
     /* There is no callback for the response descriptor, therefore it is
      * safe to treat 0 and 1 return codes the same
      */
@@ -823,8 +819,6 @@ static int am_rdma_progress(void)
                            am_rdma_operation_t) {                       \
         am_rdma_retry_operation(operation);                             \
     }
-
-
     OPAL_THREAD_SCOPED_LOCK(&default_component.mutex, ACTION1);
 #ifndef ENABLE_ANALYSIS
 
@@ -1261,7 +1255,6 @@ static int am_rdma_internal_init(mca_btl_base_module_t *btl,
         am_rdma_register_callbacks();
     }
     opal_mutex_unlock(&initialized_mutex);
-
     module = OBJ_NEW(mca_btl_base_am_rdma_module_t);
     if (NULL == module) {
         return OPAL_ERR_TEMP_OUT_OF_RESOURCE;
@@ -1285,7 +1278,6 @@ static int am_rdma_internal_init(mca_btl_base_module_t *btl,
         module->use_rdma_put = false;
         module->use_rdma_get = false;
     }
-
     if (module->use_rdma_get) {
         /* implement operations over get. */
         max_operation_size = btl->btl_get_limit;
@@ -1343,7 +1335,6 @@ int mca_btl_base_am_rdma_init(mca_btl_base_module_t *btl)
         BTL_VERBOSE(("am_rdma_init: btl %p already supports rdma", (void *)btl));
         return OPAL_SUCCESS;
     }
-
     /*
      * note that it is not safe to access any am rdma functionality
      * (even default_component global data) until internal_init returns

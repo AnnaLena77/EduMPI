@@ -47,43 +47,11 @@ static const char FUNC_NAME[] = "MPI_Rsend";
 int MPI_Rsend(const void *buf, int count, MPI_Datatype type, int dest, int tag, MPI_Comm comm)
 {   
     #ifdef ENABLE_ANALYSIS
-    qentry *item = (qentry*)malloc(sizeof(qentry));
-    initQentry(&item);
-    //item->start
-    gettimeofday(&item->start, NULL);
-    //item->operation
-    strcpy(item->function, "MPI_Rsend");
-    strcpy(item->communicationType, "p2p");
-    //item->blocking
-    item->blocking = 1;
-    //item->datatype
-    char *type_name = (char*) malloc(MPI_MAX_OBJECT_NAME);
-    int type_name_length;
-    MPI_Type_get_name(type, type_name, &type_name_length);
-    strcpy(item->datatype, type_name);
-    free(type_name);
-
-    //item->communicator
-    char *comm_name = (char*) malloc(MPI_MAX_OBJECT_NAME);
-    int comm_name_length;
-    MPI_Comm_get_name(comm, comm_name, &comm_name_length);
-    strcpy(item->communicationArea, comm_name);
-    free(comm_name);
-    //item->processrank
-    int processrank;
-    MPI_Comm_rank(comm, &processrank);
-    item->processrank = processrank;
-    //item->partnerrank
-    item->partnerrank = dest;
-    
-    //item->processorname
-    char *proc_name = (char*)malloc(MPI_MAX_PROCESSOR_NAME);
-    int proc_name_length;
-    MPI_Get_processor_name(proc_name, &proc_name_length);
-    strcpy(item->processorname, proc_name);
-    free(proc_name);
-
+    qentry *item = getWritingRingPos();
+    clock_gettime(CLOCK_REALTIME, &item->start);
+    initQentry(&item, dest, "MPI_Rsend", 9, 0, 0, "p2p", 3, type, NULL, comm, 1, NULL);
     #endif
+    
     int rc = MPI_SUCCESS;
 
     SPC_RECORD(OMPI_SPC_RSEND, 1);
@@ -135,7 +103,8 @@ int MPI_Rsend(const void *buf, int count, MPI_Datatype type, int dest, int tag, 
     #else
     rc = MCA_PML_CALL(send(buf, count, type, dest, tag,
                            MCA_PML_BASE_SEND_READY, comm, &item));
-    qentryIntoQueue(&item);
+    //qentryIntoQueue(&item);
+    clock_gettime(CLOCK_REALTIME, &item->end);
     #endif
     OMPI_ERRHANDLER_RETURN(rc, comm, rc, FUNC_NAME);
 }

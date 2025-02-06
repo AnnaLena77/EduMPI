@@ -41,7 +41,7 @@ AC_DEFUN([OMPI_CHECK_UCX],[
                       [ompi_check_ucx_happy="no"])
 
     ompi_check_ucx_CPPFLAGS_save=${CPPFLAGS}
-    ompi_check_ucx_LDFLAGS_save=${LDFLAGS}
+    ompi_check_ucx_LDLAGS_save=${LDFLAGS}
     ompi_check_ucx_LIBS_save=${LIBS}
 
     OPAL_FLAGS_APPEND_UNIQ([CPPFLAGS], [${$1_CPPFLAGS}])
@@ -107,7 +107,9 @@ AC_DEFUN([OMPI_CHECK_UCX],[
                            UCP_ATOMIC_FETCH_OP_FXOR,
                            UCP_PARAM_FIELD_ESTIMATED_NUM_PPN,
                            UCP_WORKER_FLAG_IGNORE_REQUEST_LEAK,
-                           UCP_OP_ATTR_FLAG_MULTI_SEND],
+                           UCP_OP_ATTR_FLAG_MULTI_SEND,
+                           UCP_MEM_MAP_SYMMETRIC_RKEY,
+                           UCS_MEMORY_TYPE_RDMA],
                           [], [],
                           [#include <ucp/api/ucp.h>])
            AC_CHECK_DECLS([UCP_WORKER_ATTR_FIELD_ADDRESS_FLAGS],
@@ -123,7 +125,8 @@ AC_DEFUN([OMPI_CHECK_UCX],[
                           [#include <ucp/api/ucp.h>])
            AC_CHECK_DECLS([ucp_tag_send_nbx,
                            ucp_tag_send_sync_nbx,
-                           ucp_tag_recv_nbx],
+                           ucp_tag_recv_nbx,
+                           ucp_rkey_compare],
                           [], [],
                           [#include <ucp/api/ucp.h>])
            AC_CHECK_TYPES([ucp_request_param_t],
@@ -132,7 +135,7 @@ AC_DEFUN([OMPI_CHECK_UCX],[
            ])
 
     CPPFLAGS=${ompi_check_ucx_CPPFLAGS_save}
-    LDFLAGS=${ompi_check_ucx_LDFLAGS_save}
+    LDFLAGS=${ompi_check_ucx_LDLAGS_save}
     LIBS=${ompi_check_ucx_LIBS_save}
 
     OPAL_SUMMARY_ADD([Transports], [Open UCX], [], [$ompi_check_ucx_happy])

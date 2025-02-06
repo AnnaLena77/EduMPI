@@ -1,6 +1,6 @@
 ! -*- f90 -*-
 !
-! Copyright (c) 2009-2022 Cisco Systems, Inc.  All rights reserved
+! Copyright (c) 2009-2015 Cisco Systems, Inc.  All rights reserved.
 ! Copyright (c) 2009-2012 Los Alamos National Security, LLC.
 !                         All rights reserved.
 ! Copyright (c) 2012      The University of Tennessee and The University
@@ -182,7 +182,7 @@ end subroutine ompi_bsend_f
 subroutine ompi_bsend_init_f(buf,count,datatype,dest,tag,comm,request,ierror) &
    BIND(C, name="ompi_bsend_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count, dest, tag
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
@@ -193,7 +193,7 @@ end subroutine ompi_bsend_init_f
 subroutine ompi_buffer_attach_f(buffer,size,ierror) &
    BIND(C, name="ompi_buffer_attach_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buffer
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buffer
    INTEGER, INTENT(IN) :: size
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_buffer_attach_f
@@ -230,7 +230,7 @@ end subroutine ompi_get_count_f
 subroutine ompi_ibsend_f(buf,count,datatype,dest,tag,comm,request,ierror) &
    BIND(C, name="ompi_ibsend_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count, dest, tag
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
@@ -241,7 +241,7 @@ end subroutine ompi_ibsend_f
 subroutine ompi_irecv_f(buf,count,datatype,source,tag,comm,request,ierror) &
    BIND(C, name="ompi_irecv_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE :: buf
    INTEGER, INTENT(IN) :: count, source, tag
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
@@ -252,7 +252,7 @@ end subroutine ompi_irecv_f
 subroutine ompi_irsend_f(buf,count,datatype,dest,tag,comm,request,ierror) &
    BIND(C, name="ompi_irsend_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count, dest, tag
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
@@ -263,7 +263,7 @@ end subroutine ompi_irsend_f
 subroutine ompi_isend_f(buf,count,datatype,dest,tag,comm,request,ierror) &
    BIND(C, name="ompi_isend_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count, dest, tag
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
@@ -300,7 +300,7 @@ end subroutine ompi_isendrecv_replace_f
 subroutine ompi_issend_f(buf,count,datatype,dest,tag,comm,request,ierror) &
    BIND(C, name="ompi_issend_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count, dest, tag
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
@@ -310,9 +310,11 @@ end subroutine ompi_issend_f
 
 subroutine ompi_psend_init_f(buf,partitions,count,datatype,dest,tag,comm,info,request,ierror) &
    BIND(C, name="ompi_psend_init_f")
+   use :: mpi_f08_types, only : MPI_COUNT_KIND
    implicit none
    OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
-   INTEGER, INTENT(IN) :: partitions, count, dest, tag
+   INTEGER, INTENT(IN) :: partitions, dest, tag
+   INTEGER(KIND=MPI_COUNT_KIND), INTENT(IN):: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
    INTEGER, INTENT(IN) :: info
@@ -322,9 +324,11 @@ end subroutine ompi_psend_init_f
 
 subroutine ompi_precv_init_f(buf,partitions,count,datatype,dest,tag,comm,info,request,ierror) &
    BIND(C, name="ompi_precv_init_f")
+   use :: mpi_f08_types, only : MPI_COUNT_KIND
    implicit none
    OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
-   INTEGER, INTENT(IN) :: partitions, count, dest, tag
+   INTEGER, INTENT(IN) :: partitions, dest, tag
+   INTEGER(KIND=MPI_COUNT_KIND), INTENT(IN):: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
    INTEGER, INTENT(IN) :: info
@@ -363,7 +367,7 @@ subroutine ompi_probe_f(source,tag,comm,status,ierror) &
    implicit none
    INTEGER, INTENT(IN) :: source, tag
    INTEGER, INTENT(IN) :: comm
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_probe_f
 
@@ -375,14 +379,14 @@ subroutine ompi_recv_f(buf,count,datatype,source,tag,comm,status,ierror) &
    INTEGER, INTENT(IN) :: count, source, tag
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_recv_f
 
 subroutine ompi_recv_init_f(buf,count,datatype,source,tag,comm,request,ierror) &
    BIND(C, name="ompi_recv_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE :: buf
    INTEGER, INTENT(IN) :: count, source, tag
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
@@ -410,7 +414,7 @@ end subroutine ompi_rsend_f
 subroutine ompi_rsend_init_f(buf,count,datatype,dest,tag,comm,request,ierror) &
    BIND(C, name="ompi_rsend_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE :: buf
    INTEGER, INTENT(IN) :: count, dest, tag
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
@@ -439,7 +443,7 @@ subroutine ompi_sendrecv_f(sendbuf,sendcount,sendtype,dest,sendtag,recvbuf, &
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
    INTEGER, INTENT(IN) :: comm
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_sendrecv_f
 
@@ -452,14 +456,14 @@ subroutine ompi_sendrecv_replace_f(buf,count,datatype,dest,sendtag,source, &
    INTEGER, INTENT(IN) :: count, dest, sendtag, source, recvtag
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_sendrecv_replace_f
 
 subroutine ompi_send_init_f(buf,count,datatype,dest,tag,comm,request,ierror) &
    BIND(C, name="ompi_send_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count, dest, tag
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
@@ -480,7 +484,7 @@ end subroutine ompi_ssend_f
 subroutine ompi_ssend_init_f(buf,count,datatype,dest,tag,comm,request,ierror) &
    BIND(C, name="ompi_ssend_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count, dest, tag
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
@@ -508,7 +512,7 @@ subroutine ompi_wait_f(request,status,ierror) &
    use :: mpi_f08_types, only : MPI_Status
    implicit none
    INTEGER, INTENT(INOUT) :: request
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_wait_f
 
@@ -518,7 +522,7 @@ subroutine ompi_waitall_f(count,array_of_requests,array_of_statuses,ierror) &
    implicit none
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(INOUT) :: array_of_requests(count)
-   TYPE(MPI_Status) :: array_of_statuses(*)
+   TYPE(MPI_Status), INTENT(OUT) :: array_of_statuses(count)
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_waitall_f
 
@@ -529,7 +533,7 @@ subroutine ompi_waitany_f(count,array_of_requests,index,status,ierror) &
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(INOUT) :: array_of_requests(count)
    INTEGER, INTENT(OUT) :: index
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_waitany_f
 
@@ -542,7 +546,7 @@ subroutine ompi_waitsome_f(incount,array_of_requests,outcount, &
    INTEGER, INTENT(INOUT) :: array_of_requests(incount)
    INTEGER, INTENT(OUT) :: outcount
    INTEGER, INTENT(OUT) :: array_of_indices(*)
-   TYPE(MPI_Status) :: array_of_statuses(*)
+   TYPE(MPI_Status), INTENT(OUT) :: array_of_statuses(*)
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_waitsome_f
 
@@ -550,7 +554,7 @@ subroutine ompi_get_address_f(location,address,ierror) &
    BIND(C, name="ompi_get_address_f")
    use :: mpi_f08_types, only : MPI_ADDRESS_KIND
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: location
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: location
    INTEGER(MPI_ADDRESS_KIND), INTENT(OUT) :: address
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_get_address_f
@@ -732,7 +736,7 @@ subroutine ompi_type_create_subarray_f(ndims,array_of_sizes, &
    BIND(C, name="ompi_type_create_subarray_f")
    implicit none
    INTEGER, INTENT(IN) :: ndims, order
-   INTEGER, INTENT(IN) :: array_of_sizes(ndims), array_of_subsizes(ndims), array_of_starts(ndims)
+   INTEGER, INTENT(IN) :: array_of_sizes(*), array_of_subsizes(*), array_of_starts(*)
    INTEGER, INTENT(IN) :: oldtype
    INTEGER, INTENT(OUT) :: newtype
    INTEGER, INTENT(OUT) :: ierror
@@ -896,8 +900,8 @@ subroutine ompi_iallgather_f(sendbuf,sendcount,sendtype,recvbuf, &
                              recvcount,recvtype,comm,request,ierror) &
    BIND(C, name="ompi_iallgather_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: sendcount, recvcount
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
@@ -910,8 +914,8 @@ subroutine ompi_allgather_init_f(sendbuf,sendcount,sendtype,recvbuf, &
                                  recvcount,recvtype,comm,info,request,ierror) &
    BIND(C, name="ompi_allgather_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: sendcount, recvcount
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
@@ -939,10 +943,10 @@ subroutine ompi_iallgatherv_f(sendbuf,sendcount,sendtype,recvbuf, &
                              recvcounts,displs,recvtype,comm,request,ierror) &
    BIND(C, name="ompi_iallgatherv_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: sendcount
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: recvcounts(*), displs(*)
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: recvcounts(*), displs(*)
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
    INTEGER, INTENT(IN) :: comm
@@ -954,10 +958,10 @@ subroutine ompi_allgatherv_init_f(sendbuf,sendcount,sendtype,recvbuf, &
                              recvcounts,displs,recvtype,comm,info,request,ierror) &
    BIND(C, name="ompi_allgatherv_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: sendcount
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: recvcounts(*), displs(*)
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: recvcounts(*), displs(*)
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
    INTEGER, INTENT(IN) :: comm
@@ -981,8 +985,8 @@ end subroutine ompi_allreduce_f
 subroutine ompi_iallreduce_f(sendbuf,recvbuf,count,datatype,op,comm,request,ierror) &
    BIND(C, name="ompi_iallreduce_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: op
@@ -994,8 +998,8 @@ end subroutine ompi_iallreduce_f
 subroutine ompi_allreduce_init_f(sendbuf,recvbuf,count,datatype,op,comm,info,request,ierror) &
    BIND(C, name="ompi_allreduce_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: op
@@ -1022,8 +1026,8 @@ subroutine ompi_ialltoall_f(sendbuf,sendcount,sendtype,recvbuf, &
                            recvcount,recvtype,comm,request,ierror) &
    BIND(C, name="ompi_ialltoall_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: sendcount, recvcount
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
@@ -1036,8 +1040,8 @@ subroutine ompi_alltoall_init_f(sendbuf,sendcount,sendtype,recvbuf, &
                            recvcount,recvtype,comm,info,request,ierror) &
    BIND(C, name="ompi_alltoall_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: sendcount, recvcount
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
@@ -1064,9 +1068,9 @@ subroutine ompi_ialltoallv_f(sendbuf,sendcounts,sdispls,sendtype, &
                             recvbuf,recvcounts,rdispls,recvtype,comm,request,ierror) &
    BIND(C, name="ompi_ialltoallv_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: sendcounts(*), sdispls(*), recvcounts(*), rdispls(*)
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: sendcounts(*), sdispls(*), recvcounts(*), rdispls(*)
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
    INTEGER, INTENT(IN) :: comm
@@ -1078,9 +1082,9 @@ subroutine ompi_alltoallv_init_f(sendbuf,sendcounts,sdispls,sendtype, &
                             recvbuf,recvcounts,rdispls,recvtype,comm,info,request,ierror) &
    BIND(C, name="ompi_alltoallv_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: sendcounts(*), sdispls(*), recvcounts(*), rdispls(*)
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: sendcounts(*), sdispls(*), recvcounts(*), rdispls(*)
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
    INTEGER, INTENT(IN) :: comm
@@ -1106,11 +1110,11 @@ subroutine ompi_ialltoallw_f(sendbuf,sendcounts,sdispls,sendtypes, &
                             recvbuf,recvcounts,rdispls,recvtypes,comm,request,ierror) &
    BIND(C, name="ompi_ialltoallw_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: sendcounts(*), sdispls(*), recvcounts(*), rdispls(*)
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: sendtypes
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: recvtypes
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: sendcounts(*), sdispls(*), recvcounts(*), rdispls(*)
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: sendtypes
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: recvtypes
    INTEGER, INTENT(IN) :: comm
    INTEGER, INTENT(OUT) :: request
    INTEGER, INTENT(OUT) :: ierror
@@ -1120,11 +1124,11 @@ subroutine ompi_alltoallw_init_f(sendbuf,sendcounts,sdispls,sendtypes, &
                             recvbuf,recvcounts,rdispls,recvtypes,comm,info,request,ierror) &
    BIND(C, name="ompi_alltoallw_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: sendcounts(*), sdispls(*), recvcounts(*), rdispls(*)
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: sendtypes
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: recvtypes
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: sendcounts(*), sdispls(*), recvcounts(*), rdispls(*)
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: sendtypes
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: recvtypes
    INTEGER, INTENT(IN) :: comm
    INTEGER, INTENT(IN) :: info
    INTEGER, INTENT(OUT) :: request
@@ -1168,7 +1172,7 @@ end subroutine ompi_bcast_f
 subroutine ompi_ibcast_f(buffer,count,datatype,root,comm,request,ierror) &
    BIND(C, name="ompi_ibcast_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buffer
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: buffer
    INTEGER, INTENT(IN) :: count, root
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
@@ -1179,7 +1183,7 @@ end subroutine ompi_ibcast_f
 subroutine ompi_bcast_init_f(buffer,count,datatype,root,comm,info,request,ierror) &
    BIND(C, name="ompi_bcast_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buffer
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: buffer
    INTEGER, INTENT(IN) :: count, root
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: comm
@@ -1203,8 +1207,8 @@ end subroutine ompi_exscan_f
 subroutine ompi_iexscan_f(sendbuf,recvbuf,count,datatype,op,comm,request,ierror) &
    BIND(C, name="ompi_iexscan_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: op
@@ -1216,8 +1220,8 @@ end subroutine ompi_iexscan_f
 subroutine ompi_exscan_init_f(sendbuf,recvbuf,count,datatype,op,comm,info,request,ierror) &
    BIND(C, name="ompi_exscan_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: op
@@ -1244,8 +1248,8 @@ subroutine ompi_igather_f(sendbuf,sendcount,sendtype,recvbuf, &
                          recvcount,recvtype,root,comm,request,ierror) &
    BIND(C, name="ompi_igather_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: sendcount, recvcount, root
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
@@ -1258,8 +1262,8 @@ subroutine ompi_gather_init_f(sendbuf,sendcount,sendtype,recvbuf, &
                          recvcount,recvtype,root,comm,info,request,ierror) &
    BIND(C, name="ompi_gather_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: sendcount, recvcount, root
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
@@ -1287,10 +1291,10 @@ subroutine ompi_igatherv_f(sendbuf,sendcount,sendtype,recvbuf, &
                           recvcounts,displs,recvtype,root,comm,request,ierror) &
    BIND(C, name="ompi_igatherv_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: sendcount, root
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: recvcounts(*), displs(*)
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: recvcounts(*), displs(*)
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
    INTEGER, INTENT(IN) :: comm
@@ -1302,10 +1306,10 @@ subroutine ompi_gatherv_init_f(sendbuf,sendcount,sendtype,recvbuf, &
                           recvcounts,displs,recvtype,root,comm,info,request,ierror) &
    BIND(C, name="ompi_gatherv_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: sendcount, root
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: recvcounts(*), displs(*)
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: recvcounts(*), displs(*)
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
    INTEGER, INTENT(IN) :: comm
@@ -1336,8 +1340,8 @@ end subroutine ompi_reduce_f
 subroutine ompi_ireduce_f(sendbuf,recvbuf,count,datatype,op,root,comm,request,ierror) &
    BIND(C, name="ompi_ireduce_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: count, root
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: op
@@ -1349,8 +1353,8 @@ end subroutine ompi_ireduce_f
 subroutine ompi_reduce_init_f(sendbuf,recvbuf,count,datatype,op,root,comm,info,request,ierror) &
    BIND(C, name="ompi_reduce_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: count, root
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: op
@@ -1388,9 +1392,9 @@ subroutine ompi_ireduce_scatter_f(sendbuf,recvbuf,recvcounts, &
                                  datatype,op,comm,request,ierror) &
    BIND(C, name="ompi_ireduce_scatter_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: recvcounts(*)
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: recvcounts(*)
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: op
    INTEGER, INTENT(IN) :: comm
@@ -1402,9 +1406,9 @@ subroutine ompi_reduce_scatter_init_f(sendbuf,recvbuf,recvcounts, &
                                  datatype,op,comm,info,request,ierror) &
    BIND(C, name="ompi_reduce_scatter_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: recvcounts(*)
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: recvcounts(*)
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: op
    INTEGER, INTENT(IN) :: comm
@@ -1430,8 +1434,8 @@ subroutine ompi_ireduce_scatter_block_f(sendbuf,recvbuf,recvcount, &
                                        datatype,op,comm,request,ierror) &
    BIND(C, name="ompi_ireduce_scatter_block_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: recvcount
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: op
@@ -1444,8 +1448,8 @@ subroutine ompi_reduce_scatter_block_init_f(sendbuf,recvbuf,recvcount, &
                                        datatype,op,comm,info,request,ierror) &
    BIND(C, name="ompi_reduce_scatter_block_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: recvcount
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: op
@@ -1470,8 +1474,8 @@ end subroutine ompi_scan_f
 subroutine ompi_iscan_f(sendbuf,recvbuf,count,datatype,op,comm,request,ierror) &
    BIND(C, name="ompi_iscan_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: op
@@ -1483,8 +1487,8 @@ end subroutine ompi_iscan_f
 subroutine ompi_scan_init_f(sendbuf,recvbuf,count,datatype,op,comm,info,request,ierror) &
    BIND(C, name="ompi_scan_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: op
@@ -1511,8 +1515,8 @@ subroutine ompi_iscatter_f(sendbuf,sendcount,sendtype,recvbuf, &
                           recvcount,recvtype,root,comm,request,ierror) &
    BIND(C, name="ompi_iscatter_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: sendcount, recvcount, root
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
@@ -1525,8 +1529,8 @@ subroutine ompi_scatter_init_f(sendbuf,sendcount,sendtype,recvbuf, &
                           recvcount,recvtype,root,comm,info,request,ierror) &
    BIND(C, name="ompi_scatter_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: sendcount, recvcount, root
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
@@ -1554,11 +1558,10 @@ subroutine ompi_iscatterv_f(sendbuf,sendcounts,displs,sendtype, &
                            recvbuf,recvcount,recvtype,root,comm,request,ierror) &
    BIND(C, name="ompi_iscatterv_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: recvcount, root
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: sendcounts(*), displs(*)
-
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: sendcounts(*), displs(*)
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
    INTEGER, INTENT(IN) :: comm
@@ -1570,10 +1573,10 @@ subroutine ompi_scatterv_init_f(sendbuf,sendcounts,displs,sendtype, &
                            recvbuf,recvcount,recvtype,root,comm,info,request,ierror) &
    BIND(C, name="ompi_scatterv_init_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN), ASYNCHRONOUS :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, ASYNCHRONOUS :: recvbuf
    INTEGER, INTENT(IN) :: recvcount, root
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: sendcounts(*), displs(*)
+   INTEGER, INTENT(IN), ASYNCHRONOUS :: sendcounts(*), displs(*)
    INTEGER, INTENT(IN) :: sendtype
    INTEGER, INTENT(IN) :: recvtype
    INTEGER, INTENT(IN) :: comm
@@ -1729,7 +1732,7 @@ subroutine ompi_comm_idup_f(comm, newcomm, request, ierror) &
    BIND(C, name="ompi_comm_idup_f")
    implicit none
   integer, intent(in) :: comm
-  integer, intent(out) OMPI_ASYNCHRONOUS :: newcomm
+  integer, intent(out) :: newcomm
   integer, intent(out) :: request
   integer, intent(out) :: ierror
 end subroutine ompi_comm_idup_f
@@ -1826,7 +1829,7 @@ subroutine ompi_group_excl_f(group,n,ranks,newgroup,ierror) &
    implicit none
    INTEGER, INTENT(IN) :: group
    INTEGER, INTENT(IN) :: n
-   INTEGER, INTENT(IN) :: ranks(n)
+   INTEGER, INTENT(IN) :: ranks(*)
    INTEGER, INTENT(OUT) :: newgroup
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_group_excl_f
@@ -1853,7 +1856,7 @@ subroutine ompi_group_incl_f(group,n,ranks,newgroup,ierror) &
    BIND(C, name="ompi_group_incl_f")
    implicit none
    INTEGER, INTENT(IN) :: n
-   INTEGER, INTENT(IN) :: ranks(n)
+   INTEGER, INTENT(IN) :: ranks(*)
    INTEGER, INTENT(IN) :: group
    INTEGER, INTENT(OUT) :: newgroup
    INTEGER, INTENT(OUT) :: ierror
@@ -1873,7 +1876,7 @@ subroutine ompi_group_range_excl_f(group,n,ranges,newgroup,ierror) &
    implicit none
    INTEGER, INTENT(IN) :: group
    INTEGER, INTENT(IN) :: n
-   INTEGER, INTENT(IN) :: ranges(3, n)
+   INTEGER, INTENT(IN) :: ranges(*)
    INTEGER, INTENT(OUT) :: newgroup
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_group_range_excl_f
@@ -1883,7 +1886,7 @@ subroutine ompi_group_range_incl_f(group,n,ranges,newgroup,ierror) &
    implicit none
    INTEGER, INTENT(IN) :: group
    INTEGER, INTENT(IN) :: n
-   INTEGER, INTENT(IN) :: ranges(3, n)
+   INTEGER, INTENT(IN) :: ranges(*)
    INTEGER, INTENT(OUT) :: newgroup
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_group_range_incl_f
@@ -1909,8 +1912,8 @@ subroutine ompi_group_translate_ranks_f(group1,n,ranks1,group2,ranks2,ierror) &
    implicit none
    INTEGER, INTENT(IN) :: group1, group2
    INTEGER, INTENT(IN) :: n
-   INTEGER, INTENT(IN) :: ranks1(n)
-   INTEGER, INTENT(OUT) :: ranks2(n)
+   INTEGER, INTENT(IN) :: ranks1(*)
+   INTEGER, INTENT(OUT) :: ranks2(*)
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_group_translate_ranks_f
 
@@ -2130,7 +2133,7 @@ subroutine ompi_dims_create_f(nnodes,ndims,dims,ierror) &
    BIND(C, name="ompi_dims_create_f")
    implicit none
    INTEGER, INTENT(IN) :: nnodes, ndims
-   INTEGER, INTENT(INOUT) :: dims(ndims)
+   INTEGER, INTENT(INOUT) :: dims(*)
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_dims_create_f
 
@@ -2158,7 +2161,7 @@ subroutine ompi_graph_get_f(comm,maxindex,maxedges,index,edges,ierror) &
    implicit none
    INTEGER, INTENT(IN) :: comm
    INTEGER, INTENT(IN) :: maxindex, maxedges
-   INTEGER, INTENT(OUT) :: index(maxindex), edges(maxedges)
+   INTEGER, INTENT(OUT) :: index(*), edges(*)
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_graph_get_f
 
@@ -2167,7 +2170,7 @@ subroutine ompi_graph_map_f(comm,nnodes,index,edges,newrank,ierror) &
    implicit none
    INTEGER, INTENT(IN) :: comm
    INTEGER, INTENT(IN) :: nnodes
-   INTEGER, INTENT(IN) :: index(nnodes), edges(*)
+   INTEGER, INTENT(IN) :: index(*), edges(*)
    INTEGER, INTENT(OUT) :: newrank
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_graph_map_f
@@ -2177,7 +2180,7 @@ subroutine ompi_graph_neighbors_f(comm,rank,maxneighbors,neighbors,ierror) &
    implicit none
    INTEGER, INTENT(IN) :: comm
    INTEGER, INTENT(IN) :: rank, maxneighbors
-   INTEGER, INTENT(OUT) :: neighbors(maxneighbors)
+   INTEGER, INTENT(OUT) :: neighbors(*)
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_graph_neighbors_f
 
@@ -2644,7 +2647,7 @@ subroutine ompi_accumulate_f(origin_addr,origin_count,origin_datatype, &
    BIND(C, name="ompi_accumulate_f")
    use :: mpi_f08_types, only : MPI_ADDRESS_KIND
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: origin_addr
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: origin_addr
    INTEGER, INTENT(IN) :: origin_count, target_rank, target_count
    INTEGER, INTENT(IN) :: origin_datatype
    INTEGER(MPI_ADDRESS_KIND), INTENT(IN) :: target_disp
@@ -2661,7 +2664,7 @@ subroutine ompi_raccumulate_f(origin_addr,origin_count,origin_datatype, &
    BIND(C, name="ompi_raccumulate_f")
    use :: mpi_f08_types, only : MPI_ADDRESS_KIND
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: origin_addr
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: origin_addr
    INTEGER, INTENT(IN) :: origin_count, target_rank, target_count
    INTEGER, INTENT(IN) :: origin_datatype
    INTEGER(MPI_ADDRESS_KIND), INTENT(IN) :: target_disp
@@ -2677,7 +2680,7 @@ subroutine ompi_get_f(origin_addr,origin_count,origin_datatype,target_rank, &
    BIND(C, name="ompi_get_f")
    use :: mpi_f08_types, only : MPI_ADDRESS_KIND
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: origin_addr
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: origin_addr
    INTEGER, INTENT(IN) :: origin_count, target_rank, target_count
    INTEGER, INTENT(IN) :: origin_datatype
    INTEGER(MPI_ADDRESS_KIND), INTENT(IN) :: target_disp
@@ -2692,7 +2695,7 @@ subroutine ompi_rget_f(origin_addr,origin_count,origin_datatype,target_rank, &
    BIND(C, name="ompi_rget_f")
    use :: mpi_f08_types, only : MPI_ADDRESS_KIND
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: origin_addr
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: origin_addr
    INTEGER, INTENT(IN) :: origin_count, target_rank, target_count
    INTEGER, INTENT(IN) :: origin_datatype
    INTEGER(MPI_ADDRESS_KIND), INTENT(IN) :: target_disp
@@ -2710,10 +2713,10 @@ subroutine ompi_get_accumulate_f(origin_addr,origin_count,origin_datatype, &
    BIND(C, name="ompi_get_accumulate_f")
    use :: mpi_f08_types, only : MPI_ADDRESS_KIND
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: origin_addr
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: origin_addr
    INTEGER, INTENT(IN) :: origin_count, result_count, target_rank, target_count
    INTEGER, INTENT(IN) :: origin_datatype
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: result_addr
+   OMPI_FORTRAN_IGNORE_TKR_TYPE :: result_addr
    INTEGER, INTENT(IN) :: result_datatype
    INTEGER(MPI_ADDRESS_KIND), INTENT(IN) :: target_disp
    INTEGER, INTENT(IN) :: target_datatype
@@ -2730,10 +2733,10 @@ subroutine ompi_rget_accumulate_f(origin_addr,origin_count,origin_datatype, &
    BIND(C, name="ompi_rget_accumulate_f")
    use :: mpi_f08_types, only : MPI_ADDRESS_KIND
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: origin_addr
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: origin_addr
    INTEGER, INTENT(IN) :: origin_count, result_count, target_rank, target_count
    INTEGER, INTENT(IN) :: origin_datatype
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: result_addr
+   OMPI_FORTRAN_IGNORE_TKR_TYPE :: result_addr
    INTEGER, INTENT(IN) :: result_datatype
    INTEGER(MPI_ADDRESS_KIND), INTENT(IN) :: target_disp
    INTEGER, INTENT(IN) :: target_datatype
@@ -2748,7 +2751,7 @@ subroutine ompi_put_f(origin_addr,origin_count,origin_datatype,target_rank, &
    BIND(C, name="ompi_put_f")
    use :: mpi_f08_types, only : MPI_ADDRESS_KIND
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: origin_addr
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: origin_addr
    INTEGER, INTENT(IN) :: origin_count, target_rank, target_count
    INTEGER, INTENT(IN) :: origin_datatype
    INTEGER(MPI_ADDRESS_KIND), INTENT(IN) :: target_disp
@@ -2763,7 +2766,7 @@ subroutine ompi_rput_f(origin_addr,origin_count,origin_datatype,target_rank, &
    BIND(C, name="ompi_rput_f")
    use :: mpi_f08_types, only : MPI_ADDRESS_KIND
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: origin_addr
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: origin_addr
    INTEGER, INTENT(IN) :: origin_count, target_rank, target_count
    INTEGER, INTENT(IN) :: origin_datatype
    INTEGER(MPI_ADDRESS_KIND), INTENT(IN) :: target_disp
@@ -2786,8 +2789,8 @@ subroutine ompi_compare_and_swap_f(origin_addr,compare_addr,result_addr, &
    BIND(C, name="ompi_compare_and_swap_f")
    use :: mpi_f08_types, only : MPI_ADDRESS_KIND
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: origin_addr, compare_addr
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: result_addr
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: origin_addr, compare_addr
+   OMPI_FORTRAN_IGNORE_TKR_TYPE :: result_addr
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: target_rank
    INTEGER(MPI_ADDRESS_KIND), INTENT(IN) :: target_disp
@@ -2800,8 +2803,8 @@ subroutine ompi_fetch_and_op_f(origin_addr,result_addr,datatype,target_rank, &
    BIND(C, name="ompi_fetch_and_op_f")
    use :: mpi_f08_types, only : MPI_ADDRESS_KIND
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: origin_addr
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: result_addr
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: origin_addr
+   OMPI_FORTRAN_IGNORE_TKR_TYPE :: result_addr
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(IN) :: target_rank
    INTEGER(MPI_ADDRESS_KIND), INTENT(IN) :: target_disp
@@ -2814,7 +2817,7 @@ subroutine ompi_win_create_f(base,size,disp_unit,info,comm,win,ierror) &
    BIND(C, name="ompi_win_create_f")
    use :: mpi_f08_types, only : MPI_ADDRESS_KIND
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: base
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: base
    INTEGER(MPI_ADDRESS_KIND), INTENT(IN) :: size
    INTEGER, INTENT(IN) :: disp_unit
    INTEGER, INTENT(IN) :: info
@@ -2836,7 +2839,7 @@ subroutine ompi_win_attach_f(win,base,size,ierror) &
    BIND(C, name="ompi_win_attach_f")
    use :: mpi_f08_types, only : MPI_ADDRESS_KIND
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: base
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: base
    INTEGER(MPI_ADDRESS_KIND), INTENT(IN) :: size
    INTEGER, INTENT(IN) :: win
    INTEGER, INTENT(OUT) :: ierror
@@ -2846,7 +2849,7 @@ subroutine ompi_win_detach_f(win,base,ierror) &
    BIND(C, name="ompi_win_detach_f")
    use :: mpi_f08_types, only : MPI_ADDRESS_KIND
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: base
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: base
    INTEGER, INTENT(IN) :: win
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_win_detach_f
@@ -2904,11 +2907,11 @@ subroutine ompi_win_get_group_f(win,group,ierror) &
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_win_get_group_f
 
-subroutine ompi_win_get_info_f(win,info_used,ierror) &
+subroutine ompi_win_get_info_f(comm,info,ierror) &
    BIND(C, name="ompi_win_get_info_f")
    implicit none
-   INTEGER, INTENT(IN) :: win
-   INTEGER, INTENT(OUT) :: info_used
+   INTEGER, INTENT(IN) :: comm
+   INTEGER, INTENT(OUT) :: info
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_win_get_info_f
 
@@ -2937,10 +2940,10 @@ subroutine ompi_win_post_f(group,assert,win,ierror) &
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_win_post_f
 
-subroutine ompi_win_set_info_f(win,info,ierror) &
+subroutine ompi_win_set_info_f(comm,info,ierror) &
    BIND(C, name="ompi_win_set_info_f")
    implicit none
-   INTEGER, INTENT(IN) :: win
+   INTEGER, INTENT(IN) :: comm
    INTEGER, INTENT(IN) :: info
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_win_set_info_f
@@ -3032,7 +3035,7 @@ subroutine ompi_query_thread_f(provided,ierror) &
 end subroutine ompi_query_thread_f
 
 subroutine ompi_status_f082f_f(f08_status,f_status,ierror) &
-   BIND(C, name="ompi_status_f082f_f")
+   BIND(C, name="ompi_status_f2f08_f")
    use :: mpi_f08_types, only : MPI_Status, MPI_STATUS_SIZE
    implicit none
    TYPE(MPI_Status), INTENT(IN) :: f08_status
@@ -3041,7 +3044,7 @@ subroutine ompi_status_f082f_f(f08_status,f_status,ierror) &
 end subroutine ompi_status_f082f_f
 
 subroutine ompi_status_f2f08_f(f_status,f08_status,ierror) &
-   BIND(C, name="ompi_status_f2f08_f")
+   BIND(C, name="ompi_status_f082f_f")
    use :: mpi_f08_types, only : MPI_Status, MPI_STATUS_SIZE
    implicit none
    INTEGER, INTENT(IN) :: f_status(MPI_STATUS_SIZE)
@@ -3175,7 +3178,7 @@ subroutine ompi_file_iread_f(fh,buf,count,datatype,request,ierror) &
    BIND(C, name="ompi_file_iread_f")
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(OUT) :: request
@@ -3188,7 +3191,7 @@ subroutine ompi_file_iread_at_f(fh,offset,buf,count,datatype,request,ierror) &
    implicit none
    INTEGER, INTENT(IN) :: fh
    INTEGER(MPI_OFFSET_KIND), INTENT(IN) :: offset
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(OUT) :: request
@@ -3199,7 +3202,7 @@ subroutine ompi_file_iread_all_f(fh,buf,count,datatype,request,ierror) &
    BIND(C, name="ompi_file_iread_all_f")
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(OUT) :: request
@@ -3212,7 +3215,7 @@ subroutine ompi_file_iread_at_all_f(fh,offset,buf,count,datatype,request,ierror)
    implicit none
    INTEGER, INTENT(IN) :: fh
    INTEGER(MPI_OFFSET_KIND), INTENT(IN) :: offset
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(OUT) :: request
@@ -3223,7 +3226,7 @@ subroutine ompi_file_iread_shared_f(fh,buf,count,datatype,request,ierror) &
    BIND(C, name="ompi_file_iread_shared_f")
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(OUT) :: request
@@ -3234,7 +3237,7 @@ subroutine ompi_file_iwrite_f(fh,buf,count,datatype,request,ierror) &
    BIND(C, name="ompi_file_iwrite_f")
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(OUT) :: request
@@ -3247,7 +3250,7 @@ subroutine ompi_file_iwrite_at_f(fh,offset,buf,count,datatype,request,ierror) &
    implicit none
    INTEGER, INTENT(IN) :: fh
    INTEGER(MPI_OFFSET_KIND), INTENT(IN) :: offset
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(OUT) :: request
@@ -3258,7 +3261,7 @@ subroutine ompi_file_iwrite_all_f(fh,buf,count,datatype,request,ierror) &
    BIND(C, name="ompi_file_iwrite_all_f")
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(OUT) :: request
@@ -3271,7 +3274,7 @@ subroutine ompi_file_iwrite_at_all_f(fh,offset,buf,count,datatype,request,ierror
    implicit none
    INTEGER, INTENT(IN) :: fh
    INTEGER(MPI_OFFSET_KIND), INTENT(IN) :: offset
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(OUT) :: request
@@ -3281,7 +3284,7 @@ end subroutine ompi_file_iwrite_at_all_f
 subroutine ompi_file_iwrite_shared_f(fh,buf,count,datatype,request,ierror) &
    BIND(C, name="ompi_file_iwrite_shared_f")
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: fh
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
@@ -3316,10 +3319,10 @@ subroutine ompi_file_read_f(fh,buf,count,datatype,status,ierror) &
    use :: mpi_f08_types, only : MPI_Status
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_read_f
 
@@ -3328,10 +3331,10 @@ subroutine ompi_file_read_all_f(fh,buf,count,datatype,status,ierror) &
    use :: mpi_f08_types, only : MPI_Status
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_read_all_f
 
@@ -3339,7 +3342,7 @@ subroutine ompi_file_read_all_begin_f(fh,buf,count,datatype,ierror) &
    BIND(C, name="ompi_file_read_all_begin_f")
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(OUT) :: ierror
@@ -3350,8 +3353,8 @@ subroutine ompi_file_read_all_end_f(fh,buf,status,ierror) &
    use :: mpi_f08_types, only : MPI_Status
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buf
-   TYPE(MPI_Status) :: status
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_read_all_end_f
 
@@ -3361,10 +3364,10 @@ subroutine ompi_file_read_at_f(fh,offset,buf,count,datatype,status,ierror) &
    implicit none
    INTEGER, INTENT(IN) :: fh
    INTEGER(MPI_OFFSET_KIND), INTENT(IN) :: offset
-   OMPI_FORTRAN_IGNORE_TKR_TYPE :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_read_at_f
 
@@ -3374,10 +3377,10 @@ subroutine ompi_file_read_at_all_f(fh,offset,buf,count,datatype,status,ierror) &
    implicit none
    INTEGER, INTENT(IN) :: fh
    INTEGER(MPI_OFFSET_KIND), INTENT(IN) :: offset
-   OMPI_FORTRAN_IGNORE_TKR_TYPE :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_read_at_all_f
 
@@ -3387,7 +3390,7 @@ subroutine ompi_file_read_at_all_begin_f(fh,offset,buf,count,datatype,ierror) &
    implicit none
    INTEGER, INTENT(IN) :: fh
    INTEGER(MPI_OFFSET_KIND), INTENT(IN) :: offset
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(OUT) :: ierror
@@ -3398,8 +3401,8 @@ subroutine ompi_file_read_at_all_end_f(fh,buf,status,ierror) &
    use :: mpi_f08_types, only : MPI_Status
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buf
-   TYPE(MPI_Status) :: status
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_read_at_all_end_f
 
@@ -3408,10 +3411,10 @@ subroutine ompi_file_read_ordered_f(fh,buf,count,datatype,status,ierror) &
    use :: mpi_f08_types, only : MPI_Status
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_read_ordered_f
 
@@ -3419,7 +3422,7 @@ subroutine ompi_file_read_ordered_begin_f(fh,buf,count,datatype,ierror) &
    BIND(C, name="ompi_file_read_ordered_begin_f")
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(OUT) :: ierror
@@ -3430,8 +3433,8 @@ subroutine ompi_file_read_ordered_end_f(fh,buf,status,ierror) &
    use :: mpi_f08_types, only : MPI_Status
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: buf
-   TYPE(MPI_Status) :: status
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_read_ordered_end_f
 
@@ -3440,10 +3443,10 @@ subroutine ompi_file_read_shared_f(fh,buf,count,datatype,status,ierror) &
    use :: mpi_f08_types, only : MPI_Status
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_read_shared_f
 
@@ -3514,7 +3517,7 @@ subroutine ompi_file_write_f(fh,buf,count,datatype,status,ierror) &
    OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_write_f
 
@@ -3526,7 +3529,7 @@ subroutine ompi_file_write_all_f(fh,buf,count,datatype,status,ierror) &
    OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_write_all_f
 
@@ -3534,7 +3537,7 @@ subroutine ompi_file_write_all_begin_f(fh,buf,count,datatype,ierror) &
    BIND(C, name="ompi_file_write_all_begin_f")
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(OUT) :: ierror
@@ -3545,8 +3548,8 @@ subroutine ompi_file_write_all_end_f(fh,buf,status,ierror) &
    use :: mpi_f08_types, only : MPI_Status
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
-   TYPE(MPI_Status) :: status
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_write_all_end_f
 
@@ -3559,7 +3562,7 @@ subroutine ompi_file_write_at_f(fh,offset,buf,count,datatype,status,ierror) &
    OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_write_at_f
 
@@ -3572,7 +3575,7 @@ subroutine ompi_file_write_at_all_f(fh,offset,buf,count,datatype,status,ierror) 
    OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_write_at_all_f
 
@@ -3582,7 +3585,7 @@ subroutine ompi_file_write_at_all_begin_f(fh,offset,buf,count,datatype,ierror) &
    implicit none
    INTEGER, INTENT(IN) :: fh
    INTEGER(MPI_OFFSET_KIND), INTENT(IN) :: offset
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(OUT) :: ierror
@@ -3593,8 +3596,8 @@ subroutine ompi_file_write_at_all_end_f(fh,buf,status,ierror) &
    use :: mpi_f08_types, only : MPI_Status
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
-   TYPE(MPI_Status) :: status
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_write_at_all_end_f
 
@@ -3606,7 +3609,7 @@ subroutine ompi_file_write_ordered_f(fh,buf,count,datatype,status,ierror) &
    OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_write_ordered_f
 
@@ -3614,7 +3617,7 @@ subroutine ompi_file_write_ordered_begin_f(fh,buf,count,datatype,ierror) &
    BIND(C, name="ompi_file_write_ordered_begin_f")
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
    INTEGER, INTENT(OUT) :: ierror
@@ -3625,8 +3628,8 @@ subroutine ompi_file_write_ordered_end_f(fh,buf,status,ierror) &
    use :: mpi_f08_types, only : MPI_Status
    implicit none
    INTEGER, INTENT(IN) :: fh
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: buf
-   TYPE(MPI_Status) :: status
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_write_ordered_end_f
 
@@ -3638,7 +3641,7 @@ subroutine ompi_file_write_shared_f(fh,buf,count,datatype,status,ierror) &
    OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: buf
    INTEGER, INTENT(IN) :: count
    INTEGER, INTENT(IN) :: datatype
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_file_write_shared_f
 
@@ -3748,7 +3751,7 @@ subroutine ompi_mprobe_f(source,tag,comm,message,status,ierror) &
    INTEGER, INTENT(IN) :: source, tag
    INTEGER, INTENT(IN) :: comm
    INTEGER, INTENT(OUT) :: message
-   TYPE(MPI_Status) :: status
+   TYPE(MPI_Status), INTENT(OUT) :: status
    INTEGER, INTENT(OUT) :: ierror
 end subroutine ompi_mprobe_f
 
@@ -3793,8 +3796,8 @@ subroutine ompi_ineighbor_allgather_f(sendbuf,sendcount,sendtype,recvbuf,recvcou
                              BIND(C, name="ompi_ineighbor_allgather_f")
    use :: mpi_f08_types, only : MPI_Datatype, MPI_Comm, MPI_Request
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE :: recvbuf
    INTEGER, INTENT(IN) :: sendcount, recvcount
    INTEGER, INTENT(IN) :: sendtype, recvtype
    INTEGER, INTENT(IN) :: comm
@@ -3836,10 +3839,10 @@ subroutine ompi_ineighbor_allgatherv_f(sendbuf,sendcount,sendtype,recvbuf,recvco
                               BIND(C, name="ompi_ineighbor_allgatherv_f")
    use :: mpi_f08_types, only : MPI_Datatype, MPI_Comm, MPI_Request
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE :: recvbuf
    INTEGER, INTENT(IN) :: sendcount
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: recvcounts(*), displs(*)
+   INTEGER, INTENT(IN) :: recvcounts(*), displs(*)
    INTEGER, INTENT(IN) :: sendtype, recvtype
    INTEGER, INTENT(IN) :: comm
    INTEGER, INTENT(OUT) :: request
@@ -3880,8 +3883,8 @@ subroutine ompi_ineighbor_alltoall_f(sendbuf,sendcount,sendtype,recvbuf,recvcoun
                             BIND(C, name="ompi_ineighbor_alltoall_f")
    use :: mpi_f08_types, only : MPI_Datatype, MPI_Comm, MPI_Request
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE :: recvbuf
    INTEGER, INTENT(IN) :: sendcount, recvcount
    INTEGER, INTENT(IN) :: sendtype, recvtype
    INTEGER, INTENT(IN) :: comm
@@ -3922,9 +3925,9 @@ subroutine ompi_ineighbor_alltoallv_f(sendbuf,sendcounts,sdispls,sendtype,recvbu
                              BIND(C, name="ompi_ineighbor_alltoallv_f")
    use :: mpi_f08_types, only : MPI_Datatype, MPI_Comm, MPI_Request
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: sendcounts(*), sdispls(*), recvcounts(*), rdispls(*)
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE :: recvbuf
+   INTEGER, INTENT(IN) :: sendcounts(*), sdispls(*), recvcounts(*), rdispls(*)
    INTEGER, INTENT(IN) :: sendtype, recvtype
    INTEGER, INTENT(IN) :: comm
    INTEGER, INTENT(OUT) :: request
@@ -3965,10 +3968,10 @@ subroutine ompi_ineighbor_alltoallw_f(sendbuf,sendcounts,sdispls,sendtypes,recvb
                              BIND(C, name="ompi_ineighbor_alltoallw_f")
    use :: mpi_f08_types, only : MPI_Datatype, MPI_Comm, MPI_Request, MPI_ADDRESS_KIND
    implicit none
-   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) OMPI_ASYNCHRONOUS :: sendbuf
-   OMPI_FORTRAN_IGNORE_TKR_TYPE OMPI_ASYNCHRONOUS :: recvbuf
-   INTEGER, INTENT(IN) OMPI_ASYNCHRONOUS :: sendcounts(*), recvcounts(*)
-   INTEGER(MPI_ADDRESS_KIND), INTENT(IN) OMPI_ASYNCHRONOUS :: sdispls(*), rdispls(*)
+   OMPI_FORTRAN_IGNORE_TKR_TYPE, INTENT(IN) :: sendbuf
+   OMPI_FORTRAN_IGNORE_TKR_TYPE :: recvbuf
+   INTEGER, INTENT(IN) :: sendcounts(*), recvcounts(*)
+   INTEGER(MPI_ADDRESS_KIND), INTENT(IN) :: sdispls(*), rdispls(*)
    INTEGER, INTENT(IN) :: sendtypes, recvtypes
    INTEGER, INTENT(IN) :: comm
    INTEGER, INTENT(OUT) :: request

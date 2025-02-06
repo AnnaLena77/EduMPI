@@ -55,7 +55,7 @@ int mca_sharedfp_sm_iread(ompio_file_t *fh,
     }
     /*Request the offset to write bytesRequested bytes*/
     ret = mca_sharedfp_sm_request_position(fh,bytesRequested,&offset);
-    offset /= fh->f_fview.f_etype_size;
+    offset /= fh->f_etype_size;
 
     if (  -1 != ret ) {
         if ( mca_sharedfp_sm_verbose ) {
@@ -127,7 +127,7 @@ int mca_sharedfp_sm_read_ordered_begin(ompio_file_t *fh,
                                             OMPI_OFFSET_DATATYPE, 
                                             0,
                                             fh->f_comm, 
-                                            fh->f_comm->c_coll->coll_gather_module, NULL);
+                                            fh->f_comm->c_coll->coll_gather_module, NULL );
 #endif
     if( OMPI_SUCCESS != ret){
 	goto exit;
@@ -187,7 +187,7 @@ int mca_sharedfp_sm_read_ordered_begin(ompio_file_t *fh,
                                              OMPI_OFFSET_DATATYPE, 
                                              0,
                                              fh->f_comm, 
-                                             fh->f_comm->c_coll->coll_scatter_module, NULL);
+                                             fh->f_comm->c_coll->coll_scatter_module, NULL );
 #endif
     if( OMPI_SUCCESS != ret){
 	goto exit;
@@ -195,7 +195,7 @@ int mca_sharedfp_sm_read_ordered_begin(ompio_file_t *fh,
 
     /*Each process now has its own individual offset in recvBUFF*/
     offset = offsetBuff - sendBuff;
-    offset /= fh->f_fview.f_etype_size;
+    offset /= fh->f_etype_size;
 
     if ( mca_sharedfp_sm_verbose ) {
 	opal_output(ompi_sharedfp_base_framework.framework_output,

@@ -23,6 +23,7 @@
 
 #include "nbc_internal.h"
 
+#ifndef ENABLE_ANALYSIS
 static inline int exscan_sched_linear(
     int rank, int comm_size, const void *sendbuf, void *recvbuf, int count,
     MPI_Datatype datatype,  MPI_Op op, char inplace, NBC_Schedule *schedule,
@@ -31,6 +32,16 @@ static inline int exscan_sched_recursivedoubling(
     int rank, int comm_size, const void *sendbuf, void *recvbuf,
     int count, MPI_Datatype datatype,  MPI_Op op, char inplace,
     NBC_Schedule *schedule, void *tmpbuf1, void *tmpbuf2);
+#else
+static inline int exscan_sched_linear(
+    int rank, int comm_size, const void *sendbuf, void *recvbuf, int count,
+    MPI_Datatype datatype,  MPI_Op op, char inplace, NBC_Schedule *schedule,
+    void *tmpbuf, qentry **q);
+static inline int exscan_sched_recursivedoubling(
+    int rank, int comm_size, const void *sendbuf, void *recvbuf,
+    int count, MPI_Datatype datatype,  MPI_Op op, char inplace,
+    NBC_Schedule *schedule, void *tmpbuf1, void *tmpbuf2, qentry **q);
+#endif
 
 #ifdef NBC_CACHE_SCHEDULE
 /* tree comparison function for schedule cache */
@@ -53,7 +64,20 @@ int NBC_Scan_args_compare(NBC_Scan_args *a, NBC_Scan_args *b, void *param) {
 
 static int nbc_exscan_init(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op,
                            struct ompi_communicator_t *comm, ompi_request_t ** request,
-                           mca_coll_base_module_t *module, bool persistent) {
+                           mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                           , qentry **q
+#endif
+                           ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
     int rank, p, res;
     NBC_Schedule *schedule;
     char inplace;
@@ -105,11 +129,23 @@ static int nbc_exscan_init(const void* sendbuf, void* recvbuf, int count, MPI_Da
     }
 
     if (alg == NBC_EXSCAN_LINEAR) {
+#ifdef ENABLE_ANALYSIS
+        if(item != NULL) memcpy(item->usedAlgorithm, "sched_linear", 12);
+        res = exscan_sched_linear(rank, p, sendbuf, recvbuf, count, datatype,
+                                  op, inplace, schedule, tmpbuf, &item);
+#else
         res = exscan_sched_linear(rank, p, sendbuf, recvbuf, count, datatype,
                                   op, inplace, schedule, tmpbuf);
+#endif
     } else {
+#ifdef ENABLE_ANALYSIS
+        if(item != NULL) memcpy(item->usedAlgorithm, "sched_recursivedoubling", 23);
+        res = exscan_sched_recursivedoubling(rank, p, sendbuf, recvbuf, count,
+                                             datatype, op, inplace, schedule, tmpbuf1, tmpbuf2, &item);
+#else
         res = exscan_sched_recursivedoubling(rank, p, sendbuf, recvbuf, count,
                                              datatype, op, inplace, schedule, tmpbuf1, tmpbuf2);
+#endif
     }
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         OBJ_RELEASE(schedule);
@@ -172,8 +208,20 @@ int ompi_coll_libnbc_iexscan(const void* sendbuf, void* recvbuf, int count, MPI_
                              , qentry **q
 #endif
                              ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_exscan_init(sendbuf, recvbuf, count, datatype, op,
+                              comm, request, module, false, &item);
+#else
     int res = nbc_exscan_init(sendbuf, recvbuf, count, datatype, op,
                               comm, request, module, false);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -190,9 +238,25 @@ int ompi_coll_libnbc_iexscan(const void* sendbuf, void* recvbuf, int count, MPI_
 
 int ompi_coll_libnbc_exscan_init(const void* sendbuf, void* recvbuf, int count, MPI_Datatype datatype, MPI_Op op,
                                  struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                 mca_coll_base_module_t *module) {
+                                 mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                 , qentry **q
+#endif
+                                 ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_exscan_init(sendbuf, recvbuf, count, datatype, op,
+                              comm, request, module, true, &item);
+#else
     int res = nbc_exscan_init(sendbuf, recvbuf, count, datatype, op,
                               comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -217,8 +281,21 @@ int ompi_coll_libnbc_exscan_init(const void* sendbuf, void* recvbuf, int count, 
 static inline int exscan_sched_linear(
     int rank, int comm_size, const void *sendbuf, void *recvbuf, int count,
     MPI_Datatype datatype,  MPI_Op op, char inplace, NBC_Schedule *schedule,
-    void *tmpbuf)
+    void *tmpbuf
+#ifdef ENABLE_ANALYSIS
+    , qentry **q
+#endif
+    )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
     int res = OMPI_SUCCESS;
     ptrdiff_t gap;
     opal_datatype_span(&datatype->super, count, &gap);
@@ -233,7 +310,11 @@ static inline int exscan_sched_linear(
         }
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
 
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_recv(recvbuf, false, count, datatype, rank - 1, schedule, false);
+#else
+        res = NBC_Sched_recv(recvbuf, false, count, datatype, rank - 1, schedule, false, &item);
+#endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
 
         if (rank < comm_size - 1) {
@@ -246,15 +327,27 @@ static inline int exscan_sched_linear(
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
 
             /* Send reduced data onward */
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send ((void *)(-gap), true, count, datatype, rank + 1, schedule, false);
+#else
+            res = NBC_Sched_send ((void *)(-gap), true, count, datatype, rank + 1, schedule, false, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
         }
     } else if (comm_size > 1) {
         /* Process 0 */
         if (inplace) {
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send(recvbuf, false, count, datatype, 1, schedule, false);
+#else
+            res = NBC_Sched_send(recvbuf, false, count, datatype, 1, schedule, false, &item);
+#endif
         } else {
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send(sendbuf, false, count, datatype, 1, schedule, false);
+#else
+            res = NBC_Sched_send(sendbuf, false, count, datatype, 1, schedule, false, &item);
+#endif
         }
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
     }
@@ -299,8 +392,21 @@ cleanup_and_return:
 static inline int exscan_sched_recursivedoubling(
     int rank, int comm_size, const void *sendbuf, void *recvbuf, int count,
     MPI_Datatype datatype, MPI_Op op, char inplace,
-    NBC_Schedule *schedule, void *tmpbuf1, void *tmpbuf2)
+    NBC_Schedule *schedule, void *tmpbuf1, void *tmpbuf2
+#ifdef ENABLE_ANALYSIS
+    , qentry **q
+#endif
+    )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
     int res = OMPI_SUCCESS;
     char *psend = (char *)tmpbuf1;
     char *precv = (char *)tmpbuf2;
@@ -320,9 +426,17 @@ static inline int exscan_sched_recursivedoubling(
     for (int mask = 1; mask < comm_size; mask <<= 1) {
         int remote = rank ^ mask;
         if (remote < comm_size) {
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_send(psend, true, count, datatype, remote, schedule, false);
+#else
+            res = NBC_Sched_send(psend, true, count, datatype, remote, schedule, false, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_recv(precv, true, count, datatype, remote, schedule, true);
+#else
+            res = NBC_Sched_recv(precv, true, count, datatype, remote, schedule, true, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
 
             if (rank > remote) {

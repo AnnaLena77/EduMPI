@@ -392,7 +392,7 @@ int mca_btl_tcp_endpoint_send(mca_btl_base_endpoint_t *btl_endpoint, mca_btl_tcp
                 MCA_BTL_TCP_ENDPOINT_DUMP(50, btl_endpoint, true,
                                           "complete send fragment [endpoint_send]");
 #ifdef ENABLE_ANALYSIS
-                if(item!=NULL) gettimeofday(&item->sent, NULL);
+                if(item!=NULL) clock_gettime(CLOCK_REALTIME, &item->sent);
 #endif
                 return 1;
             } else {
@@ -412,7 +412,7 @@ int mca_btl_tcp_endpoint_send(mca_btl_base_endpoint_t *btl_endpoint, mca_btl_tcp
     }
     OPAL_THREAD_UNLOCK(&btl_endpoint->endpoint_send_lock);
 #ifdef ENABLE_ANALYSIS
-                if(item!=NULL) gettimeofday(&item->sent, NULL);
+                if(item!=NULL) clock_gettime(CLOCK_REALTIME, &item->sent);
 #endif
     return rc;
 }

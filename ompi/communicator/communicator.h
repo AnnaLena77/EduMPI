@@ -313,7 +313,8 @@ struct ompi_communicator_t {
        that the OMPI_ERRHDL_* macros can find it, regardless of whether
        it's a comm, window, or file. */
     ompi_errhandler_t                  *error_handler;
-
+    ompi_errhandler_type_t             errhandler_type;
+    
     /* Hooks for PML to hang things */
     struct mca_pml_comm_t  *c_pml_comm;
 
@@ -632,11 +633,6 @@ OMPI_DECLSPEC int ompi_comm_revoke_internal(ompi_communicator_t* comm);
  * Shrink the communicator
  */
 OMPI_DECLSPEC int ompi_comm_shrink_internal(ompi_communicator_t* comm, ompi_communicator_t** newcomm);
-
-/*
- * Shrink the communicator
- */
-OMPI_DECLSPEC int ompi_comm_ishrink_internal(ompi_communicator_t* comm, ompi_communicator_t** newcomm, ompi_request_t** request);
 
 /*
  * Check if the process is active

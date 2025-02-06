@@ -20,6 +20,7 @@
  */
 #include "nbc_internal.h"
 
+#ifndef ENABLE_ANALYSIS
 static inline int a2aw_sched_linear(int rank, int p, NBC_Schedule *schedule,
                                     const void *sendbuf, const int *sendcounts, const int *sdispls,
                                     struct ompi_datatype_t * const * sendtypes,
@@ -35,6 +36,23 @@ static inline int a2aw_sched_pairwise(int rank, int p, NBC_Schedule *schedule,
 static inline int a2aw_sched_inplace(int rank, int p, NBC_Schedule *schedule,
                                     void *buf, const int *counts, const int *displs,
                                     struct ompi_datatype_t * const * types);
+#else
+static inline int a2aw_sched_linear(int rank, int p, NBC_Schedule *schedule,
+                                    const void *sendbuf, const int *sendcounts, const int *sdispls,
+                                    struct ompi_datatype_t * const * sendtypes,
+                                    void *recvbuf, const int *recvcounts, const int *rdispls,
+                                    struct ompi_datatype_t * const * recvtypes, qentry **q);
+
+static inline int a2aw_sched_pairwise(int rank, int p, NBC_Schedule *schedule,
+                                      const void *sendbuf, const int *sendcounts, const int *sdispls,
+                                      struct ompi_datatype_t * const * sendtypes,
+                                      void *recvbuf, const int *recvcounts, const int *rdispls,
+                                      struct ompi_datatype_t * const * recvtypes, qentry **q);
+
+static inline int a2aw_sched_inplace(int rank, int p, NBC_Schedule *schedule,
+                                    void *buf, const int *counts, const int *displs,
+                                    struct ompi_datatype_t * const * types, qentry **q);
+#endif
 
 /* an alltoallw schedule can not be cached easily because the contents
  * of the recvcounts array may change, so a comparison of the address
@@ -44,8 +62,21 @@ static inline int a2aw_sched_inplace(int rank, int p, NBC_Schedule *schedule,
 static int nbc_alltoallw_init(const void* sendbuf, const int *sendcounts, const int *sdispls,
                               struct ompi_datatype_t * const *sendtypes, void* recvbuf, const int *recvcounts, const int *rdispls,
                               struct ompi_datatype_t * const *recvtypes, struct ompi_communicator_t *comm, ompi_request_t ** request,
-                              mca_coll_base_module_t *module, bool persistent)
+                              mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                              , qentry **q
+#endif
+                              )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int rank, p, res;
   NBC_Schedule *schedule;
   char *rbuf, *sbuf, inplace;
@@ -102,12 +133,25 @@ static int nbc_alltoallw_init(const void* sendbuf, const int *sendcounts, const 
   }
 
   if (inplace) {
+#ifdef ENABLE_ANALYSIS
+    if(item != NULL) memcpy(item->usedAlgorithm, "sched_inplace", 13);
+    res = a2aw_sched_inplace(rank, p, schedule, recvbuf,
+                                 recvcounts, rdispls, recvtypes, &item);
+#else
     res = a2aw_sched_inplace(rank, p, schedule, recvbuf,
                                  recvcounts, rdispls, recvtypes);
+#endif
   } else {
+#ifdef ENABLE_ANALYSIS
+    if(item != NULL) memcpy(item->usedAlgorithm, "sched_linear", 12);
+    res = a2aw_sched_linear(rank, p, schedule,
+                            sendbuf, sendcounts, sdispls, sendtypes,
+                            recvbuf, recvcounts, rdispls, recvtypes, &item);
+#else
     res = a2aw_sched_linear(rank, p, schedule,
                             sendbuf, sendcounts, sdispls, sendtypes,
                             recvbuf, recvcounts, rdispls, recvtypes);
+#endif
   }
   if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
     OBJ_RELEASE(schedule);
@@ -140,9 +184,22 @@ int ompi_coll_libnbc_ialltoallw(const void* sendbuf, const int *sendcounts, cons
                                     , qentry **q
 #endif
 				) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_alltoallw_init(sendbuf, sendcounts, sdispls, sendtypes,
+                                 recvbuf, recvcounts, rdispls, recvtypes,
+                                 comm, request, module, false, &item);
+#else
     int res = nbc_alltoallw_init(sendbuf, sendcounts, sdispls, sendtypes,
                                  recvbuf, recvcounts, rdispls, recvtypes,
                                  comm, request, module, false);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -161,8 +218,21 @@ int ompi_coll_libnbc_ialltoallw(const void* sendbuf, const int *sendcounts, cons
 static int nbc_alltoallw_inter_init (const void* sendbuf, const int *sendcounts, const int *sdispls,
                                      struct ompi_datatype_t * const *sendtypes, void* recvbuf, const int *recvcounts, const int *rdispls,
                                      struct ompi_datatype_t * const *recvtypes, struct ompi_communicator_t *comm, ompi_request_t ** request,
-                                     mca_coll_base_module_t *module, bool persistent)
+                                     mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                                     , qentry **q
+#endif
+                                     )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int res, rsize;
   NBC_Schedule *schedule;
   char *rbuf, *sbuf;
@@ -179,7 +249,11 @@ static int nbc_alltoallw_inter_init (const void* sendbuf, const int *sendcounts,
     /* post all sends */
     if (sendcounts[i] != 0) {
       sbuf = (char *) sendbuf + sdispls[i];
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send (sbuf, false, sendcounts[i], sendtypes[i], i, schedule, false);
+#else
+      res = NBC_Sched_send (sbuf, false, sendcounts[i], sendtypes[i], i, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         OBJ_RELEASE(schedule);
         return res;
@@ -188,7 +262,11 @@ static int nbc_alltoallw_inter_init (const void* sendbuf, const int *sendcounts,
     /* post all receives */
     if (recvcounts[i] != 0) {
       rbuf = (char *) recvbuf + rdispls[i];
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_recv (rbuf, false, recvcounts[i], recvtypes[i], i, schedule, false);
+#else
+      res = NBC_Sched_recv (rbuf, false, recvcounts[i], recvtypes[i], i, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         OBJ_RELEASE(schedule);
         return res;
@@ -219,9 +297,22 @@ int ompi_coll_libnbc_ialltoallw_inter(const void* sendbuf, const int *sendcounts
                                           , qentry **q
 #endif
 				      ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_alltoallw_inter_init(sendbuf, sendcounts, sdispls, sendtypes,
+                                       recvbuf, recvcounts, rdispls, recvtypes,
+                                       comm, request, module, false, &item);
+#else
     int res = nbc_alltoallw_inter_init(sendbuf, sendcounts, sdispls, sendtypes,
                                        recvbuf, recvcounts, rdispls, recvtypes,
                                        comm, request, module, false);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -240,7 +331,20 @@ static inline int a2aw_sched_linear(int rank, int p, NBC_Schedule *schedule,
                                     const void *sendbuf, const int *sendcounts, const int *sdispls,
                                     struct ompi_datatype_t * const * sendtypes,
                                     void *recvbuf, const int *recvcounts, const int *rdispls,
-                                    struct ompi_datatype_t * const * recvtypes) {
+                                    struct ompi_datatype_t * const * recvtypes
+#ifdef ENABLE_ANALYSIS
+                                     , qentry **q
+#endif
+                                    ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int res;
 
   for (int i = 0; i < p; i++) {
@@ -253,7 +357,11 @@ static inline int a2aw_sched_linear(int rank, int p, NBC_Schedule *schedule,
     span = opal_datatype_span(&sendtypes[i]->super, sendcounts[i], &gap);
     if (OPAL_LIKELY(0 < span)) {
       char *sbuf = (char *) sendbuf + sdispls[i];
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send (sbuf, false, sendcounts[i], sendtypes[i], i, schedule, false);
+#else
+      res = NBC_Sched_send (sbuf, false, sendcounts[i], sendtypes[i], i, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
       }
@@ -262,7 +370,11 @@ static inline int a2aw_sched_linear(int rank, int p, NBC_Schedule *schedule,
     span = opal_datatype_span(&recvtypes[i]->super, recvcounts[i], &gap);
     if (OPAL_LIKELY(0 < span)) {
       char *rbuf = (char *) recvbuf + rdispls[i];
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_recv (rbuf, false, recvcounts[i], recvtypes[i], i, schedule, false);
+#else
+      res = NBC_Sched_recv (rbuf, false, recvcounts[i], recvtypes[i], i, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
       }
@@ -277,7 +389,20 @@ static inline int a2aw_sched_pairwise(int rank, int p, NBC_Schedule *schedule,
                                       const void *sendbuf, const int *sendcounts, const int *sdispls,
                                       struct ompi_datatype_t * const * sendtypes,
                                       void *recvbuf, const int *recvcounts, const int *rdispls,
-                                      struct ompi_datatype_t * const * recvtypes) {
+                                      struct ompi_datatype_t * const * recvtypes
+#ifdef ENABLE_ANALYSIS
+                                     , qentry **q
+#endif
+                                      ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int res;
 
   for (int i = 1; i < p; i++) {
@@ -287,7 +412,11 @@ static inline int a2aw_sched_pairwise(int rank, int p, NBC_Schedule *schedule,
     /* post send */
     if (sendcounts[sndpeer] != 0) {
       char *sbuf = (char *) sendbuf + sdispls[sndpeer];
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send (sbuf, false, sendcounts[sndpeer], sendtypes[sndpeer], sndpeer, schedule, false);
+#else
+      res = NBC_Sched_send (sbuf, false, sendcounts[sndpeer], sendtypes[sndpeer], sndpeer, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
       }
@@ -295,7 +424,11 @@ static inline int a2aw_sched_pairwise(int rank, int p, NBC_Schedule *schedule,
     /* post receive */
     if (recvcounts[rcvpeer] != 0) {
       char *rbuf = (char *) recvbuf + rdispls[rcvpeer];
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_recv (rbuf, false, recvcounts[rcvpeer], recvtypes[rcvpeer], rcvpeer, schedule, true);
+#else
+      res = NBC_Sched_recv (rbuf, false, recvcounts[rcvpeer], recvtypes[rcvpeer], rcvpeer, schedule, true, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
       }
@@ -307,7 +440,20 @@ static inline int a2aw_sched_pairwise(int rank, int p, NBC_Schedule *schedule,
 
 static inline int a2aw_sched_inplace(int rank, int p, NBC_Schedule *schedule,
                                      void *buf, const int *counts, const int *displs,
-                                     struct ompi_datatype_t * const * types) {
+                                     struct ompi_datatype_t * const * types
+#ifdef ENABLE_ANALYSIS
+                                     , qentry **q
+#endif
+                                     ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   ptrdiff_t gap = 0;
   int res;
 
@@ -327,26 +473,42 @@ static inline int a2aw_sched_inplace(int rank, int p, NBC_Schedule *schedule,
       }
     }
     if (0 != counts[speer]) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send (sbuf, false , counts[speer], types[speer], speer, schedule, false);
+#else
+      res = NBC_Sched_send (sbuf, false , counts[speer], types[speer], speer, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
       }
     }
     if (0 != counts[rpeer]) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_recv (rbuf, false , counts[rpeer], types[rpeer], rpeer, schedule, true);
+#else
+      res = NBC_Sched_recv (rbuf, false , counts[rpeer], types[rpeer], rpeer, schedule, true, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
       }
     }
 
     if (0 != counts[rpeer]) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send ((void *)(-gap), true, counts[rpeer], types[rpeer], rpeer, schedule, false);
+#else
+      res = NBC_Sched_send ((void *)(-gap), true, counts[rpeer], types[rpeer], rpeer, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
       }
     }
     if (0 != counts[speer]) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_recv (sbuf, false, counts[speer], types[speer], speer, schedule, true);
+#else
+      res = NBC_Sched_recv (sbuf, false, counts[speer], types[speer], speer, schedule, true, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
       }
@@ -363,11 +525,19 @@ static inline int a2aw_sched_inplace(int rank, int p, NBC_Schedule *schedule,
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       return res;
     }
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_send ((void *)(-gap), true , counts[peer], types[peer], peer, schedule, false);
+#else
+    res = NBC_Sched_send ((void *)(-gap), true , counts[peer], types[peer], peer, schedule, false, &item);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       return res;
     }
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_recv (tbuf, false , counts[peer], types[peer], peer, schedule, true);
+#else
+    res = NBC_Sched_recv (tbuf, false , counts[peer], types[peer], peer, schedule, true, &item);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       return res;
     }
@@ -379,9 +549,25 @@ static inline int a2aw_sched_inplace(int rank, int p, NBC_Schedule *schedule,
 int ompi_coll_libnbc_alltoallw_init(const void* sendbuf, const int *sendcounts, const int *sdispls,
                                     struct ompi_datatype_t * const *sendtypes, void* recvbuf, const int *recvcounts, const int *rdispls,
                                     struct ompi_datatype_t * const *recvtypes, struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                    mca_coll_base_module_t *module) {
+                                    mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                     , qentry **q
+#endif
+                                    ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_alltoallw_init(sendbuf, sendcounts, sdispls, sendtypes, recvbuf, recvcounts, rdispls, recvtypes,
+                                 comm, request, module, true, &item);
+#else
     int res = nbc_alltoallw_init(sendbuf, sendcounts, sdispls, sendtypes, recvbuf, recvcounts, rdispls, recvtypes,
                                  comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -392,9 +578,25 @@ int ompi_coll_libnbc_alltoallw_init(const void* sendbuf, const int *sendcounts, 
 int ompi_coll_libnbc_alltoallw_inter_init(const void* sendbuf, const int *sendcounts, const int *sdispls,
                                           struct ompi_datatype_t * const *sendtypes, void* recvbuf, const int *recvcounts, const int *rdispls,
                                           struct ompi_datatype_t * const *recvtypes, struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                          mca_coll_base_module_t *module) {
+                                          mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                          , qentry **q
+#endif
+                                          ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_alltoallw_inter_init(sendbuf, sendcounts, sdispls, sendtypes, recvbuf, recvcounts, rdispls, recvtypes,
+                                       comm, request, module, true, &item);
+#else
     int res = nbc_alltoallw_inter_init(sendbuf, sendcounts, sdispls, sendtypes, recvbuf, recvcounts, rdispls, recvtypes,
                                        comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }

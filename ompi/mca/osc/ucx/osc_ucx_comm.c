@@ -269,22 +269,17 @@ static inline int get_dynamic_win_info(uint64_t remote_addr,
     uint64_t win_count;
     int insert = -1;
     int ret;
-    int ret_unlock;
 
     /* We need to lock dyn-lock even if the process has an exclusive lock.
      * Remote process protects its window attach/detach operations with a
      * dynamic lock */
     ret = ompi_osc_ucx_dynamic_lock(module, target);
     if (ret != OPAL_SUCCESS) {
-        return OMPI_ERROR;
-    }
-
-    temp_buf = calloc(remote_state_len, 1);
-    if (NULL == temp_buf) {
-        ret = OMPI_ERR_OUT_OF_RESOURCE;
+        ret = OMPI_ERROR;
         goto cleanup;
     }
 
+    temp_buf = calloc(remote_state_len, 1);
     ret = opal_common_ucx_wpmem_putget(module->state_mem, OPAL_COMMON_UCX_GET, target,
                                        (void *)((intptr_t)temp_buf),
                                        remote_state_len, remote_state_addr, ep);
@@ -321,7 +316,6 @@ static inline int get_dynamic_win_info(uint64_t remote_addr,
     _mem_record_t *mem_rec = NULL;
     ret = opal_tsd_tracked_key_get(&module->mem->tls_key, (void **) &mem_rec);
     if (OPAL_SUCCESS != ret) {
-        ret = OMPI_ERROR;
         goto cleanup;
     }
     
@@ -329,12 +323,10 @@ static inline int get_dynamic_win_info(uint64_t remote_addr,
         OSC_UCX_GET_DEFAULT_EP(ep, module, target);
         ret = opal_common_ucx_tlocal_fetch_spath(module->mem, target, ep);
         if (OPAL_SUCCESS != ret) {
-            ret = OMPI_ERROR;
             goto cleanup;
         }
         ret = opal_tsd_tracked_key_get(&module->mem->tls_key, (void **) &mem_rec);
         if (OPAL_SUCCESS != ret) {
-            ret = OMPI_ERROR;
             goto cleanup;
         }
 
@@ -369,9 +361,9 @@ cleanup:
     free(temp_buf);
 
     /* unlock the dynamic lock */
-    ret_unlock = ompi_osc_ucx_dynamic_unlock(module, target);
-    /* ignore unlock result in case of error */
-    return (OMPI_SUCCESS != ret) ? ret : ret_unlock;
+    ompi_osc_ucx_dynamic_unlock(module, target);
+
+    return ret;
 }
 
 static inline
@@ -503,21 +495,19 @@ int ompi_osc_ucx_put(const void *origin_addr, int origin_count, struct ompi_data
                      int target, ptrdiff_t target_disp, int target_count,
                      struct ompi_datatype_t *target_dt, struct ompi_win_t *win
 #ifdef ENABLE_ANALYSIS
-		   , qentry **q
+                     , qentry **q
 #endif
                      ) {
-                     
 #ifdef ENABLE_ANALYSIS
-    qentry *item;
+    qentry *itemq;
     if(q!=NULL){
         if(*q!=NULL) {
-            item = *q;
+            itemq = *q;
         }
-        else item = NULL;
+        else itemq = NULL;
     }
-    else item = NULL;
+    else itemq = NULL;
 #endif
-
     ompi_osc_ucx_module_t *module = (ompi_osc_ucx_module_t*) win->w_osc_module;
     opal_common_ucx_wpmem_t *mem = module->mem;
     ucp_ep_h *ep;
@@ -571,21 +561,19 @@ int ompi_osc_ucx_get(void *origin_addr, int origin_count,
                      int target, ptrdiff_t target_disp, int target_count,
                      struct ompi_datatype_t *target_dt, struct ompi_win_t *win
 #ifdef ENABLE_ANALYSIS
-		   , qentry **q
+                     , qentry **q
 #endif
                      ) {
-                     
 #ifdef ENABLE_ANALYSIS
-    qentry *item;
+    qentry *itemq;
     if(q!=NULL){
         if(*q!=NULL) {
-            item = *q;
+            itemq = *q;
         }
-        else item = NULL;
+        else itemq = NULL;
     }
-    else item = NULL;
+    else itemq = NULL;
 #endif
-
     ompi_osc_ucx_module_t *module = (ompi_osc_ucx_module_t*) win->w_osc_module;
     opal_common_ucx_wpmem_t *mem = module->mem;
     ucp_ep_h *ep;
@@ -722,7 +710,7 @@ int accumulate_req(const void *origin_addr, int origin_count,
                    struct ompi_op_t *op, struct ompi_win_t *win,
                    ompi_osc_ucx_accumulate_request_t *ucx_req
 #ifdef ENABLE_ANALYSIS
-		 , qentry **q
+                   , qentry **q
 #endif
                    ) {
 #ifdef ENABLE_ANALYSIS
@@ -735,7 +723,6 @@ int accumulate_req(const void *origin_addr, int origin_count,
     }
     else itemq = NULL;
 #endif
-
     ompi_osc_ucx_module_t *module = (ompi_osc_ucx_module_t*) win->w_osc_module;
     int ret = OMPI_SUCCESS;
     uint64_t remote_addr = (module->addrs[target]) + target_disp *
@@ -897,7 +884,7 @@ int ompi_osc_ucx_accumulate(const void *origin_addr, int origin_count,
                             struct ompi_datatype_t *target_dt,
                             struct ompi_op_t *op, struct ompi_win_t *win
 #ifdef ENABLE_ANALYSIS
-			 , qentry **q
+                            , qentry **q
 #endif
                             ) {
 #ifdef ENABLE_ANALYSIS
@@ -915,8 +902,8 @@ int ompi_osc_ucx_accumulate(const void *origin_addr, int origin_count,
     return accumulate_req(origin_addr, origin_count, origin_dt, target,
                     target_disp, target_count, target_dt, op, win, NULL);
 #else
-    return accumulate_req(origin_addr, origin_count, origin_dt, target,
-                    target_disp, target_count, target_dt, op, win, NULL, &item);
+      return accumulate_req(origin_addr, origin_count, origin_dt, target,
+                    target_disp, target_count, target_dt, op, win, NULL, &item);  
 #endif
 }
 
@@ -927,10 +914,9 @@ static inline int ompi_osc_ucx_acc_rputget(void *stage_addr, int stage_count,
                     *origin_addr, int origin_count, struct ompi_datatype_t *origin_dt, bool is_put,
                     int phase, int acc_type
 #ifdef ENABLE_ANALYSIS
-		  , qentry **q
+                    , qentry **q
 #endif
-                    ) {
-                    
+                    ) {    
 #ifdef ENABLE_ANALYSIS
     qentry *itemq;
     if(q!=NULL){
@@ -941,7 +927,6 @@ static inline int ompi_osc_ucx_acc_rputget(void *stage_addr, int stage_count,
     }
     else itemq = NULL;
 #endif
-
     ompi_osc_ucx_module_t *module = (ompi_osc_ucx_module_t*) win->w_osc_module;
     ucp_ep_h *ep;
     OSC_UCX_GET_DEFAULT_EP(ep, module, target);
@@ -1152,10 +1137,9 @@ static int ompi_osc_ucx_get_accumulate_nonblocking(const void *origin_addr, int 
                     int target_count, struct ompi_datatype_t *target_dt, struct ompi_op_t
                     *op, struct ompi_win_t *win, int acc_type
 #ifdef ENABLE_ANALYSIS
-		  , qentry **q
+                    , qentry **q
 #endif
                     ) {
-                    
 #ifdef ENABLE_ANALYSIS
     qentry *item;
     if(q!=NULL){
@@ -1166,7 +1150,6 @@ static int ompi_osc_ucx_get_accumulate_nonblocking(const void *origin_addr, int 
     }
     else item = NULL;
 #endif
-
     ompi_osc_ucx_module_t *module = (ompi_osc_ucx_module_t*) win->w_osc_module;
     int ret = OMPI_SUCCESS;
     uint64_t remote_addr = (module->addrs[target]) + target_disp *
@@ -1285,10 +1268,10 @@ int ompi_osc_ucx_accumulate_nb(const void *origin_addr, int origin_count,
                             struct ompi_datatype_t *target_dt,
                             struct ompi_op_t *op, struct ompi_win_t *win
 #ifdef ENABLE_ANALYSIS
-			 , qentry **q
+                            , qentry **q
 #endif
                             ) {
-                            
+
 #ifdef ENABLE_ANALYSIS
     qentry *item;
     if(q!=NULL){
@@ -1352,10 +1335,9 @@ int ompi_osc_ucx_compare_and_swap(const void *origin_addr, const void *compare_a
                                   int target, ptrdiff_t target_disp,
                                   struct ompi_win_t *win
 #ifdef ENABLE_ANALYSIS
-			       , qentry **q
+                                  , qentry **q
 #endif
                                   ) {
-                                  
 #ifdef ENABLE_ANALYSIS
     qentry *item;
     if(q!=NULL){
@@ -1429,10 +1411,9 @@ int ompi_osc_ucx_fetch_and_op(const void *origin_addr, void *result_addr,
                               ptrdiff_t target_disp, struct ompi_op_t *op,
                               struct ompi_win_t *win
 #ifdef ENABLE_ANALYSIS
-			   , qentry **q
+                              , qentry **q
 #endif
                               ) {
-                              
 #ifdef ENABLE_ANALYSIS
     qentry *item;
     if(q!=NULL){
@@ -1443,6 +1424,7 @@ int ompi_osc_ucx_fetch_and_op(const void *origin_addr, void *result_addr,
     }
     else item = NULL;
 #endif
+
     size_t dt_bytes;
     ompi_osc_ucx_module_t *module = (ompi_osc_ucx_module_t*) win->w_osc_module;
     opal_common_ucx_wpmem_t *mem = module->mem;
@@ -1517,7 +1499,6 @@ int get_accumulate_req(const void *origin_addr, int origin_count,
                        , qentry **q
 #endif
                        ) {
-                       
 #ifdef ENABLE_ANALYSIS
     qentry *item;
     if(q!=NULL){
@@ -1528,6 +1509,7 @@ int get_accumulate_req(const void *origin_addr, int origin_count,
     }
     else item = NULL;
 #endif
+
     ompi_osc_ucx_module_t *module = (ompi_osc_ucx_module_t*) win->w_osc_module;
     int ret = OMPI_SUCCESS;
     uint64_t remote_addr = (module->addrs[target]) + target_disp *
@@ -1572,6 +1554,7 @@ int get_accumulate_req(const void *origin_addr, int origin_count,
             if (ret != OMPI_SUCCESS) {
                 return ret;
             }
+
 #ifndef ENABLE_ANALYSIS
             ret = ompi_osc_ucx_put(origin_addr, origin_count, origin_dt,
                                    target, target_disp, target_count,
@@ -1670,7 +1653,7 @@ int get_accumulate_req(const void *origin_addr, int origin_count,
             ret = ompi_osc_ucx_put(temp_addr, (int)temp_count, temp_dt, target, target_disp,
                                    target_count, target_dt, win);
 #else
-            ret = ompi_osc_ucx_put(temp_addr, (int)temp_count, temp_dt, target, target_disp,
+             ret = ompi_osc_ucx_put(temp_addr, (int)temp_count, temp_dt, target, target_disp,
                                    target_count, target_dt, win, &item);
 #endif
             if (ret != OMPI_SUCCESS) {
@@ -1701,7 +1684,7 @@ int ompi_osc_ucx_get_accumulate(const void *origin_addr, int origin_count,
                                 int target_count, struct ompi_datatype_t *target_dt,
                                 struct ompi_op_t *op, struct ompi_win_t *win
 #ifdef ENABLE_ANALYSIS
-			     , qentry **q
+                                , qentry **q
 #endif
                                 ) {
 #ifdef ENABLE_ANALYSIS
@@ -1734,7 +1717,7 @@ int ompi_osc_ucx_get_accumulate_nb(const void *origin_addr, int origin_count,
                                 int target_count, struct ompi_datatype_t *target_dt,
                                 struct ompi_op_t *op, struct ompi_win_t *win
 #ifdef ENABLE_ANALYSIS
-			     , qentry **q
+                                , qentry **q
 #endif
                                 ) {
 #ifdef ENABLE_ANALYSIS
@@ -1768,7 +1751,6 @@ int ompi_osc_ucx_rput(const void *origin_addr, int origin_count,
                       , qentry **q
 #endif
                       ) {
-                      
 #ifdef ENABLE_ANALYSIS
     qentry *itemq;
     if(q!=NULL){
@@ -1779,7 +1761,6 @@ int ompi_osc_ucx_rput(const void *origin_addr, int origin_count,
     }
     else itemq = NULL;
 #endif
-
     ompi_osc_ucx_module_t *module = (ompi_osc_ucx_module_t*) win->w_osc_module;
     ucp_ep_h *ep;
     OSC_UCX_GET_DEFAULT_EP(ep, module, target);
@@ -1840,7 +1821,7 @@ int ompi_osc_ucx_rget(void *origin_addr, int origin_count,
                       struct ompi_datatype_t *target_dt, struct ompi_win_t *win,
                       struct ompi_request_t **request
 #ifdef ENABLE_ANALYSIS
-		    , qentry **q
+                      , qentry **q
 #endif
                       ) {
 #ifdef ENABLE_ANALYSIS
@@ -1913,7 +1894,7 @@ int ompi_osc_ucx_raccumulate(const void *origin_addr, int origin_count,
                              struct ompi_datatype_t *target_dt, struct ompi_op_t *op,
                              struct ompi_win_t *win, struct ompi_request_t **request
 #ifdef ENABLE_ANALYSIS
-			  , qentry **q
+                             , qentry **q
 #endif
                              ) {
 #ifdef ENABLE_ANALYSIS
@@ -1965,7 +1946,7 @@ int ompi_osc_ucx_rget_accumulate(const void *origin_addr, int origin_count,
                                  struct ompi_op_t *op, struct ompi_win_t *win,
                                  struct ompi_request_t **request
 #ifdef ENABLE_ANALYSIS
-			      , qentry **q
+                                 , qentry **q
 #endif
                                  ) {
 #ifdef ENABLE_ANALYSIS
@@ -2077,7 +2058,7 @@ void ompi_osc_ucx_req_completion(void *request) {
         assert(req->phase != ACC_INIT);
         void *free_addr = NULL;
         bool release_lock = false;
-        ptrdiff_t temp_extent, temp_lb;
+        ptrdiff_t temp_lb, temp_extent;
         const void *origin_addr = req->origin_addr;
         int origin_count = req->origin_count;
         struct ompi_datatype_t *origin_dt = req->origin_dt;
@@ -2221,6 +2202,7 @@ void ompi_osc_ucx_req_completion(void *request) {
                         abort();
                     }
                 }
+
 #ifndef ENABLE_ANALYSIS
                 ret = ompi_osc_ucx_acc_rputget(NULL, 0, NULL, target, target_disp,
                         target_count, target_dt, op, win, 0, temp_addr, temp_count,
@@ -2259,7 +2241,7 @@ void ompi_osc_ucx_req_completion(void *request) {
             module->state_mem->skip_periodic_flush = false;
         }
     }
-    assert(module->ctx->num_incomplete_req_ops > 0);
     OSC_UCX_DECREMENT_OUTSTANDING_NB_OPS(module);
     ompi_request_complete(&(ucx_req->super.super), true);
+    assert(module->ctx->num_incomplete_req_ops >= 0);
 }

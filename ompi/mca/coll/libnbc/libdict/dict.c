@@ -16,7 +16,6 @@
 dict_malloc_func ompi_coll_libnbc_dict_malloc = malloc;
 dict_free_func ompi_coll_libnbc_dict_free = free;
 
-
 static inline dict_malloc_func
 dict_set_malloc(dict_malloc_func func)
 {

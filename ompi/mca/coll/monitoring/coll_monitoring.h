@@ -111,7 +111,7 @@ extern int mca_coll_monitoring_alltoallw(const void *sbuf, const int *scounts,
                                          struct ompi_datatype_t * const *rdtypes,
                                          struct ompi_communicator_t *comm,
                                          mca_coll_base_module_t *module
-#ifndef ENABLE_ANALYSIS
+#ifdef ENABLE_ANALYSIS
 				     , qentry **q
 #endif
                                          );
@@ -124,7 +124,7 @@ extern int mca_coll_monitoring_bcast(void *buff, int count,
                                      int root,
                                      struct ompi_communicator_t *comm,
                                      mca_coll_base_module_t *module
-#ifndef ENABLE_ANALYSIS
+#ifdef ENABLE_ANALYSIS
 				 , qentry **q
 #endif
                                      );
@@ -134,7 +134,7 @@ extern int mca_coll_monitoring_exscan(const void *sbuf, void *rbuf, int count,
                                       struct ompi_op_t *op,
                                       struct ompi_communicator_t *comm,
                                       mca_coll_base_module_t *module
-#ifndef ENABLE_ANALYSIS
+#ifdef ENABLE_ANALYSIS
 				  , qentry **q
 #endif
                                       );
@@ -144,7 +144,7 @@ extern int mca_coll_monitoring_gather(const void *sbuf, int scount,
                                       void *rbuf, int rcount, struct ompi_datatype_t *rdtype,
                                       int root, struct ompi_communicator_t *comm,
                                       mca_coll_base_module_t *module
-#ifndef ENABLE_ANALYSIS
+#ifdef ENABLE_ANALYSIS
 				  , qentry **q
 #endif
                                       );
@@ -156,7 +156,7 @@ extern int mca_coll_monitoring_gatherv(const void *sbuf, int scount,
                                        int root,
                                        struct ompi_communicator_t *comm,
                                        mca_coll_base_module_t *module
-#ifndef ENABLE_ANALYSIS
+#ifdef ENABLE_ANALYSIS
 				   , qentry **q
 #endif
                                        );

@@ -34,7 +34,7 @@
 #include "pml_ob1_rdmafrag.h"
 #include "ompi/mca/bml/bml.h"
 #include "ompi/memchecker.h"
-#include "ompi/mpi/c/init.h"
+//#include "ompi/mpi/c/init.h"
 
 BEGIN_C_DECLS
 
@@ -59,6 +59,10 @@ struct mca_pml_ob1_send_request_t {
     opal_mutex_t req_send_range_lock;
     opal_list_t req_send_ranges;
     mca_pml_ob1_rdma_frag_t *rdma_frag;
+#ifdef ENABLE_ANALYSIS
+    qentry *q;
+    struct timespec activate;
+#endif
     /** The size of this array is set from mca_pml_ob1.max_rdma_per_request */
     mca_pml_ob1_com_btl_t req_rdma[];
 };
@@ -196,17 +200,11 @@ static inline void mca_pml_ob1_free_rdma_resources (mca_pml_ob1_send_request_t* 
         rc = mca_pml_ob1_send_request_start(sendreq);     \
     } while (0)
 
-#ifndef ENABLE_ANALYSIS
 #define MCA_PML_OB1_SEND_REQUEST_START_W_SEQ(sendreq, endpoint, seq, rc) \
     do {                                                                \
         rc = mca_pml_ob1_send_request_start_seq (sendreq, endpoint, seq); \
     } while (0)
-#else
-#define MCA_PML_OB1_SEND_REQUEST_START_W_SEQ(sendreq, endpoint, seq, rc, q) \
-    do {                                                                \
-        rc = mca_pml_ob1_send_request_start_seq (sendreq, endpoint, seq, q); \
-    } while (0)
-#endif
+
 /*
  * Mark a send request as completed at the MPI level.
  */
@@ -264,24 +262,16 @@ static inline void mca_pml_ob1_send_request_fini (mca_pml_ob1_send_request_t *se
  *
  */
 static inline void
-send_request_pml_complete(mca_pml_ob1_send_request_t *sendreq
-#ifdef ENABLE_ANALYSIS
-                          , qentry **q
-#endif
-)
-{
-#ifdef ENABLE_ANALYSIS
-    qentry *item;
-    if(q!=NULL){
-        if(*q!=NULL){
-            item = *q;
-        } else item = NULL;
-    } else item = NULL;
-    
-    if(item !=NULL) gettimeofday(&item->requestCompletePmlLevel, NULL);
-#endif
+send_request_pml_complete(mca_pml_ob1_send_request_t *sendreq){
     if(false == sendreq->req_send.req_base.req_pml_complete) {
         if(sendreq->req_send.req_bytes_packed > 0) {
+/*#ifdef ENABLE_ANALYSIS
+            qentry* item = NULL;
+            if(sendreq->q != NULL){
+                item=sendreq->q;
+                item->sendDatasize += (int)sendreq->req_bytes_delivered;
+            }
+#endif*/
             PERUSE_TRACE_COMM_EVENT( PERUSE_COMM_REQ_XFER_END,
                                      &(sendreq->req_send.req_base), PERUSE_SEND);
         }
@@ -316,11 +306,7 @@ send_request_pml_complete(mca_pml_ob1_send_request_t *sendreq
 
 /* returns true if request was completed on PML level */
 static inline bool
-send_request_pml_complete_check(mca_pml_ob1_send_request_t *sendreq
-#ifdef ENABLE_ANALYSIS
-                                , qentry **q
-#endif
-)
+send_request_pml_complete_check(mca_pml_ob1_send_request_t *sendreq)
 {
     opal_atomic_rmb();
 
@@ -332,18 +318,7 @@ send_request_pml_complete_check(mca_pml_ob1_send_request_t *sendreq
     if(sendreq->req_state == 0 &&
             sendreq->req_bytes_delivered >= sendreq->req_send.req_bytes_packed
             && lock_send_request(sendreq)) {
-#ifndef ENABLE_ANALYSIS
         send_request_pml_complete(sendreq);
-#else
-        qentry *item;
-        if(q!=NULL){
-            if(*q!=NULL){  
-                item=*q;
-            } else item = NULL;
-        } else item = NULL;
-        send_request_pml_complete(sendreq, &item);
-#endif
-
         return true;
     }
 
@@ -367,11 +342,7 @@ mca_pml_ob1_send_request_schedule_exclusive(mca_pml_ob1_send_request_t* sendreq)
     } while(!unlock_send_request(sendreq));
 
     if(OMPI_SUCCESS == rc)
-#ifndef ENABLE_ANALYSIS
         send_request_pml_complete_check(sendreq);
-#else
-        send_request_pml_complete_check(sendreq, NULL);
-#endif
     return rc;
 }
 
@@ -403,68 +374,40 @@ int mca_pml_ob1_send_request_start_accelerator(
 int mca_pml_ob1_send_request_start_buffered(
     mca_pml_ob1_send_request_t* sendreq,
     mca_bml_base_btl_t* bml_btl,
-    size_t size
-#ifdef ENABLE_ANALYSIS
-    , qentry **q
-#endif
-    );
+    size_t size);
 
 int mca_pml_ob1_send_request_start_copy(
     mca_pml_ob1_send_request_t* sendreq,
     mca_bml_base_btl_t* bml_btl,
-    size_t size
-#ifdef ENABLE_ANALYSIS
-    , qentry **q
-#endif
-    );
+    size_t size);
     
 
 int mca_pml_ob1_send_request_start_prepare(
     mca_pml_ob1_send_request_t* sendreq,
     mca_bml_base_btl_t* bml_btl,
-    size_t size
-#ifdef ENABLE_ANALYSIS
-    , qentry **q
-#endif
-    );
+    size_t size);
 
 int mca_pml_ob1_send_request_start_rdma(
     mca_pml_ob1_send_request_t* sendreq,
     mca_bml_base_btl_t* bml_btl,
-    size_t size
-#ifdef ENABLE_ANALYSIS
-    , qentry **q
-#endif
-    );
+    size_t size);
     
 int mca_pml_ob1_send_request_start_rndv(
     mca_pml_ob1_send_request_t* sendreq,
     mca_bml_base_btl_t* bml_btl,
     size_t size,
-    int flags
-#ifdef ENABLE_ANALYSIS
-    , qentry **q
-#endif
-    );
+    int flags);
 
 
 static inline int
 mca_pml_ob1_send_request_start_btl( mca_pml_ob1_send_request_t* sendreq,
-                                    mca_bml_base_btl_t* bml_btl
-#ifdef ENABLE_ANALYSIS
-                                    , qentry **q
-#endif
-                                     )
+                                    mca_bml_base_btl_t* bml_btl)
 {
 #ifdef ENABLE_ANALYSIS
-    qentry *item;
-    if(q!=NULL){
-        if(*q!=NULL) {
-            item = *q;
-        }
-        else item = NULL;
+    qentry* item = NULL;
+    if(sendreq->q != NULL){
+        item = sendreq->q;
     }
-    else item = NULL;
 #endif
     size_t size = sendreq->req_send.req_bytes_packed;
     mca_btl_base_module_t* btl = bml_btl->btl;
@@ -483,45 +426,38 @@ mca_pml_ob1_send_request_start_btl( mca_pml_ob1_send_request_t* sendreq,
 #endif
         //Nachricht ist kleiner oder gleich dem Eager-Limit
         switch(sendreq->req_send.req_send_mode) {
+        //Case: SSend
         case MCA_PML_BASE_SEND_SYNCHRONOUS:
 #ifdef ENABLE_ANALYSIS
-            if(item!=NULL) strcpy(item->usedProtocol, "rendevous");
-            rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, size, 0, &item);
-#else
-            rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, size, 0);
+            if(item!=NULL) memcpy(item->usedProtocol, "rendevous", 9);
 #endif
+            rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, size, 0);
             break;
+        //Case: Bsend
         case MCA_PML_BASE_SEND_BUFFERED:
 #ifdef ENABLE_ANALYSIS
-            if(item!=NULL) strcpy(item->usedProtocol, "eager");
-            rc = mca_pml_ob1_send_request_start_copy(sendreq, bml_btl, size, &item);
-#else
-            rc = mca_pml_ob1_send_request_start_copy(sendreq, bml_btl, size);
+            if(item!=NULL) memcpy(item->usedProtocol, "eager", 5);
 #endif
+            rc = mca_pml_ob1_send_request_start_copy(sendreq, bml_btl, size);
             break;
+        //Case: requires local * completion before the request is marked as complete
         case MCA_PML_BASE_SEND_COMPLETE:
 #ifdef ENABLE_ANALYSIS
-            if(item!=NULL) strcpy(item->usedProtocol, "eager");
-            rc = mca_pml_ob1_send_request_start_prepare(sendreq, bml_btl, size, &item);
-#else
-            rc = mca_pml_ob1_send_request_start_prepare(sendreq, bml_btl, size);
+            if(item!=NULL) memcpy(item->usedProtocol, "eager", 5);
 #endif
+            rc = mca_pml_ob1_send_request_start_prepare(sendreq, bml_btl, size);
             break;
         default:
             if (size != 0 && bml_btl->btl_flags & MCA_BTL_FLAGS_SEND_INPLACE) {
 #ifdef ENABLE_ANALYSIS
-                if(item!=NULL) strcpy(item->usedProtocol, "eager");
-                rc = mca_pml_ob1_send_request_start_prepare(sendreq, bml_btl, size, &item);
-#else
-                rc = mca_pml_ob1_send_request_start_prepare(sendreq, bml_btl, size);
+                if(item!=NULL) memcpy(item->usedProtocol, "eager", 5);
 #endif
+                rc = mca_pml_ob1_send_request_start_prepare(sendreq, bml_btl, size);
             } else {
 #ifdef ENABLE_ANALYSIS
-                if(item!=NULL) strcpy(item->usedProtocol, "eager");
-                rc = mca_pml_ob1_send_request_start_copy(sendreq, bml_btl, size, &item);
-#else
-                rc = mca_pml_ob1_send_request_start_copy(sendreq, bml_btl, size);
+                if(item!=NULL) memcpy(item->usedProtocol, "eager", 5);
 #endif
+                rc = mca_pml_ob1_send_request_start_copy(sendreq, bml_btl, size);
             }
             break;
         }
@@ -534,11 +470,11 @@ mca_pml_ob1_send_request_start_btl( mca_pml_ob1_send_request_t* sendreq,
             size = btl->btl_rndv_eager_limit;
         if(sendreq->req_send.req_send_mode == MCA_PML_BASE_SEND_BUFFERED) {
 #ifdef ENABLE_ANALYSIS
-            strcpy(item->usedProtocol, "rendevous");
-            rc = mca_pml_ob1_send_request_start_buffered(sendreq, bml_btl, size, &item);
-#else
-            rc = mca_pml_ob1_send_request_start_buffered(sendreq, bml_btl, size);
+            memcpy(item->usedProtocol, "rendevous", 9);
 #endif
+
+            rc = mca_pml_ob1_send_request_start_buffered(sendreq, bml_btl, size);
+
         } else if
                 (opal_convertor_need_buffers(&sendreq->req_send.req_base.req_convertor) == false &&
                 !(sendreq->req_send.req_base.req_convertor.flags & CONVERTOR_ACCELERATOR) &&
@@ -552,25 +488,19 @@ mca_pml_ob1_send_request_start_btl( mca_pml_ob1_send_request_t* sendreq,
                                                                               sendreq->req_send.req_bytes_packed,
                                                                               sendreq->req_rdma))) {
 #ifdef ENABLE_ANALYSIS
-                if(item!=NULL) strcpy(item->usedProtocol, "rdma");
-                rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
-                                                         sendreq->req_send.req_bytes_packed, &item);
-#else
+                if(item!=NULL) memcpy(item->usedProtocol, "rdma", 4);
+#endif
                 rc = mca_pml_ob1_send_request_start_rdma(sendreq, bml_btl,
                                                          sendreq->req_send.req_bytes_packed);
-#endif
                 if( OPAL_UNLIKELY(OMPI_SUCCESS != rc) ) {
                     mca_pml_ob1_free_rdma_resources(sendreq);
                 }
             } else {
 #ifdef ENABLE_ANALYSIS
-                if(item!=NULL) strcpy(item->usedProtocol, "rendevous");
-                rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, size,
-                                                         MCA_PML_OB1_HDR_FLAGS_CONTIG, &item);
-#else
+                if(item!=NULL) memcpy(item->usedProtocol, "rendevous", 9);
+#endif
                 rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, size,
                                                          MCA_PML_OB1_HDR_FLAGS_CONTIG);
-#endif
             }
         } else {
 
@@ -578,11 +508,9 @@ mca_pml_ob1_send_request_start_btl( mca_pml_ob1_send_request_t* sendreq,
                 return mca_pml_ob1_send_request_start_accelerator(sendreq, bml_btl, size);
             }
 
-#ifdef ENABLE_ANALYSIS
-            if(item!=NULL) strcpy(item->usedProtocol, "rendevous");
-            rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, size, 0, &item);
-#else
             rc = mca_pml_ob1_send_request_start_rndv(sendreq, bml_btl, size, 0);
+#ifdef ENABLE_ANALYSIS
+            if(item!=NULL) memcpy(item->usedProtocol, "rendevous", 9);
 #endif
         }
     }
@@ -590,22 +518,8 @@ mca_pml_ob1_send_request_start_btl( mca_pml_ob1_send_request_t* sendreq,
 }
 
 static inline int
-mca_pml_ob1_send_request_start_seq (mca_pml_ob1_send_request_t* sendreq, mca_bml_base_endpoint_t* endpoint, int32_t seqn
-#ifdef ENABLE_ANALYSIS
-, qentry **q
-#endif
-)
+mca_pml_ob1_send_request_start_seq (mca_pml_ob1_send_request_t* sendreq, mca_bml_base_endpoint_t* endpoint, int32_t seqn)
 {
-#ifdef ENABLE_ANALYSIS
-    qentry *item;
-    if(q!=NULL){
-        if(*q!=NULL) {
-            item = *q;
-        }
-        else item = NULL;
-    }
-    else item = NULL;
-#endif
     sendreq->req_endpoint = endpoint;
     sendreq->req_state = 0;
     sendreq->req_lock = 0;
@@ -614,6 +528,7 @@ mca_pml_ob1_send_request_start_seq (mca_pml_ob1_send_request_t* sendreq, mca_bml
     sendreq->req_pending = MCA_PML_OB1_SEND_PENDING_NONE;
     sendreq->req_send.req_base.req_sequence = seqn;
 
+    //Makro markiert den Request als gestartet von der Sichtweise des PML
     MCA_PML_BASE_SEND_START( &sendreq->req_send );
 
     for(size_t i = 0; i < mca_bml_base_btl_array_get_size(&endpoint->btl_eager); i++) {
@@ -622,11 +537,7 @@ mca_pml_ob1_send_request_start_seq (mca_pml_ob1_send_request_t* sendreq, mca_bml
 
         /* select a btl */
         bml_btl = mca_bml_base_btl_array_get_next(&endpoint->btl_eager);
-#ifndef ENABLE_ANALYSIS
         rc = mca_pml_ob1_send_request_start_btl(sendreq, bml_btl);
-#else
-        rc = mca_pml_ob1_send_request_start_btl(sendreq, bml_btl, &item);
-#endif
 #if OPAL_ENABLE_FT_MPI
         /* this first condition to keep the optimized path with as 
          * little tests as possible */
@@ -675,11 +586,7 @@ mca_pml_ob1_send_request_start( mca_pml_ob1_send_request_t* sendreq )
     }
 
     seqn = OPAL_THREAD_ADD_FETCH32(&ob1_proc->send_sequence, 1);
-#ifndef ENABLE_ANALYSIS
     return mca_pml_ob1_send_request_start_seq (sendreq, endpoint, seqn);
-#else
-    return mca_pml_ob1_send_request_start_seq (sendreq, endpoint, seqn, NULL);
-#endif
 }
 
 /**

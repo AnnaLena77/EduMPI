@@ -154,7 +154,7 @@ mca_coll_basic_alltoallw_intra_inplace(const void *rbuf, const int *rcounts, con
 #ifndef ENABLE_ANALYSIS
             err = MCA_PML_CALL(irecv ((char *) rbuf + rdisps[left], rcounts[left], rdtypes[left],
                                       left, MCA_COLL_BASE_TAG_ALLTOALLW, comm, &req));
-#else   
+#else
             err = MCA_PML_CALL(irecv ((char *) rbuf + rdisps[left], rcounts[left], rdtypes[left],
                                       left, MCA_COLL_BASE_TAG_ALLTOALLW, comm, &req, &item));
 #endif
@@ -269,9 +269,15 @@ mca_coll_basic_alltoallw_intra(const void *sbuf, const int *scounts, const int *
             continue;
 
         prcv = ((char *) rbuf) + rdisps[i];
+#ifndef ENABLE_ANALYSIS
         err = MCA_PML_CALL(irecv_init(prcv, rcounts[i], rdtypes[i],
                                       i, MCA_COLL_BASE_TAG_ALLTOALLW, comm,
                                       preq++));
+#else
+        err = MCA_PML_CALL(irecv_init(prcv, rcounts[i], rdtypes[i],
+                                      i, MCA_COLL_BASE_TAG_ALLTOALLW, comm,
+                                      preq++, &item));
+#endif
         ++nreqs;
         if (MPI_SUCCESS != err) {
             ompi_coll_base_free_reqs(reqs, nreqs);
@@ -290,10 +296,17 @@ mca_coll_basic_alltoallw_intra(const void *sbuf, const int *scounts, const int *
             continue;
 
         psnd = ((char *) sbuf) + sdisps[i];
+#ifndef ENABLE_ANALYSIS
         err = MCA_PML_CALL(isend_init(psnd, scounts[i], sdtypes[i],
                                       i, MCA_COLL_BASE_TAG_ALLTOALLW,
                                       MCA_PML_BASE_SEND_STANDARD, comm,
                                       preq++));
+#else
+        err = MCA_PML_CALL(isend_init(psnd, scounts[i], sdtypes[i],
+                                      i, MCA_COLL_BASE_TAG_ALLTOALLW,
+                                      MCA_PML_BASE_SEND_STANDARD, comm,
+                                      preq++, &item));
+#endif
         ++nreqs;
         if (MPI_SUCCESS != err) {
             ompi_coll_base_free_reqs(reqs, nreqs);
@@ -370,9 +383,15 @@ mca_coll_basic_alltoallw_inter(const void *sbuf, const int *scounts, const int *
             continue;
 
         prcv = ((char *) rbuf) + rdisps[i];
+#ifndef ENABLE_ANALYSIS
         err = MCA_PML_CALL(irecv_init(prcv, rcounts[i], rdtypes[i],
                                       i, MCA_COLL_BASE_TAG_ALLTOALLW,
                                       comm, preq++));
+#else
+        err = MCA_PML_CALL(irecv_init(prcv, rcounts[i], rdtypes[i],
+                                      i, MCA_COLL_BASE_TAG_ALLTOALLW,
+                                      comm, preq++, &item));
+#endif
         ++nreqs;
         if (OMPI_SUCCESS != err) {
             ompi_coll_base_free_reqs(reqs, nreqs);
@@ -390,10 +409,17 @@ mca_coll_basic_alltoallw_inter(const void *sbuf, const int *scounts, const int *
             continue;
 
         psnd = ((char *) sbuf) + sdisps[i];
+#ifndef ENABLE_ANALYSIS
         err = MCA_PML_CALL(isend_init(psnd, scounts[i], sdtypes[i],
                                       i, MCA_COLL_BASE_TAG_ALLTOALLW,
                                       MCA_PML_BASE_SEND_STANDARD, comm,
                                       preq++));
+#else
+        err = MCA_PML_CALL(isend_init(psnd, scounts[i], sdtypes[i],
+                                      i, MCA_COLL_BASE_TAG_ALLTOALLW,
+                                      MCA_PML_BASE_SEND_STANDARD, comm,
+                                      preq++, &item));
+#endif
         ++nreqs;
         if (OMPI_SUCCESS != err) {
             ompi_coll_base_free_reqs(reqs, nreqs);

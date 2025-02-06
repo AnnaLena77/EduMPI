@@ -149,7 +149,6 @@ int ompi_coll_tuned_bcast_intra_do_this(void *buf, int count,
     if(q!=NULL){
         if(*q!=NULL) {
             item = *q;
-            //printf("Hello from Coll_tuned_bcast_intra_do_this, Algorithm: %d\n", algorithm);
         }
         else item = NULL;
     }

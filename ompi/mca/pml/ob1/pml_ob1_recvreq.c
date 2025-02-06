@@ -21,9 +21,9 @@
  * Copyright (c) 2018      Sandia National Laboratories
  *                         All rights reserved.
  * Copyright (c) 2020      Google, LLC. All rights reserved.
+ * Copyright (c) 2022      Amazon.com, Inc. or its affiliates.  All Rights reserved.
  * Copyright (c) 2021      Triad National Security, LLC. All rights
  *                         reserved.
- * Copyright (c) 2022      Amazon.com, Inc. or its affiliates.  All Rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -47,9 +47,9 @@
 #include "ompi/mca/bml/base/base.h"
 
 
-#ifdef ENABLE_ANALYSIS
+/*#ifdef ENABLE_ANALYSIS
 #   include "ompi/mpi/c/init.h"
-#endif
+#endif*/
 
 int mca_pml_ob1_accelerator_need_buffers(mca_pml_ob1_recv_request_t* recvreq,
                                          mca_btl_base_module_t* btl);
@@ -457,6 +457,13 @@ static void mca_pml_ob1_rget_completion (mca_btl_base_module_t* btl, struct mca_
 static int mca_pml_ob1_recv_request_put_frag (mca_pml_ob1_rdma_frag_t *frag)
 {
     mca_pml_ob1_recv_request_t *recvreq = (mca_pml_ob1_recv_request_t *) frag->rdma_req;
+#ifdef ENABLE_ANALYSIS
+    qentry* item = NULL;
+    if(recvreq->q != NULL){
+        item = recvreq->q;
+    }
+#endif
+
 #if OPAL_ENABLE_HETEROGENEOUS_SUPPORT
     ompi_proc_t* proc = (ompi_proc_t*)recvreq->req_recv.req_base.req_proc;
 #endif
@@ -504,7 +511,7 @@ static int mca_pml_ob1_recv_request_put_frag (mca_pml_ob1_rdma_frag_t *frag)
 #ifndef ENABLE_ANALYSIS
     rc = mca_bml_base_send(bml_btl, ctl, MCA_PML_OB1_HDR_TYPE_PUT);
 #else
-    rc = mca_bml_base_send(bml_btl, ctl, MCA_PML_OB1_HDR_TYPE_PUT, NULL);
+    rc = mca_bml_base_send(bml_btl, ctl, MCA_PML_OB1_HDR_TYPE_PUT, &item);
 #endif
     /* Increment counter for bytes sent by MPI */
     SPC_RECORD(OMPI_SPC_BYTES_SENT_MPI, (ompi_spc_value_t)(sizeof (mca_pml_ob1_rdma_hdr_t) + reg_size));
@@ -702,7 +709,8 @@ void mca_pml_ob1_recv_request_frag_copy_finished( mca_btl_base_module_t* btl,
 void mca_pml_ob1_recv_request_progress_rget( mca_pml_ob1_recv_request_t* recvreq,
                                              mca_btl_base_module_t* btl,
                                              const mca_btl_base_segment_t* segments,
-                                             size_t num_segments )
+                                             size_t num_segments 
+                                             )
 {
     mca_pml_ob1_rget_hdr_t* hdr = (mca_pml_ob1_rget_hdr_t*)segments->seg_addr.pval;
     mca_bml_base_endpoint_t* bml_endpoint = NULL;
@@ -715,7 +723,6 @@ void mca_pml_ob1_recv_request_progress_rget( mca_pml_ob1_recv_request_t* recvreq
     recvreq->req_recv.req_bytes_packed = hdr->hdr_rndv.hdr_msg_length;
     recvreq->req_send_offset = 0;
     recvreq->req_rdma_offset = 0;
-
     MCA_PML_OB1_RECV_REQUEST_MATCHED(recvreq, &hdr->hdr_rndv.hdr_match);
 
     /* if receive buffer is not contiguous we can't just RDMA read into it, so
@@ -852,8 +859,10 @@ void mca_pml_ob1_recv_request_progress_rget( mca_pml_ob1_recv_request_t* recvreq
 void mca_pml_ob1_recv_request_progress_rndv( mca_pml_ob1_recv_request_t* recvreq,
                                              mca_btl_base_module_t* btl,
                                              const mca_btl_base_segment_t* segments,
-                                             size_t num_segments )
+                                             size_t num_segments 
+                                             )
 {
+
     size_t bytes_received = 0;
     size_t bytes_delivered __opal_attribute_unused__; /* is being set to zero in MCA_PML_OB1_RECV_REQUEST_UNPACK */
     size_t data_offset = 0;
@@ -920,7 +929,8 @@ void mca_pml_ob1_recv_request_progress_rndv( mca_pml_ob1_recv_request_t* recvreq
 void mca_pml_ob1_recv_request_progress_match( mca_pml_ob1_recv_request_t* recvreq,
                                               mca_btl_base_module_t* btl,
                                               const mca_btl_base_segment_t* segments,
-                                              size_t num_segments )
+                                              size_t num_segments 
+                                              )
 {
     size_t bytes_received, data_offset = 0;
     size_t bytes_delivered __opal_attribute_unused__; /* is being set to zero in MCA_PML_OB1_RECV_REQUEST_UNPACK */
@@ -932,6 +942,7 @@ void mca_pml_ob1_recv_request_progress_match( mca_pml_ob1_recv_request_t* recvre
     recvreq->req_recv.req_bytes_packed = bytes_received;
 
     MCA_PML_OB1_RECV_REQUEST_MATCHED(recvreq, &hdr->hdr_match);
+
     /*
      *  Make user buffer accessible(defined) before unpacking.
      */
@@ -1269,20 +1280,13 @@ recv_req_match_wild( mca_pml_ob1_recv_request_t* req,
 
 
 void mca_pml_ob1_recv_req_start(mca_pml_ob1_recv_request_t *req
-#ifdef ENABLE_ANALYSIS
-                                , qentry **q
-#endif
 )
 {
 #ifdef ENABLE_ANALYSIS
-    qentry *item;
-    if(q!=NULL){
-        if(*q!=NULL) {
-            item = *q;
-        }
-        else item = NULL;
+    qentry* item = NULL;
+    if(req->q != NULL){
+        item = req->q;
     }
-    else item = NULL;
 #endif
     ompi_communicator_t *comm = req->req_recv.req_base.req_comm;
     mca_pml_ob1_comm_t *ob1_comm = comm->c_pml_comm;
@@ -1393,9 +1397,6 @@ void mca_pml_ob1_recv_req_start(mca_pml_ob1_recv_request_t *req
         req->req_match_received = false;
         OB1_MATCHING_UNLOCK(&ob1_comm->matching_lock);
     } else {
-#ifdef ENABLE_ANALYSIS
-        if(item!=NULL) item->foundMatchWild = 1;
-#endif
         if(OPAL_LIKELY(!IS_PROB_REQ(req))) {
             PERUSE_TRACE_COMM_EVENT(PERUSE_COMM_REQ_MATCH_UNEX,
                                     &(req->req_recv.req_base), PERUSE_RECV);
@@ -1421,16 +1422,10 @@ void mca_pml_ob1_recv_req_start(mca_pml_ob1_recv_request_t *req
 
             switch(hdr->hdr_common.hdr_type) {
             case MCA_PML_OB1_HDR_TYPE_MATCH:
-#ifdef ENABLE_ANALYSIS
-                if(item!=NULL) strcpy(item->usedProtocol, "eager");
-#endif
                 mca_pml_ob1_recv_request_progress_match(req, frag->btl, frag->segments,
                                                         frag->num_segments);
                 break;
             case MCA_PML_OB1_HDR_TYPE_RNDV:
-#ifdef ENABLE_ANALYSIS
-                if(item!=NULL) strcpy(item->usedProtocol, "rendevous");
-#endif
                 mca_pml_ob1_recv_request_progress_rndv(req, frag->btl, frag->segments,
                                                        frag->num_segments);
                 break;
@@ -1462,6 +1457,7 @@ void mca_pml_ob1_recv_req_start(mca_pml_ob1_recv_request_t *req
             OB1_MATCHING_UNLOCK(&ob1_comm->matching_lock);
 
             req->req_recv.req_base.req_addr = frag;
+
             mca_pml_ob1_recv_request_matched_probe(req, frag->btl,
                                                    frag->segments, frag->num_segments);
 

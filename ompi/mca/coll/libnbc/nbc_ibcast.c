@@ -9,7 +9,7 @@
  *                         and Technology (RIST).  All rights reserved.
  * Copyright (c) 2015      Los Alamos National Security, LLC. All rights
  *                         reserved.
- * Copyright (c) 2016-2017 IBM Corporation.  All rights reserved.
+ * Copyright (c) 2016-2022 IBM Corporation.  All rights reserved.
  * Copyright (c) 2018      FUJITSU LIMITED.  All rights reserved.
  * $COPYRIGHT$
  *
@@ -20,6 +20,7 @@
  */
 #include "nbc_internal.h"
 
+#ifndef ENABLE_ANALYSIS
 static inline int bcast_sched_binomial(int rank, int p, int root, NBC_Schedule *schedule, void *buffer, int count,
                                        MPI_Datatype datatype);
 static inline int bcast_sched_linear(int rank, int p, int root, NBC_Schedule *schedule, void *buffer, int count,
@@ -28,6 +29,16 @@ static inline int bcast_sched_chain(int rank, int p, int root, NBC_Schedule *sch
                                     MPI_Datatype datatype, int fragsize, size_t size);
 static inline int bcast_sched_knomial(int rank, int comm_size, int root, NBC_Schedule *schedule, void *buf,
                                       int count, MPI_Datatype datatype, int knomial_radix);
+#else
+static inline int bcast_sched_binomial(int rank, int p, int root, NBC_Schedule *schedule, void *buffer, int count,
+                                       MPI_Datatype datatype, qentry **q);
+static inline int bcast_sched_linear(int rank, int p, int root, NBC_Schedule *schedule, void *buffer, int count,
+                                     MPI_Datatype datatype, qentry **q);
+static inline int bcast_sched_chain(int rank, int p, int root, NBC_Schedule *schedule, void *buffer, int count,
+                                    MPI_Datatype datatype, int fragsize, size_t size, qentry **q);
+static inline int bcast_sched_knomial(int rank, int comm_size, int root, NBC_Schedule *schedule, void *buf,
+                                      int count, MPI_Datatype datatype, int knomial_radix, qentry **q);
+#endif
 
 #ifdef NBC_CACHE_SCHEDULE
 /* tree comparison function for schedule cache */
@@ -49,8 +60,23 @@ int NBC_Bcast_args_compare(NBC_Bcast_args *a, NBC_Bcast_args *b, void *param) {
 
 static int nbc_bcast_init(void *buffer, int count, MPI_Datatype datatype, int root,
                           struct ompi_communicator_t *comm, ompi_request_t ** request,
-                          mca_coll_base_module_t *module, bool persistent)
+                          mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                          , qentry **q
+#endif
+                          )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+    else item = NULL;
+#endif
+
   int rank, p, res, segsize;
   size_t size;
   NBC_Schedule *schedule;
@@ -128,16 +154,36 @@ static int nbc_bcast_init(void *buffer, int count, MPI_Datatype datatype, int ro
 
     switch(alg) {
       case NBC_BCAST_LINEAR:
+#ifdef ENABLE_ANALYSIS
+        if(item != NULL) memcpy(item->usedAlgorithm, "sched_linear", 12);
+        res = bcast_sched_linear(rank, p, root, schedule, buffer, count, datatype, &item);
+#else
         res = bcast_sched_linear(rank, p, root, schedule, buffer, count, datatype);
+#endif
         break;
       case NBC_BCAST_BINOMIAL:
+#ifdef ENABLE_ANALYSIS
+        if(item != NULL) memcpy(item->usedAlgorithm, "sched_binomial", 14);
+        res = bcast_sched_binomial(rank, p, root, schedule, buffer, count, datatype, &item);
+#else
         res = bcast_sched_binomial(rank, p, root, schedule, buffer, count, datatype);
+#endif
         break;
       case NBC_BCAST_CHAIN:
+#ifdef ENABLE_ANALYSIS
+        if(item != NULL) memcpy(item->usedAlgorithm, "sched_chain", 11);
+        res = bcast_sched_chain(rank, p, root, schedule, buffer, count, datatype, segsize, size, &item);
+#else
         res = bcast_sched_chain(rank, p, root, schedule, buffer, count, datatype, segsize, size);
+#endif
         break;
       case NBC_BCAST_KNOMIAL:
+#ifdef ENABLE_ANALYSIS
+        if(item != NULL) memcpy(item->usedAlgorithm, "sched_knomial", 13);
+        res = bcast_sched_knomial(rank, p, root, schedule, buffer, count, datatype, libnbc_ibcast_knomial_radix, &item);
+#else
         res = bcast_sched_knomial(rank, p, root, schedule, buffer, count, datatype, libnbc_ibcast_knomial_radix);
+#endif
         break;
     }
 
@@ -208,9 +254,12 @@ int ompi_coll_libnbc_ibcast(void *buffer, int count, MPI_Datatype datatype, int 
         else item = NULL;
     }
     else item = NULL;
-#endif
+    int res = nbc_bcast_init(buffer, count, datatype, root,
+                             comm, request, module, false, &item);
+#else
     int res = nbc_bcast_init(buffer, count, datatype, root,
                              comm, request, module, false);
+#endif
     if (OPAL_LIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -249,7 +298,23 @@ int ompi_coll_libnbc_ibcast(void *buffer, int count, MPI_Datatype datatype, int 
   if (vrank == 0) rank = root; \
   if (vrank == root) rank = 0; \
 }
-static inline int bcast_sched_binomial(int rank, int p, int root, NBC_Schedule *schedule, void *buffer, int count, MPI_Datatype datatype) {
+static inline int bcast_sched_binomial(int rank, int p, int root, NBC_Schedule *schedule, void *buffer, int count, MPI_Datatype datatype
+#ifdef ENABLE_ANALYSIS
+    , qentry **q
+#endif
+) {
+
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    }
+    else item = NULL;
+#endif
+
   int maxr, vrank, peer, res;
 
   maxr = ceil_of_log2(p);
@@ -261,7 +326,11 @@ static inline int bcast_sched_binomial(int rank, int p, int root, NBC_Schedule *
     for (int r = 0 ; r < maxr ; ++r) {
       if ((vrank >= (1 << r)) && (vrank < (1 << (r + 1)))) {
         VRANK2RANK(peer, vrank - (1 << r), root);
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_recv (buffer, false, count, datatype, peer, schedule, false);
+#else
+        res = NBC_Sched_recv (buffer, false, count, datatype, peer, schedule, false, &item);
+#endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
           return res;
         }
@@ -278,7 +347,11 @@ static inline int bcast_sched_binomial(int rank, int p, int root, NBC_Schedule *
   for (int r = 0 ; r < maxr ; ++r) {
     if (((vrank + (1 << r) < p) && (vrank < (1 << r))) || (vrank == 0)) {
       VRANK2RANK(peer, vrank + (1 << r), root);
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send (buffer, false, count, datatype, peer, schedule, false);
+#else
+      res = NBC_Sched_send (buffer, false, count, datatype, peer, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
       }
@@ -289,7 +362,20 @@ static inline int bcast_sched_binomial(int rank, int p, int root, NBC_Schedule *
 }
 
 /* simple linear MPI_Ibcast */
-static inline int bcast_sched_linear(int rank, int p, int root, NBC_Schedule *schedule, void *buffer, int count, MPI_Datatype datatype) {
+static inline int bcast_sched_linear(int rank, int p, int root, NBC_Schedule *schedule, void *buffer, int count, MPI_Datatype datatype
+#ifdef ENABLE_ANALYSIS
+        , qentry **q
+#endif
+) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int res;
 
   /* send to all others */
@@ -297,7 +383,11 @@ static inline int bcast_sched_linear(int rank, int p, int root, NBC_Schedule *sc
     for (int peer = 0 ; peer < p ; ++peer) {
       if (peer != root) {
         /* send msg to peer */
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_send (buffer, false, count, datatype, peer, schedule, false);
+#else
+        res = NBC_Sched_send (buffer, false, count, datatype, peer, schedule, false, &item);
+#endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
           return res;
         }
@@ -305,7 +395,11 @@ static inline int bcast_sched_linear(int rank, int p, int root, NBC_Schedule *sc
     }
   } else {
     /* recv msg from root */
+#ifndef ENABLE_ANALYSIS
     res = NBC_Sched_recv (buffer, false, count, datatype, root, schedule, false);
+#else
+    res = NBC_Sched_recv (buffer, false, count, datatype, root, schedule, false, &item);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
       return res;
     }
@@ -315,7 +409,20 @@ static inline int bcast_sched_linear(int rank, int p, int root, NBC_Schedule *sc
 }
 
 /* simple chained MPI_Ibcast */
-static inline int bcast_sched_chain(int rank, int p, int root, NBC_Schedule *schedule, void *buffer, int count, MPI_Datatype datatype, int fragsize, size_t size) {
+static inline int bcast_sched_chain(int rank, int p, int root, NBC_Schedule *schedule, void *buffer, int count, MPI_Datatype datatype, int fragsize, size_t size
+#ifdef ENABLE_ANALYSIS
+        , qentry **q
+#endif
+) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int res, vrank, rpeer, speer, numfrag, fragcount, thiscount;
   MPI_Aint ext;
   char *buf;
@@ -350,7 +457,11 @@ static inline int bcast_sched_chain(int rank, int p, int root, NBC_Schedule *sch
 
     /* root does not receive */
     if (vrank != 0) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_recv (buf, false, thiscount, datatype, rpeer, schedule, true);
+#else
+      res = NBC_Sched_recv (buf, false, thiscount, datatype, rpeer, schedule, true, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
       }
@@ -358,7 +469,11 @@ static inline int bcast_sched_chain(int rank, int p, int root, NBC_Schedule *sch
 
     /* last rank does not send */
     if (vrank != p-1) {
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_send (buf, false, thiscount, datatype, speer, schedule, false);
+#else
+      res = NBC_Sched_send (buf, false, thiscount, datatype, speer, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
       }
@@ -386,8 +501,21 @@ static inline int bcast_sched_chain(int rank, int p, int root, NBC_Schedule *sch
  */
 static inline int bcast_sched_knomial(
     int rank, int comm_size, int root, NBC_Schedule *schedule, void *buf,
-    int count, MPI_Datatype datatype, int knomial_radix)
+    int count, MPI_Datatype datatype, int knomial_radix
+#ifdef ENABLE_ANALYSIS
+        , qentry **q
+#endif
+    )
 {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
     int res = OMPI_SUCCESS;
 
     /* Receive from parent */
@@ -397,7 +525,11 @@ static inline int bcast_sched_knomial(
         if (vrank % (knomial_radix * mask)) {
             int parent = vrank / (knomial_radix * mask) * (knomial_radix * mask);
             parent = (parent + root) % comm_size;
+#ifndef ENABLE_ANALYSIS
             res = NBC_Sched_recv(buf, false, count, datatype, parent, schedule, true);
+#else
+            res = NBC_Sched_recv(buf, false, count, datatype, parent, schedule, true, &item);
+#endif
             if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
             break;
         }
@@ -411,7 +543,11 @@ static inline int bcast_sched_knomial(
             int child = vrank + mask * r;
             if (child < comm_size) {
                 child = (child + root) % comm_size;
+#ifndef ENABLE_ANALYSIS
                 res = NBC_Sched_send(buf, false, count, datatype, child, schedule, false);
+#else
+                res = NBC_Sched_send(buf, false, count, datatype, child, schedule, false, &item);
+#endif
                 if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) { goto cleanup_and_return; }
             }
         }
@@ -424,7 +560,20 @@ cleanup_and_return:
 
 static int nbc_bcast_inter_init(void *buffer, int count, MPI_Datatype datatype, int root,
                                 struct ompi_communicator_t *comm, ompi_request_t ** request,
-                                mca_coll_base_module_t *module, bool persistent) {
+                                mca_coll_base_module_t *module, bool persistent
+#ifdef ENABLE_ANALYSIS
+                                , qentry **q
+#endif
+                                ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+#endif
   int res;
   NBC_Schedule *schedule;
   ompi_coll_libnbc_module_t *libnbc_module = (ompi_coll_libnbc_module_t*) module;
@@ -443,7 +592,11 @@ static int nbc_bcast_inter_init(void *buffer, int count, MPI_Datatype datatype, 
 
       for (int peer = 0 ; peer < remsize ; ++peer) {
         /* send msg to peer */
+#ifndef ENABLE_ANALYSIS
         res = NBC_Sched_send (buffer, false, count, datatype, peer, schedule, false);
+#else
+        res = NBC_Sched_send (buffer, false, count, datatype, peer, schedule, false, &item);
+#endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
           OBJ_RELEASE(schedule);
           return res;
@@ -451,7 +604,11 @@ static int nbc_bcast_inter_init(void *buffer, int count, MPI_Datatype datatype, 
       }
     } else {
       /* recv msg from root */
+#ifndef ENABLE_ANALYSIS
       res = NBC_Sched_recv (buffer, false, count, datatype, root, schedule, false);
+#else
+      res = NBC_Sched_recv (buffer, false, count, datatype, root, schedule, false, &item);
+#endif
       if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         OBJ_RELEASE(schedule);
         return res;
@@ -490,9 +647,12 @@ int ompi_coll_libnbc_ibcast_inter(void *buffer, int count, MPI_Datatype datatype
         else item = NULL;
     }
     else item = NULL;
-#endif
+    int res = nbc_bcast_inter_init(buffer, count, datatype, root,
+                                   comm, request, module, false, &item);
+#else
     int res = nbc_bcast_inter_init(buffer, count, datatype, root,
                                    comm, request, module, false);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -509,9 +669,25 @@ int ompi_coll_libnbc_ibcast_inter(void *buffer, int count, MPI_Datatype datatype
 
 int ompi_coll_libnbc_bcast_init(void *buffer, int count, MPI_Datatype datatype, int root,
                                 struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                mca_coll_base_module_t *module) {
+                                mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                , qentry **q
+#endif
+                                ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_bcast_init(buffer, count, datatype, root,
+                             comm, request, module, true, &item);
+#else
     int res = nbc_bcast_init(buffer, count, datatype, root,
                              comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }
@@ -521,9 +697,25 @@ int ompi_coll_libnbc_bcast_init(void *buffer, int count, MPI_Datatype datatype, 
 
 int ompi_coll_libnbc_bcast_inter_init(void *buffer, int count, MPI_Datatype datatype, int root,
                                       struct ompi_communicator_t *comm, MPI_Info info, ompi_request_t ** request,
-                                      mca_coll_base_module_t *module) {
+                                      mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                      , qentry **q
+#endif
+                                      ) {
+#ifdef ENABLE_ANALYSIS
+    qentry *item;
+    if(q!=NULL){
+        if(*q!=NULL) {
+            item = *q;
+        }
+        else item = NULL;
+    } else item = NULL;
+    int res = nbc_bcast_inter_init(buffer, count, datatype, root,
+                                   comm, request, module, true, &item);
+#else
     int res = nbc_bcast_inter_init(buffer, count, datatype, root,
                                    comm, request, module, true);
+#endif
     if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
         return res;
     }

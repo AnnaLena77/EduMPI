@@ -423,8 +423,8 @@ int ompi_coll_adapt_ibcast_generic(void *buff, int count, struct ompi_datatype_t
                                         ? MCA_PML_BASE_SEND_SYNCHRONOUS : MCA_PML_BASE_SEND_STANDARD;
 #ifdef ENABLE_ANALYSIS    
     if(item!=NULL){
-    	if(sendmode == MCA_PML_BASE_SEND_SYNCHRONOUS) strcpy(item->sendmode, "SYNCHRONOUS");
-    	else if (sendmode == MCA_PML_BASE_SEND_STANDARD) strcpy(item->sendmode, "STANDARD");
+    	if(sendmode == MCA_PML_BASE_SEND_SYNCHRONOUS) memcpy(item->sendmode, "SYNCHRONOUS", 11);
+    	else if (sendmode == MCA_PML_BASE_SEND_STANDARD) memcpy(item->sendmode, "STANDARD", 8);
     }
 #endif
     /* The request passed outside */

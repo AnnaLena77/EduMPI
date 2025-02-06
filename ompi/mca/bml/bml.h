@@ -275,6 +275,7 @@ static inline int mca_bml_base_send( mca_bml_base_btl_t* bml_btl,
     mca_btl_base_module_t* btl = bml_btl->btl;
 
     des->des_context = (void*) bml_btl;
+    
 #ifndef ENABLE_ANALYSIS
     rc = btl->btl_send(btl, bml_btl->btl_endpoint, des, tag);
 #else
@@ -286,6 +287,7 @@ static inline int mca_bml_base_send( mca_bml_base_btl_t* bml_btl,
         else item = NULL;
     }
     else item = NULL;
+ 
     rc = btl->btl_send(btl, bml_btl->btl_endpoint, des, tag, &item);
 #endif
     if (rc == OMPI_ERR_RESOURCE_BUSY)
