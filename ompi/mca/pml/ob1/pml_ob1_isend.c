@@ -250,7 +250,7 @@ int mca_pml_ob1_isend(const void *buf,
     if(q!=NULL){
         if(*q!=NULL){
             item = *q;
-            printf("Isend: %s\n", item->function);
+            //printf("Isend: %s\n", item->function);
             item->sendcount = item->sendcount + count;
         	   if(datatype == MPI_PACKED){
                 item->sendDatasize += count;
@@ -430,7 +430,7 @@ int mca_pml_ob1_send(const void *buf,
     if(q!=NULL){
         if(*q!=NULL){
             item = *q;
-            printf("Send: %s\n", item->function);
+            //printf("Send: %s\n", item->function);
         }else item = NULL;
     }
     else {
@@ -494,15 +494,17 @@ int mca_pml_ob1_send(const void *buf,
         	       int type_size = 0;
                 MPI_Type_size(datatype, &type_size);
         	       item->sendDatasize += count*type_size;
-        	   }
-            if(sendmode==MCA_PML_BASE_SEND_SYNCHRONOUS && !strcmp(item->communicationType, "p2p")){
-                strcpy(item->sendmode, "SYNCHRONOUS");
             }
-            else if(sendmode==MCA_PML_BASE_SEND_READY){
-                strcpy(item->sendmode, "READY");
-            }
-            else if(sendmode==MCA_PML_BASE_SEND_STANDARD){
-                strcpy(item->sendmode, "STANDARD");
+            if(!strcmp(item->communicationType, "p2p")){
+                if(sendmode==MCA_PML_BASE_SEND_SYNCHRONOUS){
+                    strcpy(item->sendmode, "SYNCHRONOUS");
+                }
+                else if(sendmode==MCA_PML_BASE_SEND_READY){
+                    strcpy(item->sendmode, "READY");
+                }
+                else if(sendmode==MCA_PML_BASE_SEND_STANDARD){
+                    strcpy(item->sendmode, "STANDARD");
+                }
             }
             else if(!strcmp(item->communicationType, "collective")){
                 item->coll_partnerranks[dst / 8] |= (1 << (dst % 8));
