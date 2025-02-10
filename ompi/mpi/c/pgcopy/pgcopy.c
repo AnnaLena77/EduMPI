@@ -103,16 +103,14 @@ void timestampToBinary(struct timespec time, char* buffer, int* offset){
     long microseconds = time.tv_nsec / 1000;
     long long timestamp_micro = seconds_since_2000 * 1000000LL + microseconds;
 
-    // UTC-Offset (2 Stunden)
-    timestamp_micro += 2 * 3600 * 1000000LL;
-
-    // Timestamp in den Buffer schreiben (Big-Endian)
-    for (int i = 7; i >= 0; i--) {
-        buffer[*offset + i] = timestamp_micro & 0xFF;
-        timestamp_micro >>= 8;
+   // Keine manuelle Zeitzonenanpassung hier
+   for (int i = 7; i >= 0; i--) {
+      buffer[*offset + i] = timestamp_micro & 0xFF;
+      timestamp_micro >>= 8;
     }
 
     *offset += 8;
+
 }
 
 void createHeader(char* buffer, int column_count, int* offset){
