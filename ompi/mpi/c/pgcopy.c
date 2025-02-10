@@ -44,12 +44,11 @@ void intToBinary(int integer, char* buffer, int* offset){
     
     off += 4;
     
-    buffer[off] = integer & 0xff;           // Niedrigstes Byte
-    buffer[off+1] = (integer >> 8) & 0xff;
-    buffer[off+2] = (integer >> 16) & 0xff;
-    buffer[off+3] = (integer >> 24) & 0xff; // Höchstes Byte
+    buffer[off] = (integer >> 24) & 0xff;
+    buffer[off+1] = (integer >> 16) & 0xff;
+    buffer[off+2] = (integer >> 8) & 0xff;
+    buffer[off+3] = integer & 0xff;
     *offset += 8;
-
 }
 
 void doubleToBinary(double value, char* buffer, int* offset) {
@@ -101,32 +100,30 @@ void timestampToBinary(struct timespec time, char* buffer, int* offset, int roun
     buffer[off+1] = 0;
     buffer[off+2] = 0;
     buffer[off+3] = 8;
-    
+
     off += 4;
     *offset += 4;
-    
-    //int utc_offset_seconds = 2 * 3600;
 
-    //count of seconds since 01.01.2000
-    time_t seconds_since_2000 = time.tv_sec - 946684800; // + utc_offset_seconds;
+    // Zähler der Sekunden seit der Unix-Epoche (01.01.1970)
+    time_t seconds_since_1970 = time.tv_sec; // Direkt Unix-Zeitstempel (Sekunden seit 1970)
     long long timestamp_micro;
-    //cast into microseconds
-    if(!round_seconds){
+
+    // Umrechnung in Mikrosekunden
+    if (!round_seconds) {
         long microseconds = (time.tv_nsec / 1000);
-        timestamp_micro = seconds_since_2000 * 1000000LL + microseconds;
+        timestamp_micro = seconds_since_1970 * 1000000LL + microseconds;  // Sekunden * 1.000.000 + Mikrosekunden
     } else {
-        timestamp_micro = seconds_since_2000 * 1000000LL; // Milliseconds and nanoseconds set to 0
+        timestamp_micro = seconds_since_1970 * 1000000LL;  // Millisekunden und Nanosekunden auf 0 setzen
     }
-    //timestamp_micro += utc_offset_seconds * 1000000LL;
-    
-    buffer[off]   = timestamp_micro & 0xff;         // LSB zuerst
-    buffer[off+1] = (timestamp_micro >> 8) & 0xff;
-    buffer[off+2] = (timestamp_micro >> 16) & 0xff;
-    buffer[off+3] = (timestamp_micro >> 24) & 0xff;
-    buffer[off+4] = (timestamp_micro >> 32) & 0xff;
-    buffer[off+5] = (timestamp_micro >> 40) & 0xff;
-    buffer[off+6] = (timestamp_micro >> 48) & 0xff;
-    buffer[off+7] = (timestamp_micro >> 56) & 0xff; // MSB zuletzt
+
+    // Speichern des Timestamps im Buffer (Big-Endian)
+    for (int i = 7; i >= 0; i--) {
+        buffer[*offset + i] = timestamp_micro & 0xFF;
+        timestamp_micro >>= 8;
+    }
+
+    *offset += 8;
+
 
 }
 
