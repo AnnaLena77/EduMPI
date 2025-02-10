@@ -91,35 +91,28 @@ void stringToBinary(char* string, char* buffer, int* offset){
 }
 
 void timestampToBinary(struct timespec time, char* buffer, int* offset){
-    int off = *offset;
+    buffer[*offset] = 0;
+    buffer[*offset + 1] = 0;
+    buffer[*offset + 2] = 0;
+    buffer[*offset + 3] = 8;
     
-    buffer[off] = 0;
-    buffer[off+1] = 0;
-    buffer[off+2] = 0;
-    buffer[off+3] = 8;
-    
-    off += 4;
     *offset += 4;
 
-    //count of seconds since 01.01.2000
+    // Sekunden seit 01.01.2000 berechnen
     time_t seconds_since_2000 = time.tv_sec - 946684800;
-    //cast into microseconds
-    long microseconds = (time.tv_nsec / 1000);
+    long microseconds = time.tv_nsec / 1000;
     long long timestamp_micro = seconds_since_2000 * 1000000LL + microseconds;
-    
-    int utc_offset_seconds = 2 * 3600;
-    timestamp_micro += utc_offset_seconds * 1000000LL;
-    
-    buffer[off] = (timestamp_micro >> 56) & 0xff;
-    buffer[off+1] = (timestamp_micro >> 48) & 0xff;
-    buffer[off+2] = (timestamp_micro >> 40) & 0xff;
-    buffer[off+3] = (timestamp_micro >> 32) & 0xff;
-    buffer[off+4] = (timestamp_micro >> 24) & 0xff;
-    buffer[off+5] = (timestamp_micro >> 16) & 0xff;
-    buffer[off+6] = (timestamp_micro >> 8) & 0xff;
-    buffer[off+7] = timestamp_micro & 0xff;
-    
-    *offset += 8; 
+
+    // UTC-Offset (2 Stunden)
+    timestamp_micro += 2 * 3600 * 1000000LL;
+
+    // Timestamp in den Buffer schreiben (Big-Endian)
+    for (int i = 7; i >= 0; i--) {
+        buffer[*offset + i] = timestamp_micro & 0xFF;
+        timestamp_micro >>= 8;
+    }
+
+    *offset += 8;
 }
 
 void createHeader(char* buffer, int column_count, int* offset){
