@@ -44,11 +44,12 @@ void intToBinary(int integer, char* buffer, int* offset){
     
     off += 4;
     
-    buffer[off] = (integer >> 24) & 0xff;
-    buffer[off+1] = (integer >> 16) & 0xff;
-    buffer[off+2] = (integer >> 8) & 0xff;
-    buffer[off+3] = integer & 0xff;
+    buffer[off] = integer & 0xff;           // Niedrigstes Byte
+    buffer[off+1] = (integer >> 8) & 0xff;
+    buffer[off+2] = (integer >> 16) & 0xff;
+    buffer[off+3] = (integer >> 24) & 0xff; // Höchstes Byte
     *offset += 8;
+
 }
 
 void doubleToBinary(double value, char* buffer, int* offset) {
