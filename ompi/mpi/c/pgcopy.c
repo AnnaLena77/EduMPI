@@ -93,39 +93,35 @@ void stringToBinary(char* string, char* buffer, int* offset){
 
 }
 
-void timestampToBinary(struct timespec time, char* buffer, int* offset, int round_seconds){
-    int off = *offset;
-    
-    buffer[off] = 0;
-    buffer[off+1] = 0;
-    buffer[off+2] = 0;
-    buffer[off+3] = 8;
-
-    off += 4;
+void timestampToBinary(struct timespec time, char* buffer, int* offset, int round_seconds) {
+    // Set timestamp header (4 bytes)
+    buffer[*offset] = 0;
+    buffer[*offset + 1] = 0;
+    buffer[*offset + 2] = 0;
+    buffer[*offset + 3] = 8;
     *offset += 4;
 
-    // Zähler der Sekunden seit der Unix-Epoche (01.01.1970)
-    time_t seconds_since_1970 = time.tv_sec; // Direkt Unix-Zeitstempel (Sekunden seit 1970)
-    long long timestamp_micro;
+    // Seconds since Unix epoch (01.01.1970)
+    time_t seconds = time.tv_sec;
+    long long timestamp_us;
 
-    // Umrechnung in Mikrosekunden
+    // Convert to microseconds
     if (!round_seconds) {
-        long microseconds = (time.tv_nsec / 1000);
-        timestamp_micro = seconds_since_1970 * 1000000LL + microseconds;  // Sekunden * 1.000.000 + Mikrosekunden
+        long microseconds = time.tv_nsec / 1000; // Convert nanoseconds to microseconds
+        timestamp_us = seconds * 1000000LL + microseconds;
     } else {
-        timestamp_micro = seconds_since_1970 * 1000000LL;  // Millisekunden und Nanosekunden auf 0 setzen
+        timestamp_us = seconds * 1000000LL; // Set microseconds to 0
     }
 
-    // Speichern des Timestamps im Buffer (Big-Endian)
+    // Store timestamp in buffer (Big-Endian)
     for (int i = 7; i >= 0; i--) {
-        buffer[*offset + i] = timestamp_micro & 0xFF;
-        timestamp_micro >>= 8;
+        buffer[*offset + i] = timestamp_us & 0xFF;
+        timestamp_us >>= 8;
     }
 
     *offset += 8;
-
-
 }
+
 
 void byteaToBinary(uint8_t* array, int length, char* buffer, int* offset, int p2p){
     if (length <= 0) return;  // Keine Daten -> Nichts tun
