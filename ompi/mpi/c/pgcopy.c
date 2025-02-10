@@ -118,16 +118,15 @@ void timestampToBinary(struct timespec time, char* buffer, int* offset, int roun
     }
     //timestamp_micro += utc_offset_seconds * 1000000LL;
     
-    buffer[off] = (timestamp_micro >> 56) & 0xff;
-    buffer[off+1] = (timestamp_micro >> 48) & 0xff;
-    buffer[off+2] = (timestamp_micro >> 40) & 0xff;
-    buffer[off+3] = (timestamp_micro >> 32) & 0xff;
-    buffer[off+4] = (timestamp_micro >> 24) & 0xff;
-    buffer[off+5] = (timestamp_micro >> 16) & 0xff;
-    buffer[off+6] = (timestamp_micro >> 8) & 0xff;
-    buffer[off+7] = timestamp_micro & 0xff;
-    
-    *offset += 8; 
+    buffer[off]   = timestamp_micro & 0xff;         // LSB zuerst
+    buffer[off+1] = (timestamp_micro >> 8) & 0xff;
+    buffer[off+2] = (timestamp_micro >> 16) & 0xff;
+    buffer[off+3] = (timestamp_micro >> 24) & 0xff;
+    buffer[off+4] = (timestamp_micro >> 32) & 0xff;
+    buffer[off+5] = (timestamp_micro >> 40) & 0xff;
+    buffer[off+6] = (timestamp_micro >> 48) & 0xff;
+    buffer[off+7] = (timestamp_micro >> 56) & 0xff; // MSB zuletzt
+
 }
 
 void byteaToBinary(uint8_t* array, int length, char* buffer, int* offset, int p2p){

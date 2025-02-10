@@ -91,11 +91,11 @@ void stringToBinary(char* string, char* buffer, int* offset){
 }
 
 void timestampToBinary(struct timespec time, char* buffer, int* offset){
+    
     buffer[*offset] = 0;
     buffer[*offset + 1] = 0;
     buffer[*offset + 2] = 0;
     buffer[*offset + 3] = 8;
-    
     *offset += 4;
 
     time_t seconds_since_epoch = time.tv_sec; 
