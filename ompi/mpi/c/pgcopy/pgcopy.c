@@ -98,15 +98,16 @@ void timestampToBinary(struct timespec time, char* buffer, int* offset){
     
     *offset += 4;
 
-    // Sekunden seit 01.01.2000 berechnen
-    time_t seconds_since_2000 = time.tv_sec - 946684800;
+    time_t seconds_since_epoch = time.tv_sec; 
     long microseconds = time.tv_nsec / 1000;
-    long long timestamp_micro = seconds_since_2000 * 1000000LL + microseconds;
 
-   // Keine manuelle Zeitzonenanpassung hier
-   for (int i = 7; i >= 0; i--) {
-      buffer[*offset + i] = timestamp_micro & 0xFF;
-      timestamp_micro >>= 8;
+    // Der Zeitstempel in Mikrosekunden (mit Unix-Epoche)
+    long long timestamp_micro = seconds_since_epoch * 1000000LL + microseconds;
+
+    // Timestamp in den Buffer (Big-Endian speichern)
+    for (int i = 7; i >= 0; i--) {
+        buffer[*offset + i] = timestamp_micro & 0xFF;
+        timestamp_micro >>= 8;
     }
 
     *offset += 8;
