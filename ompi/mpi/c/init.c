@@ -371,7 +371,7 @@ void qentryToBinary(qentry q, char *buffer, int *off){
                 ompi_group_translate_ranks(sub_group, 1, &item->partnerrank, world_group, &world_rank);
             } else {
                 int sub_size;
-                MPI_Comm_size(sub_group, &sub_size);
+                MPI_Group_size(sub_group, &sub_size);
                 int sub_ranks[sub_size];
                 int world_ranks[sub_size];
                 int count = 0;
