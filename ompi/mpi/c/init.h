@@ -1,3 +1,5 @@
+#include "ompi_config.h"
+#include "ompi/communicator/communicator.h"
 #include <sys/queue.h>
 #include <time.h>
 #include <sys/time.h>
