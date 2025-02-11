@@ -274,6 +274,9 @@ int mca_pml_ob1_isend(const void *buf,
                     strcpy(item->sendmode, "STANDARD");
                 }
             } else if(!strcmp(item->communicationType, "collective")){
+                if(!comm == MPI_COMM_WORLD){
+                    printf("Rank: %d \n", dst);
+                }
                 item->coll_partnerranks[dst / 8] |= (1 << (dst % 8));
             }
         }else item = NULL;
