@@ -384,6 +384,7 @@ void qentryToBinary(qentry q, char *buffer, int *off){
                     }
                 }
                 if(count > 0) {
+                    memset(item->coll_partnerranks, 0, 50);
                     MPI_Group_translate_ranks(sub_group, count, &sub_ranks, world_group, &world_ranks);
                     for(int j = 0; j<count; j++){
                         if (world_ranks[j] != MPI_UNDEFINED) { 
