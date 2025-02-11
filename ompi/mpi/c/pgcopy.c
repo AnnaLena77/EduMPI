@@ -101,8 +101,8 @@ void timestampToBinary(struct timespec time, char* buffer, int* offset, int roun
     buffer[*offset + 3] = 8;
     *offset += 4;
 
-    // Seconds since Unix epoch (01.01.1970)
-    time_t seconds = time.tv_sec;
+    // Seconds since 2000-01-01 (instead of Unix epoch 1970)
+    time_t seconds = time.tv_sec - 946684800; // Adjust for 30-year offset
     long long timestamp_us;
 
     // Convert to microseconds
@@ -120,7 +120,7 @@ void timestampToBinary(struct timespec time, char* buffer, int* offset, int roun
     }
 
     *offset += 8;
-}
+
 
 
 void byteaToBinary(uint8_t* array, int length, char* buffer, int* offset, int p2p){
