@@ -785,7 +785,7 @@ void initializeQueue()
     hwloc_bitmap_free(cpuset);
     hwloc_topology_destroy(topology);
 #else
-    //pthread_create(&MONITOR_THREAD, NULL, SQLMonitorFunc, NULL);
+    pthread_create(&MONITOR_THREAD, NULL, SQLMonitorFunc, NULL);
 #endif
     
     //gettimeofday(&init_sql_finished, NULL);
