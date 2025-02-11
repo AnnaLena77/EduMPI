@@ -360,12 +360,12 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         double time_diff = timespec_diff(item->start, item->end);
         doubleToBinary(time_diff, buffer, &offset);
         
-        if(item->comm != MPI_COMM_WORLD){
+        if(item->communicator != MPI_COMM_WORLD){
             ompi_group_t *world_group, *sub_group;
             int world_rank;
 
             MPI_Comm_group(MPI_COMM_WORLD, &world_group);
-            MPI_Comm_group(item->comm, &sub_group); // Für den Sub-Communicator, oder hole ihn anders
+            MPI_Comm_group(item->communicator, &sub_group); // Für den Sub-Communicator, oder hole ihn anders
             
             if(!strcmp(item->communicationType, "p2p")){
                 ompi_group_translate_ranks(sub_group, 1, &item->partnerrank, world_group, &world_rank);
