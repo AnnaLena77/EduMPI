@@ -275,7 +275,18 @@ int mca_pml_ob1_isend(const void *buf,
                 }
             } else if(!strcmp(item->communicationType, "collective")){
                 if(!strcmp(item->communicationArea, "MPI_COMM_WORLD")){
-                    printf("Rank: %d \n", dst);
+                    ompi_group_t *world_group, *sub_group;
+                    int world_rank;
+
+                    // Hole die Gruppen des MPI_COMM_WORLD und des Sub-Communicators
+                    MPI_Comm_group(MPI_COMM_WORLD, &world_group);
+                    sub_group = comm->c_local_group; // Für den Sub-Communicator, oder hole ihn anders
+
+                    // Übersetze den Rank im Sub-Communicator zu einem globalen Rank
+                    ompi_group_translate_ranks(sub_group, 1, &dst, world_group, &world_rank);
+
+                    // Ausgabe des globalen Ranks
+                    printf("Globaler Rank in MPI_COMM_WORLD: %d -> %d\n", dst, world_rank);
                 }
                 item->coll_partnerranks[dst / 8] |= (1 << (dst % 8));
             }
