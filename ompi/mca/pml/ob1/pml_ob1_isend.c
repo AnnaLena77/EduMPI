@@ -275,6 +275,7 @@ int mca_pml_ob1_isend(const void *buf,
                 }
             } else if(!strcmp(item->communicationType, "collective")){
                 if(!strcmp(item->communicationArea, "MPI_COMM_WORLD")){
+                    printf("%s\n", item->function);
                     ompi_group_t *world_group, *sub_group;
                     int world_rank;
 
