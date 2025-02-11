@@ -120,7 +120,7 @@ void timestampToBinary(struct timespec time, char* buffer, int* offset, int roun
     }
 
     *offset += 8;
-
+}
 
 
 void byteaToBinary(uint8_t* array, int length, char* buffer, int* offset, int p2p){
