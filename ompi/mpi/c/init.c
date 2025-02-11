@@ -193,9 +193,11 @@ void initQentry(qentry **q, int dest, char *function, int function_len, int send
         }
         else if(comm == MPI_COMM_WORLD){
             memcpy(item->communicationArea, "MPI_COMM_WORLD", 14);
+            item->communicator = comm;
         } else {
             int comm_name_length;
             MPI_Comm_get_name(comm, item->communicationArea, &comm_name_length);
+            item->communicator = comm;
         }
         memcpy(item->processorname, proc_name, proc_name_length);
         item->processrank = processrank;
@@ -357,6 +359,44 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         
         double time_diff = timespec_diff(item->start, item->end);
         doubleToBinary(time_diff, buffer, &offset);
+        
+        if(item->comm != MPI_COMM_WORLD){
+            ompi_group_t *world_group, *sub_group;
+            int world_rank;
+
+            MPI_Comm_group(MPI_COMM_WORLD, &world_group);
+            MPI_Comm_group(item->comm, &sub_group); // Für den Sub-Communicator, oder hole ihn anders
+            
+            if(!strcmp(item->communicationType, "p2p")){
+                ompi_group_translate_ranks(sub_group, 1, &item->partnerrank, world_group, &world_rank);
+            } else {
+                int sub_size;
+                MPI_Comm_size(sub_group, &sub_size);
+                int sub_ranks[sub_size];
+                int world_ranks[sub_size];
+                int count = 0;
+
+                // Übersetze direkt aus der Bitmaske
+                for (int i = 0; i < sub_size; i++) {
+                    if (item->coll_partnerranks[i / 8] & (1 << (i % 8))) {
+                        sub_ranks[count] = i;
+                        count++;
+                    }
+                }
+                if(count > 0) {
+                    MPI_Group_translate_ranks(sub_group, count, &sub_ranks, world_group, &world_ranks);
+                    for(int j = 0; j<count; j++){
+                        if (world_ranks[j] != MPI_UNDEFINED) { 
+                        item->coll_partnerranks[world_ranks[j] / 8] |= (1 << (world_ranks[j] % 8));
+                        }
+                    }
+                }
+            }
+
+            MPI_Group_free(&sub_group);
+            MPI_Group_free(&world_group);
+            
+        }
         
         byteaToBinary(item->coll_partnerranks, 400, buffer, &offset, strcmp(item->communicationType, "collective"));
         

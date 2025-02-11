@@ -25,6 +25,7 @@ typedef struct qentry {
     int recvDatasize;
     char operation[30]; //MPI_Reduce, MPI_Accumulate
     char communicationArea[64];
+    MPI_COMM communicator;
     char processorname[30];
     int processrank;
     int partnerrank;
