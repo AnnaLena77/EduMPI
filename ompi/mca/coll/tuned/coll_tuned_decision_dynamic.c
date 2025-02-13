@@ -84,6 +84,16 @@ ompi_coll_tuned_allreduce_intra_dec_dynamic (const void *sbuf, void *rbuf, int c
                                                        tuned_module->user_forced[ALLREDUCE].tree_fanout,
                                                        tuned_module->user_forced[ALLREDUCE].segsize);
 #else
+        if(item!=NULL){
+            int algo = tuned_module->user_forced[ALLREDUCE].algorithm;
+            if(algo == 1) memcpy(item->usedAlgorithm, "basic_linear", 12);
+            else if(algo == 2) memcpy(item->usedAlgorithm, "nonoverlapping", 14);
+            else if(algo == 3) memcpy(item->usedAlgorithm, "recursive_doubling", 18);
+            else if(algo == 4) memcpy(item->usedAlgorithm, "ring", 4);
+            else if(algo == 5) memcpy(item->usedAlgorithm, "segmented_ring", 14);
+            else if(algo == 6) memcpy(item->usedAlgorithm, "rabenseifner", 12);
+            else if(algo == 7) memcpy(item->usedAlgorithm, "allgather_reduce", 16);
+        }
         return ompi_coll_tuned_allreduce_intra_do_this(sbuf, rbuf, count, dtype, op, comm, module,
                                                        tuned_module->user_forced[ALLREDUCE].algorithm,
                                                        tuned_module->user_forced[ALLREDUCE].tree_fanout,
@@ -110,6 +120,16 @@ ompi_coll_tuned_allreduce_intra_dec_dynamic (const void *sbuf, void *rbuf, int c
                                                             comm, module,
                                                             alg, faninout, segsize);
 #else
+            if(item!=NULL){
+                int algo = alg;
+                if(algo == 1) memcpy(item->usedAlgorithm, "basic_linear", 12);
+                else if(algo == 2) memcpy(item->usedAlgorithm, "nonoverlapping", 14);
+                else if(algo == 3) memcpy(item->usedAlgorithm, "recursive_doubling", 18);
+                else if(algo == 4) memcpy(item->usedAlgorithm, "ring", 4);
+                else if(algo == 5) memcpy(item->usedAlgorithm, "segmented_ring", 14);
+                else if(algo == 6) memcpy(item->usedAlgorithm, "rabenseifner", 12);
+                else if(algo == 7) memcpy(item->usedAlgorithm, "allgather_reduce", 16);
+            }
             return ompi_coll_tuned_allreduce_intra_do_this (sbuf, rbuf, count, dtype, op,
                                                             comm, module,
                                                             alg, faninout, segsize, &item);
@@ -409,6 +429,18 @@ int ompi_coll_tuned_bcast_intra_dec_dynamic(void *buf, int count,
                                                    tuned_module->user_forced[BCAST].chain_fanout,
                                                    tuned_module->user_forced[BCAST].segsize);
 #else
+        if(item!=NULL){
+            int algo = tuned_module->user_forced[BCAST].algorithm;
+            if(algo == 1) memcpy(item->usedAlgorithm, "basic_linear", 12);
+            else if(algo == 2) memcpy(item->usedAlgorithm, "chain", 5);
+            else if(algo == 3) memcpy(item->usedAlgorithm, "pipeline", 8);
+            else if(algo == 4) memcpy(item->usedAlgorithm, "split_binary_tree", 17);
+            else if(algo == 5) memcpy(item->usedAlgorithm, "binary_tree", 11);
+            else if(algo == 6) memcpy(item->usedAlgorithm, "binomial", 8);
+            else if(algo == 7) memcpy(item->usedAlgorithm, "knomial", 7);
+            else if(algo == 8) memcpy(item->usedAlgorithm, "scatter_allgather", 17);
+            else if(algo == 9) memcpy(item->usedAlgorithm, "scatter_allgather_ring", 22);
+        }
         return ompi_coll_tuned_bcast_intra_do_this(buf, count, dtype,
                                                    root, comm, module,
                                                    tuned_module->user_forced[BCAST].algorithm,
@@ -436,6 +468,18 @@ int ompi_coll_tuned_bcast_intra_dec_dynamic(void *buf, int count,
                                                         comm, module,
                                                         alg, faninout, segsize);
 #else
+            if(item!=NULL){
+                int algo = alg;
+                if(algo == 1) memcpy(item->usedAlgorithm, "basic_linear", 12);
+                else if(algo == 2) memcpy(item->usedAlgorithm, "chain", 5);
+                else if(algo == 3) memcpy(item->usedAlgorithm, "pipeline", 8);
+                else if(algo == 4) memcpy(item->usedAlgorithm, "split_binary_tree", 17);
+                else if(algo == 5) memcpy(item->usedAlgorithm, "binary_tree", 11);
+                else if(algo == 6) memcpy(item->usedAlgorithm, "binomial", 8);
+                else if(algo == 7) memcpy(item->usedAlgorithm, "knomial", 7);
+                else if(algo == 8) memcpy(item->usedAlgorithm, "scatter_allgather", 17);
+                else if(algo == 9) memcpy(item->usedAlgorithm, "scatter_allgather_ring", 22);
+            }
             return ompi_coll_tuned_bcast_intra_do_this (buf, count, dtype, root,
                                                         comm, module,
                                                         alg, faninout, segsize, &item);
