@@ -345,7 +345,7 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         
         intToBinary(item->processrank, buffer, &offset);
         
-        if(item->communicator != MPI_COMM_WORLD && !strcmp(item->communicationType, "p2p"){
+        if(item->communicator != MPI_COMM_WORLD && !strcmp(item->communicationType, "p2p")){
             ompi_group_t *world_group, *sub_group;
             int world_rank;
             
