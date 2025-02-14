@@ -349,7 +349,7 @@ void qentryToBinary(qentry q, char *buffer, int *off){
             ompi_group_t *world_group, *sub_group;
             int world_rank;
             
-            if(item->commuicator != NULL){
+            if(item->communicator != NULL){
                 MPI_Comm_group(MPI_COMM_WORLD, &world_group);
                 MPI_Comm_group(item->communicator, &sub_group); // Für den Sub-Communicator, oder hole ihn anders
             }
