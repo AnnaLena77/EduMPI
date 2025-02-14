@@ -345,6 +345,16 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         
         intToBinary(item->processrank, buffer, &offset);
         
+        if(item->communicator != MPI_COMM_WORLD && !strcmp(item->communicationType, "p2p"){
+            ompi_group_t *world_group, *sub_group;
+            int world_rank;
+            
+            if(item->commuicator != NULL){
+                MPI_Comm_group(MPI_COMM_WORLD, &world_group);
+                MPI_Comm_group(item->communicator, &sub_group); // Für den Sub-Communicator, oder hole ihn anders
+            }
+            
+        }
         intToBinary(item->partnerrank, buffer, &offset);
         
         stringToBinary(item->usedAlgorithm, buffer, &offset);
