@@ -368,7 +368,7 @@ void qentryToBinary(qentry q, char *buffer, int *off){
             MPI_Comm_group(item->communicator, &sub_group); // Für den Sub-Communicator, oder hole ihn anders
             
             if(!strcmp(item->communicationType, "p2p")){
-                ompi_group_translate_ranks(sub_group, 1, item->partnerrank, world_group, &world_rank);
+                //ompi_group_translate_ranks(sub_group, 1, &item->partnerrank, world_group, &world_rank);
             } else {
                 int sub_size;
                 MPI_Group_size(sub_group, &sub_size);
