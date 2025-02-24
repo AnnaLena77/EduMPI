@@ -243,6 +243,14 @@ int mca_pml_ob1_isend(const void *buf,
                       ompi_request_t ** request, qentry ** q)
 {
 #endif
+    
+    mca_pml_ob1_comm_proc_t *ob1_proc = mca_pml_ob1_peer_lookup (comm, dst);
+    mca_pml_ob1_send_request_t *sendreq = NULL;
+    ompi_proc_t *dst_proc = ob1_proc->ompi_proc;
+    mca_bml_base_endpoint_t* endpoint = mca_bml_base_get_endpoint (dst_proc);
+    int16_t seqn = 0;
+    int rc;
+    
 #ifdef ENABLE_ANALYSIS
     //printf("Funktion: Ob1_isend\n");
     qentry *item;
@@ -285,12 +293,6 @@ int mca_pml_ob1_isend(const void *buf,
         item = NULL;
     }
 #endif
-    mca_pml_ob1_comm_proc_t *ob1_proc = mca_pml_ob1_peer_lookup (comm, dst);
-    mca_pml_ob1_send_request_t *sendreq = NULL;
-    ompi_proc_t *dst_proc = ob1_proc->ompi_proc;
-    mca_bml_base_endpoint_t* endpoint = mca_bml_base_get_endpoint (dst_proc);
-    int16_t seqn = 0;
-    int rc;
 
     if (OPAL_UNLIKELY(NULL == endpoint)) {
 #if OPAL_ENABLE_FT_MPI
