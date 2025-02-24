@@ -274,7 +274,10 @@ int mca_pml_ob1_isend(const void *buf,
                     strcpy(item->sendmode, "STANDARD");
                 }
             } else if(!strcmp(item->communicationType, "collective")){
-                item->coll_partnerranks[dst / 8] |= (1 << (dst % 8));
+                opal_proc_t *dst_opal_proc = &dst_proc->super;
+                opal_vpid_t dst_vpid = dst_opal_proc->proc_name.vpid;
+                //printf("Rank %d sends to Rank %" PRIu32 "\n", item->processrank, dst_vpid);
+                item->coll_partnerranks[dst_vpid / 8] |= (1 << (dst_vpid % 8));
             }
         }else item = NULL;
     }
@@ -509,7 +512,7 @@ int mca_pml_ob1_send(const void *buf,
             else if(!strcmp(item->communicationType, "collective")){
                 opal_proc_t *dst_opal_proc = &dst_proc->super;
                 opal_vpid_t dst_vpid = dst_opal_proc->proc_name.vpid;
-                printf("Rank %d sends to Rank %" PRIu32 "\n", item->processrank, dst_vpid);
+                //printf("Rank %d sends to Rank %" PRIu32 "\n", item->processrank, dst_vpid);
                 item->coll_partnerranks[dst_vpid / 8] |= (1 << (dst_vpid % 8));
             }
         }
