@@ -264,7 +264,7 @@ int mca_coll_han_bcast_t0_task(void *task_args)
         }
 
         MPI_Group_free(&sub_group);
-        MPI_Group_free(&world_group)     
+        MPI_Group_free(&world_group);     
     }
     return OMPI_SUCCESS;
 }
@@ -369,7 +369,7 @@ int mca_coll_han_bcast_t1_task(void *task_args)
         }
 
         MPI_Group_free(&sub_group);
-        MPI_Group_free(&world_group)     
+        MPI_Group_free(&world_group);
     }
 #endif
     
