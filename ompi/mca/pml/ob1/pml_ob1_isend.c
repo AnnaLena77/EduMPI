@@ -442,8 +442,7 @@ int mca_pml_ob1_send(const void *buf,
     ompi_proc_t *dst_proc = ob1_proc->ompi_proc;
     
 #ifdef ENABLE_ANALYSIS
-    opal_proc_t *dst_opal_proc = dst_proc.super;
-    opal_proc_t_name *dst_name = dst_opal_proc->opal_process_name_t;
+    opal_vpid_t dst_vpid = dst_proc->proc_name.vpid;
     opal_vpid_t *dst_vpid = dst_name->vpid;
     
     printf("Globaler Rank (vpid) in MPI_COMM_WORLD: %ls\n", dst_vpid);
