@@ -446,7 +446,7 @@ int mca_pml_ob1_send(const void *buf,
     //opal_proc_t_name *dst_name = dst_opal_proc->opal_process_name_t;
     opal_vpid_t dst_vpid = dst_opal_proc->proc_name.vpid;
     
-    printf("Globaler Rank (vpid) in MPI_COMM_WORLD: %ls\n", dst_vpid);
+   // printf("Globaler Rank (vpid) in MPI_COMM_WORLD: %ls\n", dst_vpid);
 #endif
     
     mca_bml_base_endpoint_t* endpoint = mca_bml_base_get_endpoint (dst_proc);
