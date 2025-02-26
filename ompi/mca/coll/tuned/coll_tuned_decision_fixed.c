@@ -763,7 +763,7 @@ int ompi_coll_tuned_bcast_intra_dec_fixed(void *buff, int count,
         }
     }
 #ifdef ENABLE_ANALYSIS
-   if(item!=NULL){
+   if(item!=NULL && item->usedAlgorithm[0] == '\0'){
         if(alg == 1) memcpy(item->usedAlgorithm, "basic_linear", 12);
         else if(alg == 2) memcpy(item->usedAlgorithm, "chain", 5);
         else if(alg == 3) memcpy(item->usedAlgorithm, "pipeline", 8);
