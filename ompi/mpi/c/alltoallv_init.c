@@ -126,9 +126,15 @@ int MPI_Alltoallv_init(const void *sendbuf, const int sendcounts[], const int sd
     }
 
     /* Invoke the coll component to perform the back-end operation */
+#ifdef ENABLE_ANALYSIS
     err = comm->c_coll->coll_alltoallv_init(sendbuf, sendcounts, sdispls,
                                             sendtype, recvbuf, recvcounts, rdispls,
-                                            recvtype, comm, info, request, comm->c_coll->coll_alltoallv_init_module);
+                                            recvtype, comm, info, request, comm->c_coll->coll_alltoallv_init_module, NULL);
+#else
+    err = comm->c_coll->coll_alltoallv_init(sendbuf, sendcounts, sdispls,
+                                            sendtype, recvbuf, recvcounts, rdispls,
+                                            recvtype, comm, info, request, comm->c_coll->coll_alltoallv_init_module);   
+#endif
     if (OPAL_LIKELY(OMPI_SUCCESS == err)) {
         ompi_coll_base_retain_datatypes(*request, (MPI_IN_PLACE==sendbuf)?NULL:sendtype, recvtype);
     }
