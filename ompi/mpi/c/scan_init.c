@@ -96,10 +96,17 @@ int MPI_Scan_init(const void *sendbuf, void *recvbuf, int count,
 
     /* Call the coll component to actually perform the allgather */
 
+#ifndef ENABLE_ANALYSIS
     err = comm->c_coll->coll_scan_init(sendbuf, recvbuf, count,
                                        datatype, op, comm,
                                        info, request,
                                        comm->c_coll->coll_scan_init_module);
+#else
+    err = comm->c_coll->coll_scan_init(sendbuf, recvbuf, count,
+                                       datatype, op, comm,
+                                       info, request,
+                                       comm->c_coll->coll_scan_init_module, NULL);
+#endif
     if (OPAL_LIKELY(OMPI_SUCCESS == err)) {
         ompi_coll_base_retain_op(*request, op, datatype);
     }
