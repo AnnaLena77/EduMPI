@@ -1,4 +1,4 @@
-# EduMPI – Open MPI Fork for Near-Real-Time MPI Performance Monitoring
+# EduMPI – Open MPI Fork for automatic near-real-time MPI Performance measurement
 
 **EduMPI** is a fork of [Open MPI](https://www.open-mpi.org/) designed for **education** and **parallel performance analysis**.  
 It enables near-real-time monitoring of MPI programs by combining efficient **in-process logging**, a **ring buffer**, and **binary data insertion into PostgreSQL/TimescaleDB**.  
