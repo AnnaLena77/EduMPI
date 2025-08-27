@@ -57,8 +57,11 @@ int MPI_Barrier_init(MPI_Comm comm, MPI_Info info, MPI_Request *request)
             return OMPI_ERRHANDLER_NOHANDLE_INVOKE(MPI_ERR_COMM, FUNC_NAME);
         }
     }
-
+#ifndef ENABLE_ANALYSIS
     err = comm->c_coll->coll_barrier_init(comm, info, request, comm->c_coll->coll_barrier_init_module);
+#else
+    err = comm->c_coll->coll_barrier_init(comm, info, request, comm->c_coll->coll_barrier_init_module, NULL);
+#endif
 
     /* All done */
 
