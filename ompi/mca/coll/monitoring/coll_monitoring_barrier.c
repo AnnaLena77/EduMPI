@@ -15,7 +15,11 @@
 #include "coll_monitoring.h"
 
 int mca_coll_monitoring_barrier(struct ompi_communicator_t *comm,
-                                mca_coll_base_module_t *module)
+                                mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+				     , qentry **q
+#endif
+                                )
 {
     mca_coll_monitoring_module_t*monitoring_module = (mca_coll_monitoring_module_t*) module;
     int i, rank;
@@ -41,7 +45,11 @@ int mca_coll_monitoring_barrier(struct ompi_communicator_t *comm,
 
 int mca_coll_monitoring_ibarrier(struct ompi_communicator_t *comm,
                                  ompi_request_t ** request,
-                                 mca_coll_base_module_t *module)
+                                 mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+				     , qentry **q
+#endif
+                                 )
 {
     mca_coll_monitoring_module_t*monitoring_module = (mca_coll_monitoring_module_t*) module;
     int i, rank;

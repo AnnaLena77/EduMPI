@@ -194,7 +194,7 @@ int MPI_Scatterv_init(const void *sendbuf, const int sendcounts[], const int dis
     /* Invoke the coll component to perform the back-end operation */
     err = comm->c_coll->coll_scatterv_init(sendbuf, sendcounts, displs,
                                            sendtype, recvbuf, recvcount, recvtype, root, comm,
-                                           info, request, comm->c_coll->coll_scatterv_init_module);
+                                           info, request, comm->c_coll->coll_scatterv_init_module, NULL);
     if (OPAL_LIKELY(OMPI_SUCCESS == err)) {
         if (OMPI_COMM_IS_INTRA(comm)) {
             if (MPI_IN_PLACE == recvbuf) {

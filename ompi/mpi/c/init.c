@@ -66,10 +66,10 @@ static struct timeval start;
 static struct timeval init_sql_finished;
 static struct timeval init_sql_start;
 
-static ID=0;
+static int ID=0;
 static char *job_id;
 static struct timespec start_runtime;
-static count_q_entry = 0;
+static int count_q_entry = 0;
 static int queue_lock;
 static TAILQ_HEAD(tailhead, qentry) head;
 static int queue_length=0;
@@ -254,7 +254,7 @@ qentry* dequeue(){
 }
 
 //Needs to be global!
-pthread_t MONITOR_THREAD = NULL;
+pthread_t MONITOR_THREAD = 0;
 int run_thread;
 int counter;
 
@@ -380,7 +380,7 @@ static void* SQLMonitorFunc(void* _arg){
     
     if (db_host == NULL || db_port == NULL || db_name == NULL || db_user == NULL || db_pw == NULL) {
         fprintf(stderr, "One or more environment variables are not set\n");
-        return 1;
+        return NULL;
     }
     
     int conninfo_size=(36 + strlen(db_host) + strlen(db_port) + strlen(db_name) + strlen(db_user) + strlen(db_pw));
@@ -415,7 +415,7 @@ static void* SQLMonitorFunc(void* _arg){
        while(!check_job_id){
            const char *query = "SELECT edumpi_run_id FROM edumpi_runs WHERE edumpi_run_id = $1";
 	  const char *paramValues[1] = {job_id};
-           PGresult *res = PQexecParams(conn, query, 1, NULL, paramValues, strlen(job_id), NULL, 0);
+           PGresult *res = PQexecParams(conn, query, 1, NULL, paramValues, (const int*)strlen(job_id), NULL, 0);
            check_job_id = (PQntuples(res));
   
        }
@@ -426,7 +426,7 @@ static void* SQLMonitorFunc(void* _arg){
        sprintf(proc_rank, "%d", processrank);
        const char *query = "INSERT INTO edumpi_cluster_info (edumpi_run_id, processorname, processrank) VALUES ($1, $2, $3)";
        const char *paramValues[3] = {job_id ,proc_name, proc_rank};
-       PGresult *res_ = PQexecParams(conn, query, 3, NULL, paramValues, strlen(job_id)+strlen(proc_name)+strlen(proc_rank), NULL, 0);
+       PGresult *res_ = PQexecParams(conn, query, 3, NULL, paramValues, (const int*)strlen(job_id)+strlen(proc_name)+strlen(proc_rank), NULL, 0);
        
     
     clock_t start = clock();
@@ -482,8 +482,8 @@ static void* SQLMonitorFunc(void* _arg){
             
         clock_t current = clock();
         if(current>=(start + TIME_TO_WAIT * CLOCKS_PER_SEC)){
-        res = PQputCopyEnd(conn, NULL);
-            if(res != -1){
+        int resi = PQputCopyEnd(conn, NULL);
+            if(resi != -1){
                 PQflush(conn);
                 res = PQexec(conn, copyQuery);
             }

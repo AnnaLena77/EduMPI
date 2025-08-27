@@ -99,7 +99,7 @@ int MPI_Alltoall_init(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
     /* Invoke the coll component to perform the back-end operation */
     err = comm->c_coll->coll_alltoall_init(sendbuf, sendcount, sendtype,
                                            recvbuf, recvcount, recvtype, comm, info,
-                                           request, comm->c_coll->coll_alltoall_init_module);
+                                           request, comm->c_coll->coll_alltoall_init_module, NULL);
     if (OPAL_LIKELY(OMPI_SUCCESS == err)) {
         ompi_coll_base_retain_datatypes(*request, (MPI_IN_PLACE==sendbuf)?NULL:sendtype, recvtype);
     }

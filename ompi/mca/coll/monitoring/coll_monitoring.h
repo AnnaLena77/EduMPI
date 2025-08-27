@@ -117,7 +117,11 @@ extern int mca_coll_monitoring_alltoallw(const void *sbuf, const int *scounts,
                                          );
 
 extern int mca_coll_monitoring_barrier(struct ompi_communicator_t *comm,
-                                       mca_coll_base_module_t *module);
+                                       mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+				     , qentry **q
+#endif
+);
 
 extern int mca_coll_monitoring_bcast(void *buff, int count,
                                      struct ompi_datatype_t *datatype,
@@ -307,7 +311,11 @@ extern int mca_coll_monitoring_ialltoallw(const void *sbuf, const int *scounts,
 
 extern int mca_coll_monitoring_ibarrier(struct ompi_communicator_t *comm,
                                         ompi_request_t ** request,
-                                        mca_coll_base_module_t *module);
+                                        mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+				     , qentry **q
+#endif
+                                        );
 
 extern int mca_coll_monitoring_ibcast(void *buff, int count,
                                       struct ompi_datatype_t *datatype,

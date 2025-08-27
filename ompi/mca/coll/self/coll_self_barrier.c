@@ -30,7 +30,11 @@
  *	Returns:	- MPI_SUCCESS
  */
 int mca_coll_self_barrier_intra(struct ompi_communicator_t *comm,
-                                mca_coll_base_module_t *module)
+                                mca_coll_base_module_t *module
+#ifdef ENABLE_ANALYSIS
+                                , qentry **q
+#endif
+)
 {
     /* Since there is only one process, this is a no-op */
 
