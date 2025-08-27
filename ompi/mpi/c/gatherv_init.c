@@ -193,10 +193,17 @@ int MPI_Gatherv_init(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
     }
 
     /* Invoke the coll component to perform the back-end operation */
+#ifndef ENABLE_ANALYSIS
     err = comm->c_coll->coll_gatherv_init(sendbuf, sendcount, sendtype, recvbuf,
                                           recvcounts, displs, recvtype,
                                           root, comm, info, request,
                                           comm->c_coll->coll_gatherv_init_module);
+#else
+    err = comm->c_coll->coll_gatherv_init(sendbuf, sendcount, sendtype, recvbuf,
+                                          recvcounts, displs, recvtype,
+                                          root, comm, info, request,
+                                          comm->c_coll->coll_gatherv_init_module, NULL);
+#endif
     if (OPAL_LIKELY(OMPI_SUCCESS == err)) {
         if (OMPI_COMM_IS_INTRA(comm)) {
             if (MPI_IN_PLACE == sendbuf) {

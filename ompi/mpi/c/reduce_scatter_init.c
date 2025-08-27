@@ -132,10 +132,15 @@ int MPI_Reduce_scatter_init(const void *sendbuf, void *recvbuf, const int recvco
     }
 
     /* Invoke the coll component to perform the back-end operation */
-
+#ifndef ENABLE_ANALYSIS
     err = comm->c_coll->coll_reduce_scatter_init(sendbuf, recvbuf, recvcounts,
                                                  datatype, op, comm, info, request,
                                                  comm->c_coll->coll_reduce_scatter_init_module);
+#else
+    err = comm->c_coll->coll_reduce_scatter_init(sendbuf, recvbuf, recvcounts,
+                                                 datatype, op, comm, info, request,
+                                                 comm->c_coll->coll_reduce_scatter_init_module, NULL);
+#endif
     if (OPAL_LIKELY(OMPI_SUCCESS == err)) {
         ompi_coll_base_retain_op(*request, op, datatype);
     }
