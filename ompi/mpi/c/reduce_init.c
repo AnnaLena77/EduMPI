@@ -137,9 +137,15 @@ int MPI_Reduce_init(const void *sendbuf, void *recvbuf, int count,
     }
 
     /* Invoke the coll component to perform the back-end operation */
+#ifndef ENABLE_ANALYSIS
     err = comm->c_coll->coll_reduce_init(sendbuf, recvbuf, count,
                                          datatype, op, root, comm, info, request,
                                          comm->c_coll->coll_reduce_init_module);
+#else
+    err = comm->c_coll->coll_reduce_init(sendbuf, recvbuf, count,
+                                         datatype, op, root, comm, info, request,
+                                         comm->c_coll->coll_reduce_init_module, NULL);
+#endif
     if (OPAL_LIKELY(OMPI_SUCCESS == err)) {
         ompi_coll_base_retain_op(*request, op, datatype);
     }
