@@ -81,10 +81,15 @@ int MPI_Bcast_init(void *buffer, int count, MPI_Datatype datatype,
     }
 
     /* Invoke the coll component to perform the back-end operation */
-
+#ifndef ENABLE_ANALYSIS
     err = comm->c_coll->coll_bcast_init(buffer, count, datatype, root, comm,
                                         info, request,
                                         comm->c_coll->coll_bcast_init_module);
+#else
+    err = comm->c_coll->coll_bcast_init(buffer, count, datatype, root, comm,
+                                        info, request,
+                                        comm->c_coll->coll_bcast_init_module, NULL);
+#endif
     if (OPAL_LIKELY(OMPI_SUCCESS == err)) {
         if (!OMPI_COMM_IS_INTRA(comm)) {
             if (MPI_PROC_NULL == root) {
