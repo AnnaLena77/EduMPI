@@ -143,7 +143,7 @@ int MPI_Neighbor_alltoallw_init(const void *sendbuf, const int sendcounts[], con
     }
 
     /* Invoke the coll component to perform the back-end operation */
-#ifdef ENABLE_ANALYSIS
+#ifndef ENABLE_ANALYSIS
     err = comm->c_coll->coll_neighbor_alltoallw_init(sendbuf, sendcounts, sdispls, sendtypes,
                                                      recvbuf, recvcounts, rdispls, recvtypes, comm,
                                                      info, request,
