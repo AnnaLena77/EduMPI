@@ -126,12 +126,12 @@ int MPI_Allgatherv_init(const void *sendbuf, int sendcount, MPI_Datatype sendtyp
     err = comm->c_coll->coll_allgatherv_init(sendbuf, sendcount, sendtype,
                                              recvbuf, recvcounts, displs,
                                              recvtype, comm, info, request,
-                                             comm->c_coll->coll_allgatherv_init_module);
+                                             comm->c_coll->coll_allgatherv_init_module, NULL);
 #else
     err = comm->c_coll->coll_allgatherv_init(sendbuf, sendcount, sendtype,
                                              recvbuf, recvcounts, displs,
                                              recvtype, comm, info, request,
-                                             comm->c_coll->coll_allgatherv_init_module, NULL);
+                                             comm->c_coll->coll_allgatherv_init_module);
 #endif
     if (OPAL_LIKELY(OMPI_SUCCESS == err)) {
         ompi_coll_base_retain_datatypes(*request, (MPI_IN_PLACE==sendbuf)?NULL:sendtype, recvtype);
