@@ -8,6 +8,7 @@
  *                         reserved.
  * Copyright (c) 2022      Google, LLC. All rights reserved.
  * Copyright (c) 2022      IBM Corporation.  All rights reserved.
+ * Copyright (c) 2023      NVIDIA Corporation.  All rights reserved.
  *
  * $COPYRIGHT$
  *
@@ -25,6 +26,8 @@
 #include "opal/memoryhooks/memory.h"
 #include "opal/util/argv.h"
 #include "opal/util/printf.h"
+
+#include "mpi.h"
 
 #include <fnmatch.h>
 #include <stdio.h>
@@ -47,6 +50,23 @@ static opal_mutex_t opal_common_ucx_mutex = OPAL_MUTEX_STATIC_INIT;
 static void opal_common_ucx_mem_release_cb(void *buf, size_t length, void *cbdata, bool from_alloc)
 {
     ucm_vm_munmap(buf, length);
+}
+
+ucs_thread_mode_t opal_common_ucx_thread_mode(int ompi_mode)
+{
+    switch (ompi_mode) {
+    case MPI_THREAD_MULTIPLE:
+        return UCS_THREAD_MODE_MULTI;
+    case MPI_THREAD_SERIALIZED:
+        return UCS_THREAD_MODE_SERIALIZED;
+    case MPI_THREAD_FUNNELED:
+    case MPI_THREAD_SINGLE:
+        return UCS_THREAD_MODE_SINGLE;
+    default:
+        MCA_COMMON_UCX_WARN("Unknown MPI thread mode %d, using multithread",
+                            ompi_mode);
+        return UCS_THREAD_MODE_MULTI;
+    }
 }
 
 OPAL_DECLSPEC void opal_common_ucx_mca_var_register(const mca_base_component_t *component)
@@ -183,8 +203,8 @@ OPAL_DECLSPEC void opal_common_ucx_mca_deregister(void)
 #if HAVE_DECL_OPEN_MEMSTREAM
 static bool opal_common_ucx_check_device(const char *device_name, char **device_list)
 {
-    char sysfs_driver_link[PATH_MAX];
-    char driver_path[PATH_MAX];
+    char sysfs_driver_link[OPAL_PATH_MAX];
+    char driver_path[OPAL_PATH_MAX];
     char ib_device_name[NAME_MAX];
     char *driver_name;
     char **list_item;

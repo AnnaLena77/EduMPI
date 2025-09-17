@@ -5,7 +5,7 @@
 # Copyright (c) 2013      Mellanox Technologies, Inc.
 #                         All rights reserved.
 # Copyright (c) 2013-2020 Intel, Inc.  All rights reserved.
-# Copyright (c) 2015-2021 Research Organization for Information Science
+# Copyright (c) 2015-2024 Research Organization for Information Science
 #                         and Technology (RIST).  All rights reserved.
 # Copyright (c) 2015-2022 IBM Corporation.  All rights reserved.
 # Copyright (c) 2020      Amazon.com, Inc. or its affiliates.
@@ -71,7 +71,7 @@ my $ompi_automake_search = "automake";
 my $ompi_libtoolize_search = "libtoolize;glibtoolize";
 
 # version of packages we ship as tarballs
-my $libevent_version="2.1.12-stable";
+my $libevent_version="2.1.12-stable-ompi";
 my $hwloc_version="2.7.1";
 
 # One-time setup
@@ -867,6 +867,10 @@ sub patch_autotools_output {
         verbose "$indent_str"."Patching \"-pthread\" option for NAG compiler in ltmain.sh\n";
         system("$patch_prog -N -p0 < $topdir/config/ltmain_nag_pthread.diff >/dev/null 2>&1");
         unlink("config/ltmain.sh.rej");
+
+        verbose "$indent_str"."Patching \"-framework\" option for flang compiler in ltmain.sh\n";
+        system("$patch_prog -N -p0 < $topdir/config/ltmain_flang_darwin.diff >/dev/null 2>&1");
+        unlink("config/ltmain.sh.rej");
     }
 
     # If there's no configure script, there's nothing else to do.
@@ -891,9 +895,9 @@ sub patch_autotools_output {
     # source tree); we can't fix it.  So all we can do is patch the
     # resulting configure script.  :-(
     push(@verbose_out, $indent_str . "Patching configure for Libtool PGI 10 fortran compiler name\n");
-    $c =~ s/gfortran g95 xlf95 f95 fort ifort ifc efc pgf95 lf95 ftn/gfortran g95 xlf95 f95 fort ifort ifc efc pgfortran pgf95 lf95 ftn/g;
-    $c =~ s/pgcc\* \| pgf77\* \| pgf90\* \| pgf95\*\)/pgcc* | pgf77* | pgf90* | pgf95* | pgfortran*)/g;
-    $c =~ s/pgf77\* \| pgf90\* \| pgf95\*\)/pgf77* | pgf90* | pgf95* | pgfortran*)/g;
+    $c =~ s/gfortran g95 xlf95 f95 fort ifort ifc efc pgf95 lf95 ftn/gfortran g95 xlf95 f95 fort ifort ifc efc pgfortran nvfortran pgf95 lf95 ftn/g;
+    $c =~ s/pgcc\* \| pgf77\* \| pgf90\* \| pgf95\*\)/pgcc* | pgf77* | pgf90* | pgf95* | pgfortran* | nvfortran*)/g;
+    $c =~ s/pgf77\* \| pgf90\* \| pgf95\*\)/pgf77* | pgf90* | pgf95* | pgfortran* | nvfortran*)/g;
 
     # Similar issue as above -- the PGI 10 version number broke <=LT
     # 2.2.6b's version number checking regexps.  Again, we can't fix the
@@ -923,7 +927,7 @@ sub patch_autotools_output {
                             '# ICC 10 doesn\047t accept -KPIC any more.\n.*\n\s+' .
 	                    "lt_prog_compiler_wl${tag}=";
         my $replace_string = "# Flang compiler
-      *flang)
+      *flang*)
 	lt_prog_compiler_wl${tag}='-Wl,'
 	lt_prog_compiler_pic${tag}='-fPIC -DPIC'
 	lt_prog_compiler_static${tag}='-static'
@@ -1053,8 +1057,14 @@ sub patch_autotools_output {
         lt_prog_compiler_static_FC=\'-Bstatic\'
         ;;';
     $replace_string = "case \$cc_basename in
+      flang*)
+        # flang compiler
+        lt_prog_compiler_wl_FC='-Wl,'
+        lt_prog_compiler_pic_FC='-fPIC'
+        lt_prog_compiler_static_FC='-static'
+        ;;
       icc* | ifort*)
-        #Intel Fortran compiler
+        # Intel Fortran compiler
         lt_prog_compiler_wl_FC='-Wl,'
         lt_prog_compiler_pic_FC='-fno-common -PIC'
         lt_prog_compiler_static_FC=''
@@ -1066,6 +1076,47 @@ sub patch_autotools_output {
         lt_prog_compiler_static_FC='-Bstatic'
         ;;";
     $c =~ s/$search_string/$replace_string/g;
+
+    $c =~ s/for ac_prog in gfortran f95 fort xlf95 ifort ifc efc pgfortran pgf95 lf95 f90 xlf90 pgf90 epcf90 nagfor/for ac_prog in gfortran f95 fort xlf95 ifort ifc efc pgfortran pgf95 lf95 f90 xlf90 pgf90 epcf90 nagfor nvfortran/g;
+    foreach my $tag (("", "_FC")) {
+        $search_string = 'tcc\*\)
+	# Fabrice Bellard et al\'s Tiny C Compiler
+	lt_prog_compiler_wl'."${tag}".'=\'-Wl,\'
+	lt_prog_compiler_pic'."${tag}".'=\'-fPIC\'
+	lt_prog_compiler_static'."${tag}".'=\'-static\'
+	;;';
+        $replace_string = "tcc*)
+        # Fabrice Bellard et al's Tiny C Compiler
+        lt_prog_compiler_wl${tag}='-Wl,'
+        lt_prog_compiler_pic${tag}='-fPIC'
+        lt_prog_compiler_static${tag}='-static'
+        ;;
+    nvc* | nvcc* | nvfortran*)
+	# NVIDIA Fortran compiler
+        lt_prog_compiler_wl${tag}='-Wl,'
+        lt_prog_compiler_pic${tag}='-fPIC'
+        lt_prog_compiler_static${tag}='-Bstatic'
+        ;;";
+        push(@verbose_out, $indent_str . "Patching configure for NVIDIA Fortran compiler (${tag})\n");
+        $c =~ s/$search_string/$replace_string/g;
+    }
+
+    $search_string = 'case \$cc_basename in
+     ifort\*\|nagfor\*\) _lt_dar_can_shared=yes ;;
+     \*\) _lt_dar_can_shared=\$GCC ;;
+  esac';
+    $replace_string = "case \$cc_basename in
+     flang*|ifort*|nagfor*) _lt_dar_can_shared=yes ;;
+     *) _lt_dar_can_shared=\$GCC ;;
+  esac";
+    push(@verbose_out, $indent_str . "Patching configure for flang compiler on Darwin (FC)\n");
+    $c =~ s/$search_string/$replace_string/g;
+
+    $search_string = 'archive_cmds_FC="\\\\\\$CC -dynamiclib';
+    $replace_string = 'archive_cmds_FC="\$CC --shared';
+    push(@verbose_out, $indent_str . "Patching configure for flang compiler on Darwin (FC)\n");
+    $c =~ s/$search_string/$replace_string/g;
+    $c =~ s/(archive_cmds_FC.*)-install_name \\\$rpath/$1-Wl,-install_name,\\\`echo \\\$rpath | sed \'s%^[ ]*%%\'\\\`/g;
 
     # Only write out verbose statements and a new configure if the
     # configure content actually changed
@@ -1379,26 +1430,39 @@ if (list_contains("openpmix", @disabled_3rdparty_packages)) {
 # Make sure we got a submodule-full clone.  If not, abort and let a
 # human figure it out.
 if (-f ".gitmodules") {
-    open(IN, "git submodule status|")
-        || die "Can't run \"git submodule status\"";
+    # Do a quick sanity check to ensure that non-3rd-party
+    # submodules are at least present (e.g., they won't be present
+    # if you downloaded a GitHub.com-created tarball).
+    open(IN, ".gitmodules") ||
+        die "Can't open .gitmodules";
     while (<IN>) {
-        $_ =~ m/^(.)[0-9a-f]{40}\s+(\S+)/;
-        my $status = $1;
-        my $path   = $2;
-
-        print("=== Submodule: $path\n");
-        if (index($path, "pmix") != -1 and list_contains("pmix", @disabled_3rdparty_packages)) {
-          print("Disabled - skipping openpmix");
-          next;
+        # Find "path = " lines
+        if (!($_ =~ m/^\s+path = (.+)$/)) {
+            next;
         }
-        if (index($path, "prrte") != -1 and list_contains("prrte", @disabled_3rdparty_packages)) {
-          print("Disabled - skipping prrte");
-          next;
+        my $path = $1;
+
+        # Only care about paths that do not include "3rd-party"
+        if (index($path, "3rd-party") != -1) {
+            next;
         }
 
-        # Make sure the submodule is there
-        if ($status eq "-") {
-            print("    ==> ERROR: Missing
+        # Check that the path exists and is non-empty.
+        my $happy = 1;
+        if (! -d $path) {
+            $happy = 0;
+        } else {
+            opendir(DIR, $path) ||
+                my_die "Can't open $path directory";
+            my @files = readdir(DIR);
+            closedir(DIR);
+
+            $happy = 0
+                if ($#files < 2);
+        }
+
+        if (!$happy) {
+                print("    ==> ERROR: Missing
 
 The submodule \"$path\" is missing.
 
@@ -1406,15 +1470,46 @@ Perhaps you forgot to \"git clone --recursive ...\", or you need to
 \"git submodule update --init --recursive\"...?\n\n");
             exit(1);
         }
+    }
 
-        # See if the commit in the submodule is not the same as the
-        # commit that the git submodule thinks it should be.
-        elsif ($status eq "+") {
+    if (-d ".git") {
+        open(IN, "git submodule status|")
+            || die "Can't run \"git submodule status\"";
+        while (<IN>) {
+            $_ =~ m/^(.)[0-9a-f]{40}\s+(\S+)/;
+            my $status = $1;
+            my $path   = $2;
+
+            print("=== Submodule: $path\n");
+            if (index($path, "pmix") != -1 and list_contains("pmix", @disabled_3rdparty_packages)) {
+                print("Disabled - skipping openpmix");
+                next;
+            }
+            if (index($path, "prrte") != -1 and list_contains("prrte", @disabled_3rdparty_packages)) {
+                print("Disabled - skipping prrte");
+                next;
+            }
+
+            # Make sure the submodule is there
+            if ($status eq "-") {
+                print("    ==> ERROR: Missing
+
+The submodule \"$path\" is missing.
+
+Perhaps you forgot to \"git clone --recursive ...\", or you need to
+\"git submodule update --init --recursive\"...?\n\n");
+                exit(1);
+            }
+
+            # See if the commit in the submodule is not the same as the
+            # commit that the git submodule thinks it should be.
+            elsif ($status eq "+") {
                 print("    ==> WARNING: Submodule hash is different than upstream.
          If this is not intentional, you may want to run:
          \"git submodule update --init --recursive\"\n");
-        } else {
-            print("    Local hash is what is expected by the submodule (good!)\n");
+            } else {
+                print("    Local hash is what is expected by the submodule (good!)\n");
+            }
         }
     }
 }

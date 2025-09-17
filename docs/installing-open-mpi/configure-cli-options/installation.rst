@@ -174,6 +174,11 @@ be used with ``configure``:
   These two options, along with ``--enable-mca-no-build``, govern the
   behavior of how Open MPI's frameworks and components are built.
 
+  .. tip::
+
+     :ref:`See this section <label-install-packagers-dso-or-not>` for
+     advice to packagers about these CLI options.
+
   The ``--enable-mca-dso`` option specifies which frameworks and/or
   components are built as Dynamic Shared Objects (DSOs).
   Specifically, DSOs are built as "plugins" outside of the core Open
@@ -193,13 +198,16 @@ be used with ``configure``:
   options, but have no impact on the selection logic described below.
   Only affirmative options change the selection process.
 
-  ``LIST`` is a comma-delimited list of Open MPI frameworks and/or
+  If ``LIST`` is not specified (e.g., ``--enable-mca-dso`` with no
+  ``LIST``), or if ``LIST`` is the special value ``yes``, then *all*
+  components will be selected.  If ``LIST`` is specified, it is a
+  comma-delimited list of Open MPI frameworks and/or
   framework+component tuples.  Examples:
 
   * ``btl`` specifies the entire BTL framework
   * ``btl-tcp`` specifies just the TCP component in the BTL framework
   * ``mtl,btl-tcp`` specifies the entire MTL framework and the TCP
-     component in the BTL framework
+    component in the BTL framework
 
   Open MPI's ``configure`` script uses the values of these two options
   when evaluating each component to determine how it should be built
@@ -213,13 +221,13 @@ be used with ``configure``:
   #. Otherwise, ``configure`` uses the global default build behavior.
 
   At each level of the selection process, if the component is
-  specified to be built as both a static and dso component, the static
+  specified to be built as both a static and DSO component, the static
   option will win.
 
   .. note:: As of Open MPI |ompi_ver|, ``configure``'s global default
             is to build all components as static (i.e., part of the
             Open MPI core libraries, not as DSOs).  Prior to Open MPI
-            5.0.0, the global default behavior was to build
+            v5.0.0, the global default behavior was to build
             most components as DSOs.
 
   .. important:: If the ``--disable-dlopen`` option is specified, then
@@ -230,9 +238,13 @@ be used with ``configure``:
   Some examples:
 
   #. Default to building all components as static (i.e., as part of
-     the Open MPI core libraries -- no DSOs)::
+     the Open MPI core libraries |mdash| no DSOs)::
 
         shell$ ./configure
+
+  #. Build all components as DSOs::
+
+        shell$ ./configure --enable-mca-dso
 
   #. Build all components as static, except the TCP BTL, which will be
      built as a DSO::
@@ -260,11 +272,6 @@ be used with ``configure``:
 
         shell$ ./configure --enable-mca-dso=btl-tcp --enable-mca-static=btl-tcp
 
-  .. tip::
-
-     :ref:`See this section <label-install-packagers-dso-or-not>` for
-     advice to packagers about this CLI option.
-
 * ``--enable-mca-no-build=LIST``: Comma-separated list of
   ``<framework>-<component>`` pairs that will not be built. For
   example, ``--enable-mca-no-build=threads-qthreads,pml-monitoring`` will
@@ -282,33 +289,36 @@ be used with ``configure``:
             you do not have support for Libfabric and will
             automatically skip the ``ofi`` CM component.
 
-* ``--disable-show-load-errors-by-default``:
+* ``--with-show-load-errors=VALUE``:
   Set the default value of the ``mca_base_component_show_load_errors``
-  MCA variable: the ``--enable`` form of this option sets the MCA
-  variable to true, the ``--disable`` form sets the MCA variable to
-  false.  The MCA ``mca_base_component_show_load_errors`` variable can
-  still be overridden at run time via the usual MCA-variable-setting
+  MCA variable.  The MCA ``mca_base_component_show_load_errors`` variable
+  can still be overridden at run time via the usual MCA-variable-setting
   mechanisms; this configure option simply sets the default value.
 
-  The ``--disable`` form of this option is intended for Open MPI
+  The ``no``/``none`` value of this option is intended for Open MPI
   packagers who tend to enable support for many different types of
   networks and systems in their packages.  For example, consider a
   packager who includes support for both the FOO and BAR networks in
   their Open MPI package, both of which require support libraries
   (``libFOO.so`` and ``libBAR.so``).  If an end user only has BAR
   hardware, they likely only have ``libBAR.so`` available on their
-  systems -- not ``libFOO.so``.  Disabling load errors by default will
+  systems |mdash| not ``libFOO.so``.  Disabling load errors by default will
   prevent the user from seeing potentially confusing warnings about
   the FOO components failing to load because ``libFOO.so`` is not
   available on their systems.
 
-  Conversely, system administrators tend to build an Open MPI that is
+  Conversely, the ``yes``/``all`` value of this option is intended for
+  system administrators who tend to build an Open MPI that is
   targeted at their specific environment, and contains few (if any)
   components that are not needed.  In such cases, they might want
   their users to be warned that the FOO network components failed to
   load (e.g., if ``libFOO.so`` was mistakenly unavailable), because Open
   MPI may otherwise silently failover to a slower network path for MPI
   traffic.
+
+  .. note:: See the section on :ref:`common MCA parameters
+            <label-mca-common-parameters>` for details related to the
+            ``mca_base_component_show_load_errors`` MCA variable.
 
 * ``--with-platform=FILE``:
   Load configure options for the build from ``FILE``.  Options on the

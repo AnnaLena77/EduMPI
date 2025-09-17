@@ -1,5 +1,6 @@
 dnl -*- autoconf -*-
 dnl
+dnl Copyright (c) 2024      NVIDIA Corporation.  All rights reserved.
 dnl Copyright (c) 2004-2010 The Trustees of Indiana University and Indiana
 dnl                         University Research and Technology
 dnl                         Corporation.  All rights reserved.
@@ -50,9 +51,18 @@ AC_ARG_WITH([cuda],
             [AS_HELP_STRING([--with-cuda(=DIR)],
             [Build cuda support, optionally adding DIR/include])])
 AC_MSG_CHECKING([if --with-cuda is set])
+
+# Search for libcuda.so in $with_cuda if the user didn't pass --with-cuda-libdir
+# Otherwise check for cuda in the default path, /usr/local/cuda. If the default
+# path doesn't exist, set with_cuda_libdir to empty.
 AC_ARG_WITH([cuda-libdir],
             [AS_HELP_STRING([--with-cuda-libdir=DIR],
-                            [Search for CUDA libraries in DIR])])
+                            [Search for CUDA libraries in DIR])],
+            [],
+            [AS_IF([test -d "$with_cuda"],
+             [with_cuda_libdir=$(dirname $(find -H $with_cuda -name libcuda.so 2> /dev/null) 2> /dev/null)],
+             [with_cuda_libdir=$(dirname $(find -H /usr/local/cuda -name libcuda.so 2> /dev/null) 2> /dev/null)])
+            ])
 
 # Note that CUDA support is off by default.  To turn it on, the user has to
 # request it.  The user can just ask for --with-cuda and it that case we
@@ -109,6 +119,12 @@ AS_IF([test "$opal_check_cuda_happy" = "yes"],
         [#include <$opal_cuda_incdir/cuda.h>])],
     [])
 
+# If we have CUDA support, check to see if we have support for cuMemCreate memory on host NUMA.
+AS_IF([test "$opal_check_cuda_happy"="yes"],
+    [AC_CHECK_DECL([CU_MEM_LOCATION_TYPE_HOST_NUMA], [CUDA_VMM_SUPPORT=1], [CUDA_VMM_SUPPORT=0],
+        [#include <$opal_cuda_incdir/cuda.h>])],
+    [])
+
 # If we have CUDA support, check to see if we have support for SYNC_MEMOPS
 # which was first introduced in CUDA 6.0.
 AS_IF([test "$opal_check_cuda_happy" = "yes"],
@@ -150,6 +166,10 @@ OPAL_SUMMARY_ADD([Accelerators], [CUDA support], [], [$opal_check_cuda_happy])
 AM_CONDITIONAL([OPAL_cuda_support], [test "x$CUDA_SUPPORT" = "x1"])
 AC_DEFINE_UNQUOTED([OPAL_CUDA_SUPPORT],$CUDA_SUPPORT,
                    [Whether we want cuda device pointer support])
+
+AM_CONDITIONAL([OPAL_cuda_vmm_support], [test "x$CUDA_VMM_SUPPORT" = "x1"])
+AC_DEFINE_UNQUOTED([OPAL_CUDA_VMM_SUPPORT],$CUDA_VMM_SUPPORT,
+                   [Whether we have CU_MEM_LOCATION_TYPE_HOST_NUMA support available])
 
 AM_CONDITIONAL([OPAL_cuda_sync_memops], [test "x$CUDA_SYNC_MEMOPS" = "x1"])
 AC_DEFINE_UNQUOTED([OPAL_CUDA_SYNC_MEMOPS],$CUDA_SYNC_MEMOPS,

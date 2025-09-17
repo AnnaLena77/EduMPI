@@ -43,6 +43,7 @@ BEGIN_C_DECLS
 
 #define SPML_UCX_ASSERT  MCA_COMMON_UCX_ASSERT
 #define SPML_UCX_ERROR   MCA_COMMON_UCX_ERROR
+#define SPML_UCX_WARN    MCA_COMMON_UCX_WARN
 #define SPML_UCX_VERBOSE MCA_COMMON_UCX_VERBOSE
 #define SPML_UCX_TRANSP_IDX 0
 #define SPML_UCX_TRANSP_CNT 1
@@ -258,11 +259,10 @@ extern size_t mca_spml_ucx_test_some(void *ivars, int cmp, void *cmp_value,
         size_t nelems, size_t *indices, const int *status, int datatype);
 extern int mca_spml_ucx_test_all_vector(void *ivars, int cmp, void
         *cmp_values, size_t nelems, const int *status, int datatype);
-extern int mca_spml_ucx_test_any_vector(void *ivars, int cmp, void
-        *cmp_values, size_t nelems, const int *status, int datatype);
-extern int mca_spml_ucx_test_some_vector(void *ivars, int cmp, void
-        *cmp_values, size_t nelems, size_t *indices, const int *status, int
-        datatype);
+extern size_t mca_spml_ucx_test_any_vector(void *ivars, int cmp, void *cmp_values, size_t nelems,
+                                           const int *status, int datatype);
+extern size_t mca_spml_ucx_test_some_vector(void *ivars, int cmp, void *cmp_values, size_t nelems,
+                                            size_t *indices, const int *status, int datatype);
 extern int mca_spml_ucx_team_sync(shmem_team_t team);
 extern int mca_spml_ucx_team_my_pe(shmem_team_t team);
 extern int mca_spml_ucx_team_n_pes(shmem_team_t team);

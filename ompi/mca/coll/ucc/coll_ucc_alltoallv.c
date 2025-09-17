@@ -17,10 +17,14 @@ static inline ucc_status_t mca_coll_ucc_alltoallv_init(const void *sbuf, const i
                                                        ucc_coll_req_h *req,
                                                        mca_coll_ucc_req_t *coll_req)
 {
-    ucc_datatype_t         ucc_sdt, ucc_rdt;
+    ucc_datatype_t ucc_sdt = UCC_DT_INT8, ucc_rdt = UCC_DT_INT8;
+    bool is_inplace = (MPI_IN_PLACE == sbuf);
 
-    ucc_sdt = ompi_dtype_to_ucc_dtype(sdtype);
     ucc_rdt = ompi_dtype_to_ucc_dtype(rdtype);
+    if (!is_inplace) {
+        ucc_sdt = ompi_dtype_to_ucc_dtype(sdtype);
+    }
+    
     if (COLL_UCC_DT_UNSUPPORTED == ucc_sdt ||
         COLL_UCC_DT_UNSUPPORTED == ucc_rdt) {
         UCC_VERBOSE(5, "ompi_datatype is not supported: dtype = %s",
@@ -31,6 +35,7 @@ static inline ucc_status_t mca_coll_ucc_alltoallv_init(const void *sbuf, const i
 
     ucc_coll_args_t coll = {
         .mask      = 0,
+        .flags     = 0,
         .coll_type = UCC_COLL_TYPE_ALLTOALLV,
         .src.info_v = {
             .buffer        = (void*)sbuf,
@@ -48,7 +53,7 @@ static inline ucc_status_t mca_coll_ucc_alltoallv_init(const void *sbuf, const i
         }
     };
 
-    if (MPI_IN_PLACE == sbuf) {
+    if (is_inplace) {
         coll.mask  = UCC_COLL_ARGS_FIELD_FLAGS;
         coll.flags = UCC_COLL_ARGS_FLAG_IN_PLACE;
     }
@@ -91,13 +96,11 @@ int mca_coll_ucc_alltoallv(const void *sbuf, const int *scounts,
 fallback:
     UCC_VERBOSE(3, "running fallback alltoallv");
 #ifndef ENABLE_ANALYSIS
-    return ucc_module->previous_alltoallv(sbuf, scounts, sdisps, sdtype,
-                                          rbuf, rcounts, rdisps, rdtype,
-                                          comm, ucc_module->previous_alltoallv_module);
+    return mca_coll_ucc_call_previous(alltoallv, ucc_module,
+        sbuf, scounts, sdisps, sdtype, rbuf, rcounts, rdisps, rdtype, comm);
 #else
-    return ucc_module->previous_alltoallv(sbuf, scounts, sdisps, sdtype,
-                                          rbuf, rcounts, rdisps, rdtype,
-                                          comm, ucc_module->previous_alltoallv_module, &item);
+    return mca_coll_ucc_call_previous(alltoallv, ucc_module,
+        sbuf, scounts, sdisps, sdtype, rbuf, rcounts, rdisps, rdtype, comm, &item);
 #endif
 }
 
@@ -139,12 +142,10 @@ fallback:
         mca_coll_ucc_req_free((ompi_request_t **)&coll_req);
     }
 #ifndef ENABLE_ANALYSIS
-    return ucc_module->previous_ialltoallv(sbuf, scounts, sdisps, sdtype,
-                                          rbuf, rcounts, rdisps, rdtype,
-                                           comm, request, ucc_module->previous_ialltoallv_module);
+    return mca_coll_ucc_call_previous(ialltoallv, ucc_module,
+        sbuf, scounts, sdisps, sdtype, rbuf, rcounts, rdisps, rdtype, comm, request);
 #else
-    return ucc_module->previous_ialltoallv(sbuf, scounts, sdisps, sdtype,
-                                          rbuf, rcounts, rdisps, rdtype,
-                                           comm, request, ucc_module->previous_ialltoallv_module, &item);
+    return mca_coll_ucc_call_previous(ialltoallv, ucc_module,
+        sbuf, scounts, sdisps, sdtype, rbuf, rcounts, rdisps, rdtype, comm, request, &item);
 #endif
 }

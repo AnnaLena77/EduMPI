@@ -222,7 +222,7 @@ mca_coll_han_scatter_intra(const void *sbuf, int scount,
 
 }
 
-/* us: upper level (intra-node) scatter task */
+/* us: upper level (inter-node) scatter task */
 int mca_coll_han_scatter_us_task(void *task_args)
 {
     mca_coll_han_scatter_args_t *t = (mca_coll_han_scatter_args_t *) task_args;
@@ -273,6 +273,8 @@ int mca_coll_han_scatter_us_task(void *task_args)
 #endif
         t->sbuf = tmp_rbuf;
         t->sbuf_inter_free = tmp_buf;
+        t->sdtype = dtype;
+        t->scount = count;
     }
 
     if (t->sbuf_reorder_free != NULL && t->root == t->w_rank) {

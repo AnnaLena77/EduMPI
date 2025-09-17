@@ -13,6 +13,7 @@
  * Copyright (c) 2015-2020 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * Copyright (c) 2016-2017 IBM Corporation. All rights reserved.
+ * Copyright (c) 2024      Advanced Micro Devices, Inc. All rights reserverd.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -70,7 +71,7 @@ mca_fs_lustre_file_open (struct ompi_communicator_t *comm,
     int fs_lustre_stripe_size = -1;
     int fs_lustre_stripe_width = -1;
     opal_cstring_t *stripe_str;
-
+    char *rfilename = (char *)filename;
     struct lov_user_md *lump=NULL;
 
     perm = mca_fs_base_get_file_perm(fh);
@@ -112,6 +113,16 @@ mca_fs_lustre_file_open (struct ompi_communicator_t *comm,
         fs_lustre_stripe_width = mca_fs_lustre_stripe_width;
     }
 
+    /* Check for soft links and replace filename by the actual
+       file used in case it is a soft link */
+    if (mca_fs_base_is_link(filename)) {
+        mca_fs_base_get_real_filename(filename, &rfilename);
+        /* make sure the real file is also on a Lustre file system */
+        if (LUSTRE != mca_fs_base_get_fstype(rfilename)) {
+            opal_output(1, "cannot use a soft-link between a LUSTRE and non-LUSTRE file system\n");
+            return OPAL_ERROR;
+        }
+    }
     
     /* Reset errno */
     errno = 0;
@@ -119,6 +130,8 @@ mca_fs_lustre_file_open (struct ompi_communicator_t *comm,
         if ( (fs_lustre_stripe_size>0 || fs_lustre_stripe_width>0) &&
              ( amode&O_CREAT)                                      && 
              ( (amode&O_RDWR)|| amode&O_WRONLY) ) {
+            /* this cannot be a soft-link since we are creating the file.
+               Not using rfilename here */
             llapi_file_create(filename,
                               fs_lustre_stripe_size,
                               -1, /* MSC need to change that */
@@ -136,7 +149,7 @@ mca_fs_lustre_file_open (struct ompi_communicator_t *comm,
         }
     }
 
-   comm->c_coll->coll_bcast ( &ret, 1, MPI_INT, 0, comm, comm->c_coll->coll_bcast_module);
+    comm->c_coll->coll_bcast ( &ret, 1, MPI_INT, 0, comm, comm->c_coll->coll_bcast_module);
     if ( OMPI_SUCCESS != ret ) {
         fh->fd = -1;
         return ret;
@@ -154,7 +167,7 @@ mca_fs_lustre_file_open (struct ompi_communicator_t *comm,
         fprintf(stderr,"Cannot allocate memory for extracting stripe size\n");
         return OMPI_ERROR;
     }
-    rc = llapi_file_get_stripe(filename, lump);
+    rc = llapi_file_get_stripe(rfilename, lump);
     if (rc != 0) {
         opal_output(1, "get_stripe failed: %d (%s)\n", errno, strerror(errno));
         free(lump);
@@ -163,8 +176,22 @@ mca_fs_lustre_file_open (struct ompi_communicator_t *comm,
     fh->f_stripe_size   = lump->lmm_stripe_size;
     fh->f_stripe_count  = lump->lmm_stripe_count;
     fh->f_fs_block_size = lump->lmm_stripe_size;
-    fh->f_flags |= OMPIO_LOCK_NEVER;
     free(lump);
+
+    if (FS_LUSTRE_LOCK_AUTO == mca_fs_lustre_lock_algorithm ||
+        FS_LUSTRE_LOCK_NEVER == mca_fs_lustre_lock_algorithm ) {
+        fh->f_flags |= OMPIO_LOCK_NEVER;
+    }
+    else if (FS_LUSTRE_LOCK_ENTIRE_FILE == mca_fs_lustre_lock_algorithm) {
+        fh->f_flags |= OMPIO_LOCK_ENTIRE_FILE;
+    }
+    else if (FS_LUSTRE_LOCK_RANGES == mca_fs_lustre_lock_algorithm) {
+        /* Nothing to be done. This is what the posix fbtl component would do
+           anyway without additional information . */
+    }
+    else {
+        opal_output ( 1, "Invalid value for mca_fs_lustre_lock_algorithm %d", mca_fs_lustre_lock_algorithm );
+    }
 
     return OMPI_SUCCESS;
 }

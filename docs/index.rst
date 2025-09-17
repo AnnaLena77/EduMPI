@@ -80,6 +80,13 @@ Table of contents
    contributing
    license/index
    history
-   news/index
    man-openmpi/index
    man-openshmem/index
+
+Contributors
+============
+
+A gigantic "thank you!" to all of our contributors:
+
+.. image:: https://contrib.rocks/image?repo=open-mpi/ompi&max=999
+   :target: https://github.com/open-mpi/ompi/graphs/contributors

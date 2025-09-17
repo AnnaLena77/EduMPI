@@ -41,19 +41,24 @@ Open MPI offers two flavors of CUDA support:
       shell$ ./configure --prefix=/path/to/ucx-cuda-install --with-cuda=/usr/local/cuda --with-gdrcopy=/usr
 
       # Configure Open MPI this way
-      shell$ ./configure --with-cuda=/usr/local/cuda --with-cuda-libdir=/usr/local/cuda/lib64/stubs/ --with-ucx=/path/to/ucx-cuda-install <other configure params>
+      shell$ ./configure --with-cuda=/usr/local/cuda --with-ucx=/path/to/ucx-cuda-install <other configure params>
 
 #. Via internal Open MPI CUDA support
 
 Regardless of which flavor of CUDA support (or both) you plan to use,
 Open MPI should be configured using the ``--with-cuda=<path-to-cuda>``
-and ``--with-cuda-libdir=<path-to-libcuda.so>`` configure options to
-build CUDA support into Open MPI.
+configure option to build CUDA support into Open MPI. The configure
+script will automatically search the path given for ``libcuda.so``. If it cannot
+be found, please also pass ``--with-cuda-libdir``. For example:
+``--with-cuda=<path-to-cuda> --with-cuda-libdir=/usr/local/cuda/lib64/stubs``.
 
 Open MPI supports building with CUDA libraries and running on systems
-without CUDA libraries or hardware. In order to take advantage of
-this functionality, when compiling, you have to specify the CUDA
-dependent components to be built as DSOs using the
+without CUDA libraries or hardware.
+
+For releases v5.0.2 and newer no special steps are required to get this behavior.
+
+In order to realize this behavior for the v5.0.0 and v5.0.1 releases,
+when configuring Open MPI, you have to specify the CUDA dependent components to be built as DSOs using the
 ``--enable-mca-dso=<comma-delimited-list-of-cuda-components.``
 configure option.
 
@@ -65,7 +70,7 @@ An example configure command would look like the following:
    .. code-block:: sh
 
       # Configure Open MPI this way
-      shell$ ./configure --with-cuda=/usr/local/cuda --with-cuda-libdir=/usr/local/cuda/lib64/stubs \
+      shell$ ./configure --with-cuda=/usr/local/cuda \
              --enable-mca-dso=btl-smcuda,rcache-rgpusm,rcache-gpusm,accelerator-cuda <other configure params>
 
 /////////////////////////////////////////////////////////////////////////
@@ -74,12 +79,15 @@ How do I verify that Open MPI has been built with CUDA support?
 ---------------------------------------------------------------
 
 Verify that Open MPI has been built with cuda using ``ompi_info``
+with one of the following commands.
 
 .. code-block:: sh
 
    # Use ompi_info to verify cuda support in Open MPI
-   shell$ ./ompi_info |grep "MPI extensions"
+   shell$ ompi_info | grep "MPI extensions"
           MPI extensions: affinity, cuda, pcollreq
+   shell$ ompi_info --parsable --all | grep mpi_built_with_cuda_support:value
+          mca:mpi:base:param:mpi_built_with_cuda_support:value:true
 
 /////////////////////////////////////////////////////////////////////////
 
@@ -155,7 +163,7 @@ PSM2 support for CUDA
 ---------------------
 
 CUDA-aware support is present in PSM2 MTL.  When running CUDA-aware
-Open MPI on Intel Omni-path, the PSM2 MTL will automatically set
+Open MPI on Cornelis Networks Omni-Path, the PSM2 MTL will automatically set
 ``PSM2_CUDA`` environment variable which enables PSM2 to handle GPU
 buffers.  If the user wants to use host buffers with a CUDA-aware Open
 MPI, it is recommended to set ``PSM2_CUDA`` to ``0`` in the execution
@@ -163,13 +171,13 @@ environment. PSM2 also has support for the NVIDIA GPUDirect support
 feature. To enable this, users will need to set ``PSM2_GPUDIRECT``
 to ``1`` in the execution environment.
 
-Note: The PSM2 library and ``hfi1`` driver with CUDA support are
-requirements to use GPUDirect support on Intel Omni-Path. The minimum
+Note: The PSM2 library and ``hfi1`` driver with CUDA support are requirements
+to use GPUDirect support on Cornelis Networks Omni-Path. The minimum
 PSM2 build version required is `PSM2 10.2.175
 <https://github.com/01org/opa-psm2/releases/tag/PSM2_10.2-175>`_.
 
-For more information refer to the `Intel Omni-Path documentation
-<https://www.intel.com/content/www/us/en/support/articles/000016242/network-and-i-o/fabric-products.html>`_.
+For more information refer to the `Cornelis Networks Customer Center
+<https://customercenter.cornelisnetworks.com/>`_.
 
 /////////////////////////////////////////////////////////////////////////
 
@@ -185,19 +193,6 @@ Libfabric's API after registering the memory. If there are no
 CUDA-capable providers available, the buffers will automatically
 be copied to host buffers before being transferred through
 Libfabric's API.
-
-/////////////////////////////////////////////////////////////////////////
-
-
-How can I tell if Open MPI was built with CUDA support?
--------------------------------------------------------
-
-Use the ``ompi_info`` command:
-
-.. code-block::
-
-   shell$ ompi_info --parsable --all | grep mpi_built_with_cuda_support:value
-   mca:mpi:base:param:mpi_built_with_cuda_support:value:true
 
 /////////////////////////////////////////////////////////////////////////
 
@@ -578,6 +573,8 @@ example of using the CUDA-aware macro and run-time check.
 
    int main(int argc, char *argv[])
    {
+       MPI_Init(&argc, &argv);
+
        printf("Compile time check:\n");
    #if defined(MPIX_CUDA_AWARE_SUPPORT) && MPIX_CUDA_AWARE_SUPPORT
        printf("This MPI library has CUDA-aware support.\n", MPIX_CUDA_AWARE_SUPPORT);
@@ -587,7 +584,7 @@ example of using the CUDA-aware macro and run-time check.
        printf("This MPI library cannot determine if there is CUDA-aware support.\n");
    #endif /* MPIX_CUDA_AWARE_SUPPORT */
 
-       printf("Run time check:n");
+       printf("Run time check:\n");
    #if defined(MPIX_CUDA_AWARE_SUPPORT)
        if (1 == MPIX_Query_cuda_support()) {
            printf("This MPI library has CUDA-aware support.\n");
@@ -597,6 +594,8 @@ example of using the CUDA-aware macro and run-time check.
    #else /* !defined(MPIX_CUDA_AWARE_SUPPORT) */
        printf("This MPI library cannot determine if there is CUDA-aware support.\n");
    #endif /* MPIX_CUDA_AWARE_SUPPORT */
+
+       MPI_Finalize();
 
        return 0;
    }
@@ -633,10 +632,9 @@ limit is reached:
 What are some guidelines for using CUDA and Open MPI with Omni-Path?
 --------------------------------------------------------------------
 
-When developing CUDA-aware Open MPI applications for OPA-based
-fabrics, the PSM2 transport is preferred and a CUDA-aware version of
-PSM2 is provided with all versions of the Intel Omni-Path IFS software
-suite.
+When developing CUDA-aware Open MPI applications for OPA-based fabrics, the
+PSM2 transport is preferred and a CUDA-aware version of PSM2 is provided with
+all versions of the Cornelis Networks Omni-Path OPXS software suite.
 
 .. error:: TODO Are Intel/OPA references still correct?
 
@@ -659,10 +657,10 @@ processes do not move between NUMA nodes. See the section on
 :ref:`NUMA Node Issues <faq-cuda-mpi-cuda-numa-issues-label>`, for
 more information.
 
-For more information see the *Intel Performance Scaled Messaging 2
-(PSM2) Programmer's Guide* and the *Intel Omni-Path Performance Tuning
-Guide*, which can be found on the `Intel Omni-Path web site
-<https://www.intel.com/omnipath/FabricSoftwarePublications>`_.
+For more information see the *Cornelis Networks Performance Scaled Messaging 2
+(PSM2) Programmer's Guide* and the *Cornelis Networks Omni-Path Performance
+Tuning Guide*, which can be found in the `Cornelis Networks Customer Center
+<https://customercenter.cornelisnetworks.com/>`_.
 
 .. error:: TODO Are Intel/OPA references still correct?
 

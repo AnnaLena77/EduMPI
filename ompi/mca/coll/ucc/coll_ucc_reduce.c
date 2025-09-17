@@ -8,7 +8,7 @@
 
 #include "coll_ucc_common.h"
 
-static inline ucc_status_t mca_coll_ucc_reduce_init(const void *sbuf, void *rbuf, int count,
+static inline ucc_status_t mca_coll_ucc_reduce_init(const void *sbuf, void *rbuf, size_t count,
                                                     struct ompi_datatype_t *dtype,
                                                     struct ompi_op_t *op, int root,
                                                     mca_coll_ucc_module_t *ucc_module,
@@ -31,7 +31,8 @@ static inline ucc_status_t mca_coll_ucc_reduce_init(const void *sbuf, void *rbuf
         goto fallback;
     }
     ucc_coll_args_t coll = {
-        .mask = 0,
+        .mask      = 0,
+        .flags     = 0,
         .coll_type = UCC_COLL_TYPE_REDUCE,
         .root = root,
         .src.info = {
@@ -88,12 +89,13 @@ int mca_coll_ucc_reduce(const void *sbuf, void* rbuf, int count,
 fallback:
     UCC_VERBOSE(3, "running fallback reduce");
 #ifndef ENABLE_ANALYSIS
-    return ucc_module->previous_reduce(sbuf, rbuf, count, dtype, op, root,
-                                       comm, ucc_module->previous_reduce_module);
+    return mca_coll_ucc_call_previous(reduce, ucc_module,
+        sbuf, rbuf, count, dtype, op, root, comm);
 #else
-    return ucc_module->previous_reduce(sbuf, rbuf, count, dtype, op, root,
-                                       comm, ucc_module->previous_reduce_module, &item);
+    return mca_coll_ucc_call_previous(reduce, ucc_module,
+        sbuf, rbuf, count, dtype, op, root, comm, &item);
 #endif
+
 }
 
 int mca_coll_ucc_ireduce(const void *sbuf, void* rbuf, int count,
@@ -132,10 +134,11 @@ fallback:
         mca_coll_ucc_req_free((ompi_request_t **)&coll_req);
     }
 #ifndef ENABLE_ANALYSIS
-    return ucc_module->previous_ireduce(sbuf, rbuf, count, dtype, op, root,
-                                        comm, request, ucc_module->previous_ireduce_module);
+    return mca_coll_ucc_call_previous(ireduce, ucc_module,
+        sbuf, rbuf, count, dtype, op, root, comm, request);
 #else
-    return ucc_module->previous_ireduce(sbuf, rbuf, count, dtype, op, root,
-                                        comm, request, ucc_module->previous_ireduce_module, &item);
+    return mca_coll_ucc_call_previous(ireduce, ucc_module,
+        sbuf, rbuf, count, dtype, op, root, comm, request);
 #endif
+
 }

@@ -322,6 +322,8 @@ static int spml_ucx_init(void)
     wkr_params.field_mask  = UCP_WORKER_PARAM_FIELD_THREAD_MODE;
     if (oshmem_mpi_thread_requested == SHMEM_THREAD_MULTIPLE) {
         wkr_params.thread_mode = UCS_THREAD_MODE_MULTI;
+    } else if (oshmem_mpi_thread_requested == SHMEM_THREAD_SERIALIZED) {
+        wkr_params.thread_mode = UCS_THREAD_MODE_SERIALIZED;
     } else {
         wkr_params.thread_mode = UCS_THREAD_MODE_SINGLE;
     }
@@ -458,9 +460,9 @@ static void mca_spml_ucx_ctx_fini(mca_spml_ucx_ctx_t *ctx)
 
 static int mca_spml_ucx_component_fini(void)
 {
-    int fenced = 0, i;
+    volatile int fenced = 0;
+    int i;
     int ret = OSHMEM_SUCCESS;
-    mca_spml_ucx_ctx_t *ctx;
 
     opal_progress_unregister(spml_ucx_default_progress);
     if (mca_spml_ucx.active_array.ctxs_count) {
@@ -491,8 +493,10 @@ static int mca_spml_ucx_component_fini(void)
 
 
     ret = opal_common_ucx_mca_pmix_fence_nb(&fenced);
-    if (OPAL_SUCCESS != ret) {
-        return ret;
+    if (ret != PMIX_SUCCESS) {
+        SPML_UCX_WARN("pmix fence failed: %s", PMIx_Error_string(ret));
+        /* In case of pmix fence failure just continue cleanup */
+        fenced = 1;
     }
 
     while (!fenced) {

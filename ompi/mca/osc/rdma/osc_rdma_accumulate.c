@@ -12,6 +12,7 @@
  * Copyright (c) 2022      Cisco Systems, Inc.  All rights reserved
  * Copyright (c) 2022      Amazon.com, Inc. or its affiliates.
  *                         All Rights reserved.
+ * Copyright (c) 2023      Jeffrey M. Squyres.  All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -132,8 +133,9 @@ static inline int ompi_osc_rdma_cas_local (const void *source_addr, const void *
                                            ompi_osc_rdma_module_t *module, bool lock_acquired)
 {
     int ret, result_is_accel, target_is_accel, compare_is_accel;
-    void *compare_copy;
-    void *result_copy;
+    const void *compare_copy;
+    void *compare_to_free = NULL;
+    void *result_copy = NULL;
     bool compare_copied = false;
     bool result_copied = false;
 
@@ -167,13 +169,13 @@ static inline int ompi_osc_rdma_cas_local (const void *source_addr, const void *
     }
 
     if (compare_is_accel) {
-        compare_copy = malloc(datatype->super.size);
+        compare_copy = compare_to_free = malloc(datatype->super.size);
         ret = opal_accelerator.mem_copy(MCA_ACCELERATOR_NO_DEVICE_ID, MCA_ACCELERATOR_NO_DEVICE_ID,
-                                        compare_copy, compare_addr, datatype->super.size, MCA_ACCELERATOR_TRANSFER_DTOH);
+                                        compare_to_free, compare_addr, datatype->super.size, MCA_ACCELERATOR_TRANSFER_DTOH);
         compare_copied = true;
         if (OPAL_SUCCESS != ret) {
             goto out;
-	}
+        }
     } else {
         compare_copy = compare_addr;
     }
@@ -191,7 +193,7 @@ static inline int ompi_osc_rdma_cas_local (const void *source_addr, const void *
 
 out:
     if (compare_copied) {
-        free(compare_copy);
+        free(compare_to_free);
     }
     if (result_copied) {
         free(result_copy);
@@ -293,11 +295,11 @@ static int ompi_osc_rdma_fetch_and_op_cas (ompi_osc_rdma_sync_t *sync, const voi
                 return ret;
             }
 	} else if (&ompi_mpi_op_no_op.op != op) {
-            ret = osc_rdma_is_accel(origin_addr + dt->super.true_lb);
+            ret = osc_rdma_is_accel(((const char*) origin_addr) + dt->super.true_lb);
             if (0 < ret) {
                 tmp_origin = malloc(dt->super.size);
                 ret = opal_accelerator.mem_copy(MCA_ACCELERATOR_NO_DEVICE_ID, MCA_ACCELERATOR_NO_DEVICE_ID,
-                                                tmp_origin, origin_addr + dt->super.true_lb, dt->super.size, MCA_ACCELERATOR_TRANSFER_DTOH);
+                                                tmp_origin, ((const char*) origin_addr) + dt->super.true_lb, dt->super.size, MCA_ACCELERATOR_TRANSFER_DTOH);
                 ompi_op_reduce (op, (void *) tmp_origin, (void*)((ptrdiff_t) &new_value + offset), 1, dt);
                 free(tmp_origin);
             } else if (0 == ret) {
@@ -544,7 +546,6 @@ static inline int ompi_osc_rdma_gacc_master (ompi_osc_rdma_sync_t *sync, const v
     /* needed for opal_convertor_raw but not used */
     size_t source_size, target_size;
     ompi_osc_rdma_request_t *subreq;
-    size_t result_position;
     ptrdiff_t lb, extent;
     int ret, acc_len;
     bool done;
@@ -667,7 +668,6 @@ static inline int ompi_osc_rdma_gacc_master (ompi_osc_rdma_sync_t *sync, const v
     target_iov_index = 0;
     target_iov_count = 0;
     source_iov_index = 0;
-    result_position = 0;
     subreq = NULL;
 
     do {
@@ -729,8 +729,6 @@ static inline int ompi_osc_rdma_gacc_master (ompi_osc_rdma_sync_t *sync, const v
             target_iovec[target_iov_index].iov_len -= acc_len;
             target_iovec[target_iov_index].iov_base = (void *)((intptr_t) target_iovec[target_iov_index].iov_base + acc_len);
             target_iov_index += (0 == target_iovec[target_iov_index].iov_len);
-
-            result_position += acc_len;
 
             if (source_datatype) {
                 source_iov_index += (0 == source_iovec[source_iov_index].iov_len);
@@ -831,6 +829,7 @@ static inline int cas_rdma (ompi_osc_rdma_sync_t *sync, const void *source_addr,
     volatile bool complete = false;
     void *result_copy;
     const void *compare_copy;
+    void *compare_to_free = NULL;
     bool result_copied = false;
     bool compare_copied = false;
     int mem_compare;
@@ -863,9 +862,9 @@ static inline int cas_rdma (ompi_osc_rdma_sync_t *sync, const void *source_addr,
     }
     ret = osc_rdma_is_accel(compare_addr);
     if (0 < ret) {
-        compare_copy = malloc(len);
+        compare_copy = compare_to_free = malloc(len);
         ret = opal_accelerator.mem_copy(MCA_ACCELERATOR_NO_DEVICE_ID, MCA_ACCELERATOR_NO_DEVICE_ID,
-                                        compare_copy, compare_addr, len, MCA_ACCELERATOR_TRANSFER_DTOH);
+                                        compare_to_free, compare_addr, len, MCA_ACCELERATOR_TRANSFER_DTOH);
         compare_copied = true;
     } else if (0 == ret) {
         compare_copy = compare_addr;
@@ -878,7 +877,7 @@ static inline int cas_rdma (ompi_osc_rdma_sync_t *sync, const void *source_addr,
 
     mem_compare = memcmp(result_copy, compare_copy, len);
     if (compare_copied) {
-        free(compare_copy);
+        free(compare_to_free);
     }
     if (result_copied) {
         free(result_copy);

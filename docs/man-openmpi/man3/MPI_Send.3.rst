@@ -6,7 +6,7 @@ MPI_Send
 
 .. include_body
 
-:ref:`MPI_Send` - Performs a standard-mode blocking send.
+:ref:`MPI_Send` |mdash| Performs a standard-mode blocking send.
 
 
 SYNTAX
@@ -53,7 +53,7 @@ Fortran 2008 Syntax
 INPUT PARAMETERS
 ----------------
 * ``buf``: Initial address of send buffer (choice).
-* ``count``: Number of elements send (nonnegative integer).
+* ``count``: Number of elements in send buffer (nonnegative integer).
 * ``datatype``: Datatype of each send buffer element (handle).
 * ``dest``: Rank of destination (integer).
 * ``tag``: Message tag (integer).
@@ -74,7 +74,7 @@ NOTE
 
 This routine will block until the message is sent to the destination.
 For an in-depth explanation of the semantics of the standard-mode send,
-refer to the MPI-1 Standard.
+refer to the `MPI Standard <https://www.mpi-forum.org/docs/>`_.
 
 
 ERRORS

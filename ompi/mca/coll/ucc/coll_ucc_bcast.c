@@ -8,7 +8,7 @@
 
 #include "coll_ucc_common.h"
 
-static inline ucc_status_t mca_coll_ucc_bcast_init(void *buf, int count, struct ompi_datatype_t *dtype,
+static inline ucc_status_t mca_coll_ucc_bcast_init(void *buf, size_t count, struct ompi_datatype_t *dtype,
                                                    int root, mca_coll_ucc_module_t *ucc_module,
                                                    ucc_coll_req_h *req,
                                                    mca_coll_ucc_req_t *coll_req)
@@ -21,6 +21,7 @@ static inline ucc_status_t mca_coll_ucc_bcast_init(void *buf, int count, struct 
 
     ucc_coll_args_t coll = {
         .mask      = 0,
+        .flags     = 0,
         .coll_type = UCC_COLL_TYPE_BCAST,
         .root = root,
         .src.info = {
@@ -64,11 +65,11 @@ int mca_coll_ucc_bcast(void *buf, int count, struct ompi_datatype_t *dtype,
 fallback:
     UCC_VERBOSE(3, "running fallback bcast");
 #ifndef ENABLE_ANALYSIS
-    return ucc_module->previous_bcast(buf, count, dtype, root,
-                                       comm, ucc_module->previous_bcast_module);
+    return mca_coll_ucc_call_previous(bcast, ucc_module,
+        buf, count, dtype, root, comm);
 #else
-    return ucc_module->previous_bcast(buf, count, dtype, root,
-                                       comm, ucc_module->previous_bcast_module, &item);
+    return mca_coll_ucc_call_previous(bcast, ucc_module,
+        buf, count, dtype, root, comm, &item);
 #endif
 }
 
@@ -108,10 +109,10 @@ fallback:
         mca_coll_ucc_req_free((ompi_request_t **)&coll_req);
     }
 #ifndef ENABLE_ANALYSIS
-    return ucc_module->previous_ibcast(buf, count, dtype, root,
-                                       comm, request, ucc_module->previous_ibcast_module);
+    return mca_coll_ucc_call_previous(ibcast, ucc_module,
+        buf, count, dtype, root, comm, request);
 #else 
-    return ucc_module->previous_ibcast(buf, count, dtype, root,
-                                       comm, request, ucc_module->previous_ibcast_module, &item);
+    return mca_coll_ucc_call_previous(ibcast, ucc_module,
+        buf, count, dtype, root, comm, request, &item);
 #endif
 }

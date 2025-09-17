@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2024      NVIDIA Corporation.  All rights reserved.
  * Copyright (c) 2014-2015 Intel, Inc.  All rights reserved.
  * Copyright (c) 2014      Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
@@ -77,9 +78,177 @@ opal_accelerator_base_module_t opal_accelerator_cuda_module =
     accelerator_cuda_get_buffer_id
 };
 
+static int accelerator_cuda_check_vmm(CUdeviceptr dbuf, CUmemorytype *mem_type,
+                                      int *dev_id)
+{
+#if OPAL_CUDA_VMM_SUPPORT
+    static int device_count = -1;
+    CUmemAllocationProp prop;
+    CUmemLocation location;
+    CUresult result;
+    unsigned long long flags;
+    CUmemGenericAllocationHandle alloc_handle;
+
+    if (device_count == -1) {
+        result = cuDeviceGetCount(&device_count);
+        if (result != CUDA_SUCCESS) {
+            return 0;
+        }
+    }
+
+    result = cuMemRetainAllocationHandle(&alloc_handle, (void*)dbuf);
+    if (result != CUDA_SUCCESS) {
+        return 0;
+    }
+
+    result = cuMemGetAllocationPropertiesFromHandle(&prop, alloc_handle);
+    if (result != CUDA_SUCCESS) {
+        cuMemRelease(alloc_handle);
+        return 0;
+    }
+
+    if (prop.location.type == CU_MEM_LOCATION_TYPE_DEVICE) {
+        *mem_type = CU_MEMORYTYPE_DEVICE;
+        *dev_id  = prop.location.id;
+        cuMemRelease(alloc_handle);
+        return 1;
+    }
+
+    if (prop.location.type == CU_MEM_LOCATION_TYPE_HOST_NUMA) {
+        /* check if device has access */
+        for (int i = 0; i < device_count; i++) {
+            location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+            location.id   = i;
+            result = cuMemGetAccess(&flags, &location, dbuf);
+            if ((CUDA_SUCCESS == result) &&
+                (CU_MEM_ACCESS_FLAGS_PROT_READWRITE == flags)) {
+                *mem_type = CU_MEMORYTYPE_DEVICE;
+                *dev_id  = i;
+                cuMemRelease(alloc_handle);
+                return 1;
+            }
+        }
+    }
+
+    /* host must have access as device access possibility is exhausted */
+    *mem_type = CU_MEMORYTYPE_HOST;
+    *dev_id = MCA_ACCELERATOR_NO_DEVICE_ID;
+    cuMemRelease(alloc_handle);
+    return 1;
+
+#endif
+
+    return 0;
+}
+
+static int accelerator_cuda_get_device_id(CUcontext mem_ctx) {
+    /* query the device from the context */
+    int dev_id = -1;
+    CUdevice ptr_dev;
+    cuCtxPushCurrent(mem_ctx);
+    cuCtxGetDevice(&ptr_dev);
+    for (int i = 0; i < opal_accelerator_cuda_num_devices; ++i) {
+        CUdevice dev;
+        cuDeviceGet(&dev, i);
+        if (dev == ptr_dev) {
+            dev_id = i;
+            break;
+        }
+    }
+    cuCtxPopCurrent(&mem_ctx);
+    return dev_id;
+}
+
+static int accelerator_cuda_check_mpool(CUdeviceptr dbuf, CUmemorytype *mem_type,
+                                        int *dev_id)
+{
+#if OPAL_CUDA_VMM_SUPPORT
+    static int device_count = -1;
+    static int mpool_supported = -1;
+    CUresult result;
+    CUmemoryPool mpool;
+    CUmemAccess_flags flags;
+    CUmemLocation location;
+
+    if (mpool_supported <= 0) {
+        if (mpool_supported == -1) {
+            if (device_count == -1) {
+                result = cuDeviceGetCount(&device_count);
+                if (result != CUDA_SUCCESS || (0 == device_count)) {
+                    mpool_supported = 0;  /* never check again */
+                    device_count = 0;
+                    return 0;
+                }
+            }
+
+            /* assume uniformity of devices */
+            result = cuDeviceGetAttribute(&mpool_supported,
+                    CU_DEVICE_ATTRIBUTE_MEMORY_POOLS_SUPPORTED, 0);
+            if (result != CUDA_SUCCESS) {
+                mpool_supported = 0;
+            }
+        }
+        if (0 == mpool_supported) {
+            return 0;
+        }
+    }
+
+    result = cuPointerGetAttribute(&mpool, CU_POINTER_ATTRIBUTE_MEMPOOL_HANDLE,
+                                   dbuf);
+    if (CUDA_SUCCESS != result) {
+        return 0;
+    }
+
+    /* check if device has access */
+    for (int i = 0; i < device_count; i++) {
+        location.type = CU_MEM_LOCATION_TYPE_DEVICE;
+        location.id   = i;
+        result = cuMemPoolGetAccess(&flags, mpool, &location);
+        if ((CUDA_SUCCESS == result) &&
+            (CU_MEM_ACCESS_FLAGS_PROT_READWRITE == flags)) {
+            *mem_type = CU_MEMORYTYPE_DEVICE;
+            *dev_id  = i;
+            return 1;
+        }
+    }
+
+    /* host must have access as device access possibility is exhausted */
+    *mem_type = CU_MEMORYTYPE_HOST;
+    *dev_id = MCA_ACCELERATOR_NO_DEVICE_ID;
+    return 0;
+#endif
+
+    return 0;
+}
+
+static int accelerator_cuda_get_primary_context(CUdevice dev_id, CUcontext *pctx)
+{
+    CUresult result;
+    unsigned int flags;
+    int active;
+
+    result =  cuDevicePrimaryCtxGetState(dev_id, &flags, &active);
+    if (CUDA_SUCCESS != result) {
+        return OPAL_ERROR;
+    }
+
+    if (active) {
+        result = cuDevicePrimaryCtxRetain(pctx, dev_id);
+        return OPAL_SUCCESS;
+    }
+
+    return OPAL_ERROR;
+}
+
 static int accelerator_cuda_check_addr(const void *addr, int *dev_id, uint64_t *flags)
 {
     CUresult result;
+    int is_vmm = 0;
+    int is_mpool_ptr = 0;
+    int vmm_dev_id = MCA_ACCELERATOR_NO_DEVICE_ID;
+    int mpool_dev_id = MCA_ACCELERATOR_NO_DEVICE_ID;
+    CUmemorytype vmm_mem_type = 0;
+    CUmemorytype mpool_mem_type = 0;
     CUmemorytype mem_type = 0;
     CUdeviceptr dbuf = (CUdeviceptr) addr;
     CUcontext ctx = NULL, mem_ctx = NULL;
@@ -90,6 +259,9 @@ static int accelerator_cuda_check_addr(const void *addr, int *dev_id, uint64_t *
     }
 
     *flags = 0;
+
+    is_vmm = accelerator_cuda_check_vmm(dbuf, &vmm_mem_type, &vmm_dev_id);
+    is_mpool_ptr = accelerator_cuda_check_mpool(dbuf, &mpool_mem_type, &mpool_dev_id);
 
 #if OPAL_CUDA_GET_ATTRIBUTES
     uint32_t is_managed = 0;
@@ -120,14 +292,29 @@ static int accelerator_cuda_check_addr(const void *addr, int *dev_id, uint64_t *
             return OPAL_ERROR;
         }
     } else if (CU_MEMORYTYPE_HOST == mem_type) {
-        /* Host memory, nothing to do here */
-        return 0;
+        if (is_vmm && (vmm_mem_type == CU_MEMORYTYPE_DEVICE)) {
+            mem_type = CU_MEMORYTYPE_DEVICE;
+            *dev_id = vmm_dev_id;
+        } else if (is_mpool_ptr && (mpool_mem_type == CU_MEMORYTYPE_DEVICE)) {
+            mem_type = CU_MEMORYTYPE_DEVICE;
+            *dev_id = mpool_dev_id;
+        } else {
+            /* Host memory, nothing to do here */
+            return 0;
+        }
     } else if (0 == mem_type) {
         /* This can happen when CUDA is initialized but dbuf is not valid CUDA pointer */
         return 0;
+    } else {
+        if (is_vmm) {
+            *dev_id = vmm_dev_id;
+        } else if (is_mpool_ptr) {
+            *dev_id = mpool_dev_id;
+        } else {
+            /* query the device from the context */
+            *dev_id = accelerator_cuda_get_device_id(mem_ctx);
+        }
     }
-    /* Must be a device pointer */
-    assert(CU_MEMORYTYPE_DEVICE == mem_type);
 #else /* OPAL_CUDA_GET_ATTRIBUTES */
     result = cuPointerGetAttribute(&mem_type, CU_POINTER_ATTRIBUTE_MEMORY_TYPE, dbuf);
     if (CUDA_SUCCESS != result) {
@@ -138,12 +325,32 @@ static int accelerator_cuda_check_addr(const void *addr, int *dev_id, uint64_t *
             return OPAL_ERROR;
         }
     } else if (CU_MEMORYTYPE_HOST == mem_type) {
-        /* Host memory, nothing to do here */
-        return 0;
+        if (is_vmm && (vmm_mem_type == CU_MEMORYTYPE_DEVICE)) {
+            mem_type = CU_MEMORYTYPE_DEVICE;
+            *dev_id = vmm_dev_id;
+        } else if (is_mpool_ptr && (mpool_mem_type == CU_MEMORYTYPE_DEVICE)) {
+            mem_type = CU_MEMORYTYPE_DEVICE;
+            *dev_id = mpool_dev_id;
+        } else {
+            /* Host memory, nothing to do here */
+            return 0;
+        }
+    } else {
+        if (is_vmm) {
+            *dev_id = vmm_dev_id;
+        } else if (is_mpool_ptr) {
+            *dev_id = mpool_dev_id;
+        } else {
+            result = cuPointerGetAttribute(&mem_ctx,
+                                           CU_POINTER_ATTRIBUTE_CONTEXT, dbuf);
+            /* query the device from the context */
+            *dev_id = accelerator_cuda_get_device_id(mem_ctx);
+        }
     }
+#endif /* OPAL_CUDA_GET_ATTRIBUTES */
+
     /* Must be a device pointer */
     assert(CU_MEMORYTYPE_DEVICE == mem_type);
-#endif /* OPAL_CUDA_GET_ATTRIBUTES */
 
     /* This piece of code was added in to handle in a case involving
      * OMP threads.  The user had initialized CUDA and then spawned
@@ -166,6 +373,20 @@ static int accelerator_cuda_check_addr(const void *addr, int *dev_id, uint64_t *
                 return OPAL_ERROR;
             }
 #endif /* OPAL_CUDA_GET_ATTRIBUTES */
+            if (is_vmm || is_mpool_ptr) {
+                if (OPAL_SUCCESS ==
+                        accelerator_cuda_get_primary_context(
+                            is_vmm ? vmm_dev_id : mpool_dev_id, &mem_ctx)) {
+                    /* As VMM/mempool allocations have no context associated
+                     * with them, check if device primary context can be set */
+                } else {
+                    opal_output(0,
+                                "CUDA: unable to set ctx with the given pointer"
+                                "ptr=%p aborting...", addr);
+                    return OPAL_ERROR;
+                }
+            }
+
             result = cuCtxSetCurrent(mem_ctx);
             if (OPAL_UNLIKELY(CUDA_SUCCESS != result)) {
                 opal_output(0,
@@ -364,8 +585,11 @@ static int accelerator_cuda_memcpy_async(int dest_dev_id, int src_dev_id, void *
         return delayed_init;
     }
 
-    if (NULL == stream || NULL == dest || NULL == src || size <= 0) {
+    if (NULL == stream || NULL == dest || NULL == src || size < 0) {
         return OPAL_ERR_BAD_PARAM;
+    }
+    if (0 == size) {
+        return OPAL_SUCCESS;
     }
 
     result = cuMemcpyAsync((CUdeviceptr) dest, (CUdeviceptr) src, size, *(CUstream *)stream->stream);
@@ -387,8 +611,11 @@ static int accelerator_cuda_memcpy(int dest_dev_id, int src_dev_id, void *dest, 
         return delayed_init;
     }
 
-    if (NULL == dest || NULL == src || size <= 0) {
+    if (NULL == dest || NULL == src || size < 0) {
         return OPAL_ERR_BAD_PARAM;
+    }
+    if (0 == size) {
+        return OPAL_SUCCESS;
     }
 
     /* Async copy then synchronize is the default behavior as some applications

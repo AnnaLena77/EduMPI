@@ -129,6 +129,11 @@ int oshmem_shmem_finalize(void);
 OSHMEM_DECLSPEC int oshmem_shmem_abort(int errcode);
 
 /**
+ * Broadcast between all PEs
+ */
+OSHMEM_DECLSPEC int oshmem_shmem_bcast(void *buf, int elem_size, int root);
+
+/**
  * Allgather between all PEs
  */
 OSHMEM_DECLSPEC int oshmem_shmem_allgather(void *send_buf, void *rcv_buf, int elem_size);
@@ -236,6 +241,18 @@ OSHMEM_DECLSPEC int oshmem_shmem_register_params(void);
 #define RUNTIME_CHECK_IMPL_RC(x)
 
 #endif  /* OSHMEM_PARAM_CHECK */
+
+#define RUNTIME_SHMEM_NOT_IMPLEMENTED_API_ABORT()                    \
+    do {                                                             \
+        SHMEM_API_ERROR("Called non-implemented API: %s", __func__); \
+        oshmem_shmem_abort(OSHMEM_ERR_NOT_IMPLEMENTED);              \
+    } while (0)
+
+#define RUNTIME_SHMEM_NOT_IMPLEMENTED_API_ABORT_RET_SIZE_T() \
+    do {                                                     \
+        RUNTIME_SHMEM_NOT_IMPLEMENTED_API_ABORT();           \
+        return SIZE_MAX;                                     \
+    } while (0)
 
 END_C_DECLS
 

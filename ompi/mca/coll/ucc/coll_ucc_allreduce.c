@@ -9,7 +9,7 @@
 
 #include "coll_ucc_common.h"
 
-static inline ucc_status_t mca_coll_ucc_allreduce_init(const void *sbuf, void *rbuf, int count,
+static inline ucc_status_t mca_coll_ucc_allreduce_init(const void *sbuf, void *rbuf, size_t count,
                                                        struct ompi_datatype_t *dtype,
                                                        struct ompi_op_t *op, mca_coll_ucc_module_t *ucc_module,
                                                        ucc_coll_req_h *req,
@@ -32,6 +32,7 @@ static inline ucc_status_t mca_coll_ucc_allreduce_init(const void *sbuf, void *r
     }
     ucc_coll_args_t coll = {
         .mask      = 0,
+        .flags     = 0,
         .coll_type = UCC_COLL_TYPE_ALLREDUCE,
         .src.info = {
             .buffer   = (void*)sbuf,
@@ -87,11 +88,11 @@ int mca_coll_ucc_allreduce(const void *sbuf, void *rbuf, int count,
 fallback:
     UCC_VERBOSE(3, "running fallback allreduce");
 #ifndef ENABLE_ANALYSIS
-    return ucc_module->previous_allreduce(sbuf, rbuf, count, dtype, op,
-                                          comm, ucc_module->previous_allreduce_module);
+    return mca_coll_ucc_call_previous(allreduce, ucc_module,
+        sbuf, rbuf, count, dtype, op, comm);
 #else
-    return ucc_module->previous_allreduce(sbuf, rbuf, count, dtype, op,
-                                          comm, ucc_module->previous_allreduce_module, &item);
+    return mca_coll_ucc_call_previous(allreduce, ucc_module,
+        sbuf, rbuf, count, dtype, op, comm, &item);
 #endif
 }
 
@@ -131,10 +132,10 @@ fallback:
         mca_coll_ucc_req_free((ompi_request_t **)&coll_req);
     }
 #ifndef ENABLE_ANALYSIS
-    return ucc_module->previous_iallreduce(sbuf, rbuf, count, dtype, op,
-                                           comm, request, ucc_module->previous_iallreduce_module);
+    return mca_coll_ucc_call_previous(iallreduce, ucc_module,
+        sbuf, rbuf, count, dtype, op, comm, request);
 #else
-    return ucc_module->previous_iallreduce(sbuf, rbuf, count, dtype, op,
-                                           comm, request, ucc_module->previous_iallreduce_module, &item);
+    return mca_coll_ucc_call_previous(iallreduce, ucc_module,
+        sbuf, rbuf, count, dtype, op, comm, request, &item);
 #endif
 }

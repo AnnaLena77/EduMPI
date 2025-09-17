@@ -3,7 +3,7 @@
  * Copyright (c) 2004-2005 The Trustees of Indiana University and Indiana
  *                         University Research and Technology
  *                         Corporation.  All rights reserved.
- * Copyright (c) 2004-2013 The University of Tennessee and The University
+ * Copyright (c) 2004-2024 The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
  * Copyright (c) 2004-2005 High Performance Computing Center Stuttgart,
@@ -16,7 +16,7 @@
  * Copyright (c) 2010      IBM Corporation.  All rights reserved.
  * Copyright (c) 2011-2018 Los Alamos National Security, LLC. All rights
  *                         reserved.
- * Copyright (c) 2013      NVIDIA Corporation.  All rights reserved.
+ * Copyright (c) 2013-2025 NVIDIA Corporation.  All rights reserved.
  * Copyright (c) 2016      Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * Copyright (c) 2020      Google, LLC. All rights reserved.
@@ -75,12 +75,10 @@ static inline bool registration_is_cacheable(mca_rcache_base_registration_t *reg
 
 static void mca_rcache_grdma_cache_contructor(mca_rcache_grdma_cache_t *cache)
 {
-    memset((void *) ((uintptr_t) cache + sizeof(cache->super)), 0,
-           sizeof(*cache) - sizeof(cache->super));
-
     OBJ_CONSTRUCT(&cache->lru_list, opal_list_t);
     OBJ_CONSTRUCT(&cache->gc_lifo, opal_lifo_t);
 
+    cache->cache_name = NULL;
     cache->vma_module = mca_rcache_base_vma_module_alloc();
 }
 
@@ -110,6 +108,8 @@ void mca_rcache_grdma_module_init(mca_rcache_grdma_module_t *rcache,
 {
     OBJ_RETAIN(cache);
     rcache->cache = cache;
+
+    mca_rcache_base_module_init(&rcache->super);
 
     rcache->super.rcache_component = &mca_rcache_grdma_component.super;
     rcache->super.rcache_register = mca_rcache_grdma_register;
@@ -601,6 +601,8 @@ static void mca_rcache_grdma_finalize(mca_rcache_base_module_t *rcache)
     OBJ_RELEASE(rcache_grdma->cache);
 
     OBJ_DESTRUCT(&rcache_grdma->reg_list);
+
+    mca_rcache_base_module_fini(rcache);
 
     /* this rcache was allocated by grdma_init in rcache_grdma_component.c */
     free(rcache);

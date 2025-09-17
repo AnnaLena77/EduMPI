@@ -26,11 +26,12 @@ ompi_coll_base_agree_noft(void *contrib,
                          struct ompi_communicator_t* comm,
                          mca_coll_base_module_t *module)
 {
+    void *sendbuf = OMPI_COMM_IS_INTER(comm) ? contrib : MPI_IN_PLACE;
 #ifndef ENABLE_ANALYSIS
-    return comm->c_coll->coll_allreduce(MPI_IN_PLACE, contrib, dt_count, dt, op,
+    return comm->c_coll->coll_allreduce(sendbuf, contrib, dt_count, dt, op,
                                        comm, comm->c_coll->coll_allreduce_module);
 #else
-    return comm->c_coll->coll_allreduce(MPI_IN_PLACE, contrib, dt_count, dt, op,
+    return comm->c_coll->coll_allreduce(sendbuf, contrib, dt_count, dt, op,
                                        comm, comm->c_coll->coll_allreduce_module, NULL);
 #endif
 }
@@ -45,11 +46,12 @@ ompi_coll_base_iagree_noft(void *contrib,
                           ompi_request_t **request,
                           mca_coll_base_module_t *module)
 {
+    void *sendbuf = OMPI_COMM_IS_INTER(comm) ? contrib : MPI_IN_PLACE;
 #ifndef ENABLE_ANALYSIS
-    return comm->c_coll->coll_iallreduce(MPI_IN_PLACE, contrib, dt_count, dt, op,
+    return comm->c_coll->coll_iallreduce(sendbuf, contrib, dt_count, dt, op,
                                         comm, request, comm->c_coll->coll_iallreduce_module);
 #else
-    return comm->c_coll->coll_iallreduce(MPI_IN_PLACE, contrib, dt_count, dt, op,
+    return comm->c_coll->coll_iallreduce(sendbuf, contrib, dt_count, dt, op,
                                         comm, request, comm->c_coll->coll_iallreduce_module, NULL);
 #endif
 }

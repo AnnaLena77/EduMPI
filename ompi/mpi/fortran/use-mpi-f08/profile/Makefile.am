@@ -21,6 +21,7 @@
 #                         and Technology (RIST).  All rights reserved.
 # Copyright (c) 2022      Triad National Security, LLC. All rights
 #                         reserved.
+# Copyright (c) 2024      Jeffrey M. Squyres.  All rights reserved.
 # $COPYRIGHT$
 #
 # Additional copyrights may follow
@@ -69,6 +70,7 @@ pmpi_api_files = \
         pallgatherv_init_f08.F90 \
         palloc_mem_f08.F90 \
         pallreduce_f08.F90 \
+        pallreduce_init_f08.F90 \
         palltoall_f08.F90 \
         palltoall_init_f08.F90 \
         palltoallv_f08.F90 \
@@ -97,6 +99,7 @@ pmpi_api_files = \
         pcomm_call_errhandler_f08.F90 \
         pcomm_compare_f08.F90 \
         pcomm_connect_f08.F90 \
+        pcomm_create_from_group_f08.F90 \
         pcomm_create_errhandler_f08.F90 \
         pcomm_create_f08.F90 \
         pcomm_create_group_f08.F90 \
@@ -229,6 +232,7 @@ pmpi_api_files = \
         pgroup_difference_f08.F90 \
         pgroup_excl_f08.F90 \
         pgroup_free_f08.F90 \
+        pgroup_from_session_pset_f08.F90 \
         pgroup_incl_f08.F90 \
         pgroup_intersection_f08.F90 \
         pgroup_range_excl_f08.F90 \
@@ -271,6 +275,7 @@ pmpi_api_files = \
         pinitialized_f08.F90 \
         pinit_thread_f08.F90 \
         pintercomm_create_f08.F90 \
+        pintercomm_create_from_groups_f08.F90 \
         pintercomm_merge_f08.F90 \
         piprobe_f08.F90 \
         pirecv_f08.F90 \
@@ -307,8 +312,13 @@ pmpi_api_files = \
         ppack_external_size_f08.F90 \
         ppack_f08.F90 \
         ppack_size_f08.F90 \
+        pparrived_f08.F90 \
         ppcontrol_f08.F90 \
+        ppready_f08.F90 \
+        ppready_list_f08.F90 \
+        ppready_range_f08.F90 \
         pprobe_f08.F90 \
+        ppsend_init_f08.F90 \
         ppublish_name_f08.F90 \
         pput_f08.F90 \
         pquery_thread_f08.F90 \
@@ -340,6 +350,7 @@ pmpi_api_files = \
         psend_init_f08.F90 \
         psendrecv_f08.F90 \
         psendrecv_replace_f08.F90 \
+        psession_call_errhandler_f08.F90 \
         psession_create_errhandler_f08.F90\
         psession_get_errhandler_f08.F90\
         psession_get_info_f08.F90 \

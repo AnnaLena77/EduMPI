@@ -14,6 +14,7 @@ static inline ucc_status_t mca_coll_ucc_barrier_init(mca_coll_ucc_module_t *ucc_
 {
     ucc_coll_args_t coll = {
         .mask      = 0,
+        .flags     = 0,
         .coll_type = UCC_COLL_TYPE_BARRIER
     };
     COLL_UCC_REQ_INIT(coll_req, req, coll, ucc_module);
@@ -35,7 +36,7 @@ int mca_coll_ucc_barrier(struct ompi_communicator_t *comm,
     return OMPI_SUCCESS;
 fallback:
     UCC_VERBOSE(3, "running fallback barrier");
-    return ucc_module->previous_barrier(comm, ucc_module->previous_barrier_module);
+    return mca_coll_ucc_call_previous(barrier, ucc_module, comm);
 }
 
 int mca_coll_ucc_ibarrier(struct ompi_communicator_t *comm,
@@ -57,6 +58,5 @@ fallback:
     if (coll_req) {
         mca_coll_ucc_req_free((ompi_request_t **)&coll_req);
     }
-    return ucc_module->previous_ibarrier(comm, request,
-                                         ucc_module->previous_ibarrier_module);
+    return mca_coll_ucc_call_previous(ibarrier, ucc_module, comm, request);
 }

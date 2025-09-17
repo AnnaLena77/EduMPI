@@ -3,7 +3,7 @@
  * Copyright (c) 2015      Intel, Inc. All rights reserved.
  * Copyright (c) 2017      Los Alamos National Security, LLC.  All rights
  *                         reserved.
- * Copyright (c) 2020-2022 Triad National Security, LLC. All rights
+ * Copyright (c) 2020-2024 Triad National Security, LLC. All rights
  *                         reserved.
  * Copyright (c) 2021      Amazon.com, Inc. or its affiliates. All rights
  *                         reserved.
@@ -31,6 +31,26 @@ typedef struct opal_common_ofi_module {
     char **prov_exclude;
     int output;
 } opal_common_ofi_module_t;
+
+/**
+ * When attempting to execute an OFI operation we need to handle
+ * resource overrun cases. When a call to an OFI OP fails with -FI_EAGAIN
+ * the OFI mtl/btl will attempt to progress any pending Completion Queue
+ * events that may prevent additional operations to be enqueued.
+ * If the call to ofi progress is successful, then the function call
+ * will be retried.
+ */
+#define OFI_RETRY_UNTIL_DONE(FUNC, RETURN)             \
+    do {                                               \
+        do {                                           \
+            RETURN = FUNC;                             \
+            if (OPAL_LIKELY(0 == RETURN)) {break;}     \
+            if (OPAL_LIKELY(RETURN == -FI_EAGAIN)) {   \
+                opal_progress();                       \
+            }                                          \
+        } while (OPAL_LIKELY(-FI_EAGAIN == RETURN));   \
+    } while (0);
+
 
 extern opal_common_ofi_module_t opal_common_ofi;
 
@@ -101,49 +121,81 @@ OPAL_DECLSPEC int opal_common_ofi_export_memory_monitor(void);
 OPAL_DECLSPEC int opal_common_ofi_is_in_list(char **list, char *item);
 
 /**
+ * Get the number of providers whose names are included in a list
+ *
+ * This function takes a list of providers and a list of name strings
+ * as inputs, and return the number of providers whose names are included
+ * in the name strings.
+ *
+ * @param provider_list (IN)    List of providers
+ * @param list          (IN)    List of name string
+ *
+ * @return                      Number of matched providers
+ *
+ */
+OPAL_DECLSPEC int opal_common_ofi_count_providers_in_list(struct fi_info *provider_list,
+                                                          char **list);
+
+/**
+ * Determine whether all providers are included in a list
+ *
+ * This function takes a list of providers and a list of name strings
+ * as inputs, and return whether all provider names are included in the name strings.
+ *
+ * @param provider_list (IN)    List of providers
+ * @param list          (IN)    List of name string
+ *
+ * @return  0                   At least one provider's name is not included in the name strings.
+ * @return  1                   All provider names are included in the name strings.
+ *
+ */
+OPAL_DECLSPEC int opal_common_ofi_providers_subset_of_list(struct fi_info *provider_list,
+                                                           char **list);
+
+/**
  * Selects NIC (provider) based on hardware locality
  *
- * In multi-nic situations, use hardware topology to pick the "best"
- * of the selected NICs.
- * There are 3 main cases that this covers:
+ * The selection is based on the following priority:
  *
- *      1. If the first provider passed into this function is the only valid
- *      provider, this provider is returned.
+ * Single-NIC:
+ * 
+ *      If only 1 provider is available, always return that provider.
+ * 
+ * Multi-NIC:
+ * 
+ *      1. If the process is NOT bound, pick a NIC using (local rank % number
+ *      of providers of the same type). This gives a fair chance to each
+ *      qualified NIC and balances overall utilization.
  *
- *      2. If there is more than 1 provider that matches the type of the first
- *      provider in the list, and the BDF data
- *      is available then a provider is selected based on locality of device
- *      cpuset and process cpuset and tries to ensure that processes
- *      are distributed evenly across NICs. This has two separate
- *      cases:
+ *      2. If the process is bound, we compare providers in the list that have
+ *      the same type as the first provider, and find the provider with the
+ *      shortest distance to the current process. 
+ * 
+ *          i. If the provider has PCI BDF data, we attempt to compute the
+ *          distance between the NIC and the current process cpuset. The NIC
+ *          with the shortest distance is returned.
+ * 
+ *              * For equidistant NICs, we select a NIC in round-robin fashion
+ *              using the package rank of the current process, i.e. (package
+ *              rank % number of providers with the same distance).
  *
- *          i. There is one or more provider local to the process:
+ *          ii. If we cannot compute the distance between the NIC and the
+ *          current process, e.g. PCI BDF data is not available, a NIC will be
+ *          selected in a round-robin fashion using package rank, i.e. (package
+ *          rank % number of providers of the same type).
  *
- *              (local rank % number of providers of the same type
- *              that share the process cpuset) is used to select one
- *              of these providers.
+ * @param[in]   provider_list   struct fi_info* An initially selected
+ *                              provider NIC. The provider name and
+ *                              attributes are used to restrict NIC
+ *                              selection. This provider is returned if the
+ *                              NIC selection fails.
+ * 
+ * @param[in]   process_info    opal_process_info_t* The current process info
  *
- *          ii. There is no provider that is local to the process:
- *
- *              (local rank % number of providers of the same type)
- *              is used to select one of these providers
- *
- *      3. If there is more than 1 providers of the same type in the
- *      list, and the BDF data is not available (the ofi version does
- *      not support fi_info.nic or the provider does not support BDF)
- *      then (local rank % number of providers of the same type) is
- *      used to select one of these providers
- *
- * @param provider_list (IN)   struct fi_info* An initially selected
- *                             provider NIC. The provider name and
- *                             attributes are used to restrict NIC
- *                             selection. This provider is returned if the
- *                             NIC selection fails.
- *
- * @param provider (OUT)       struct fi_info* object with the selected
- *                             provider if the selection succeeds
- *                             if the selection fails, returns the fi_info
- *                             object that was initially provided.
+ * @param[out]  provider        struct fi_info* object with the selected
+ *                              provider if the selection succeeds
+ *                              if the selection fails, returns the fi_info
+ *                              object that was initially provided.
  *
  * All errors should be recoverable and will return the initially provided
  * provider. However, if an error occurs we can no longer guarantee
@@ -152,7 +204,7 @@ OPAL_DECLSPEC int opal_common_ofi_is_in_list(char **list, char *item);
  *
  */
 OPAL_DECLSPEC struct fi_info *opal_common_ofi_select_provider(struct fi_info *provider_list,
-                                                                  opal_process_info_t *process_info);
+                                                              opal_process_info_t *process_info);
 
 /**
  * Obtain EP endpoint name

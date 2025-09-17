@@ -24,7 +24,7 @@
  * Copyright (c) 2015      Mellanox Technologies. All rights reserved.
  * Copyright (c) 2017-2022 IBM Corporation.  All rights reserved.
  * Copyright (c) 2021      Nanook Consulting.  All rights reserved.
- * Copyright (c) 2018-2022 Triad National Security, LLC. All rights
+ * Copyright (c) 2018-2024 Triad National Security, LLC. All rights
  *                         reserved.
  * Copyright (c) 2023      Advanced Micro Devices, Inc. All rights reserved.
  * $COPYRIGHT$
@@ -737,11 +737,6 @@ int ompi_comm_split_with_info( ompi_communicator_t* comm, int color, int key,
     /* Activate the communicator and init coll-component */
     rc = ompi_comm_activate (&newcomp, comm, NULL, NULL, NULL, false, mode);
 
-    /* MPI-4 §7.4.4 requires us to remove all unknown keys from the info object */
-    if (NULL != newcomp->super.s_info) {
-        opal_info_remove_unreferenced(newcomp->super.s_info);
-    }
-
  exit:
     free ( results );
     free ( sorted );
@@ -1062,9 +1057,6 @@ static int ompi_comm_split_type_core(ompi_communicator_t *comm,
         ompi_comm_print_cid (newcomp), ompi_comm_print_cid (comm));
         goto exit;
     }
-
-    /* MPI-4 §7.4.4 requires us to remove all unknown keys from the info object */
-    opal_info_remove_unreferenced(newcomp->super.s_info);
 
     /* TODO: there probably is better way to handle this case without throwing away the
      * intermediate communicator. */
@@ -1413,9 +1405,6 @@ int ompi_comm_dup_with_info ( ompi_communicator_t * comm, opal_info_t *info, omp
         return rc;
     }
 
-    /* MPI-4 §7.4.4 requires us to remove all unknown keys from the info object */
-    opal_info_remove_unreferenced(newcomp->super.s_info);
-
     *newcomm = newcomp;
     return MPI_SUCCESS;
 }
@@ -1572,8 +1561,6 @@ static int ompi_comm_idup_with_info_finish (ompi_comm_request_t *request)
 {
     ompi_comm_idup_with_info_context_t *context =
         (ompi_comm_idup_with_info_context_t *) request->context;
-    /* MPI-4 §7.4.4 requires us to remove all unknown keys from the info object */
-    opal_info_remove_unreferenced(context->newcomp->super.s_info);
 
     /* done */
     return MPI_SUCCESS;
@@ -1668,7 +1655,7 @@ int ompi_comm_create_from_group (ompi_group_t *group, const char *tag, opal_info
 
     /*
      * setup predefined keyvals - see MPI Standard for predefined keyvals cached on 
-     * communicators created via MPI_Comm_from_group or MPI_Intercomm_create_from_groups
+     * communicators created via MPI_Comm_create_from_group or MPI_Intercomm_create_from_groups
      */
     ompi_attr_hash_init(&newcomp->c_keyhash);
     ompi_attr_set_int(COMM_ATTR,
@@ -1818,7 +1805,7 @@ int ompi_intercomm_create_from_groups (ompi_group_t *local_group, int local_lead
                                        ompi_communicator_t **newintercomm)
 {
     ompi_communicator_t *newcomp = NULL, *local_comm, *leader_comm = MPI_COMM_NULL;
-    ompi_comm_extended_cid_block_t new_block;
+    ompi_comm_extended_cid_block_t new_block = {0};
     bool i_am_leader = local_leader == local_group->grp_my_rank;
     ompi_proc_t **rprocs;
     uint64_t data[4];
@@ -1864,22 +1851,22 @@ int ompi_intercomm_create_from_groups (ompi_group_t *local_group, int local_lead
                 leader_procs[1] = tmp;
             }
 
-            /* create a unique tag for allocating the leader communicator. we can eliminate this step
-             * if we take a CID from the newly allocated block belonging to local_comm. this is
-             * a note to make this change at a later time. */
-            opal_asprintf (&sub_tag, "%s-OMPIi-LC", tag);
-            if (OPAL_UNLIKELY(NULL == sub_tag)) {
-                ompi_comm_free (&local_comm);
-                free(leader_procs);
-                return OMPI_ERR_OUT_OF_RESOURCE;
-            }
-
             leader_group = ompi_group_allocate_plist_w_procs (NULL, leader_procs, 2);
             ompi_set_group_rank (leader_group, my_proc);
             if (OPAL_UNLIKELY(NULL == leader_group)) {
-                free (sub_tag);
                 free(leader_procs);
                 ompi_comm_free (&local_comm);
+                return OMPI_ERR_OUT_OF_RESOURCE;
+            }
+
+            /* create a unique tag for allocating the leader communicator. we can eliminate this step
+             * if we take a CID from the newly allocated block belonging to local_comm. this is
+             * a note to make this change at a later time. */
+            opal_asprintf (&sub_tag, "%s-OMPIi-LC-%s", tag, OPAL_NAME_PRINT(ompi_group_get_proc_name (leader_group, 0)));
+            if (OPAL_UNLIKELY(NULL == sub_tag)) {
+                free(leader_procs);
+                ompi_comm_free (&local_comm);
+                OBJ_RELEASE(leader_group);
                 return OMPI_ERR_OUT_OF_RESOURCE;
             }
 
@@ -1889,6 +1876,7 @@ int ompi_intercomm_create_from_groups (ompi_group_t *local_group, int local_lead
             rc = ompi_comm_create_from_group (leader_group, sub_tag, info, errhandler, &leader_comm);
             OBJ_RELEASE(leader_group);
             free (sub_tag);
+            sub_tag = NULL;
             if (OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
                 free(leader_procs);
                 ompi_comm_free (&local_comm);
@@ -1949,14 +1937,16 @@ int ompi_intercomm_create_from_groups (ompi_group_t *local_group, int local_lead
         return rc;
     }
 
-    /* will be using a communicator ID derived from the bridge communicator to save some time */
-    new_block.block_cid.cid_base = data[1];
-    new_block.block_cid.cid_sub.u64 = data[2];
-    new_block.block_nextsub = 0;
-    new_block.block_nexttag = 0;
-    new_block.block_level = (int8_t) data[3];
+    /*
+     * append the pmix CONTEXT_ID obtained when creating the leader comm as discriminator
+     */
+    opal_asprintf (&sub_tag, "%s-%ld", tag, data[1]);
+    if (OPAL_UNLIKELY(NULL == sub_tag)) {
+        return OMPI_ERR_OUT_OF_RESOURCE;
+    }
 
-    rc = ompi_comm_nextcid (newcomp, NULL, NULL, (void *) tag, &new_block, false, OMPI_COMM_CID_GROUP_NEW);
+    rc = ompi_comm_nextcid (newcomp, NULL, NULL, (void *) sub_tag, NULL, false, OMPI_COMM_CID_GROUP_NEW);
+    free (sub_tag);
     if ( OMPI_SUCCESS != rc ) {
         OBJ_RELEASE(newcomp);
         return rc;
@@ -2294,7 +2284,7 @@ int ompi_comm_free( ompi_communicator_t **comm )
          * makes sure that the pointer to the dependent communicator
          * still contains a valid object.
          */
-        ompi_communicator_t *tmpcomm = (ompi_communicator_t *) opal_pointer_array_get_item(&ompi_mpi_communicators, cid);
+        ompi_communicator_t *tmpcomm = ompi_comm_lookup(cid);
         if ( NULL != tmpcomm ){
             ompi_comm_free(&tmpcomm);
         }
@@ -2509,7 +2499,7 @@ int ompi_comm_get_rprocs (ompi_communicator_t *local_comm, ompi_communicator_t *
        since it is used in the communicator */
     if ( OMPI_SUCCESS != rc ) {
         OMPI_ERROR_LOG(rc);
-        opal_output(0, "%d: Error in ompi_get_rprocs\n", local_rank);
+        opal_output(0, "%d: Error in ompi_comm_get_rprocs\n", local_rank);
         if ( NULL != rprocs ) {
             free ( rprocs );
             rprocs=NULL;

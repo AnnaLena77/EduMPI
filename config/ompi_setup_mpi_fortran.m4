@@ -15,7 +15,7 @@ dnl Copyright (c) 2006-2008 Sun Microsystems, Inc.  All rights reserved.
 dnl Copyright (c) 2006-2007 Los Alamos National Security, LLC.  All rights
 dnl                         reserved.
 dnl Copyright (c) 2009      Oak Ridge National Labs.  All rights reserved.
-dnl Copyright (c) 2014-2021 Research Organization for Information Science
+dnl Copyright (c) 2014-2025 Research Organization for Information Science
 dnl                         and Technology (RIST).  All rights reserved.
 dnl Copyright (c) 2016-2022 IBM Corporation.  All rights reserved.
 dnl Copyright (c) 2018      FUJITSU LIMITED.  All rights reserved.
@@ -142,6 +142,10 @@ AC_DEFUN([OMPI_SETUP_MPI_FORTRAN],[
     OMPI_FORTRAN_IKINDS=
     OMPI_FORTRAN_RKINDS=
     OMPI_FORTRAN_CKINDS=
+    AS_IF([test $ompi_fortran_happy -eq 1],
+          [OMPI_FORTRAN_GET_COMMON_ALIGNMENT([OMPI_FORTRAN_COMMON_ALIGNMENT])],
+          [OMPI_FORTRAN_COMMON_ALIGNMENT=0])
+    AC_SUBST([OMPI_FORTRAN_COMMON_ALIGNMENT])
 
     # We want to set the #define's for all of these, so invoke the macros
     # regardless of whether we have F77 support or not.

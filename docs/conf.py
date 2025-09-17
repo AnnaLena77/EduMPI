@@ -37,10 +37,10 @@ def read_version_file(path):
     if not os.path.exists(path):
         print(f"ERROR: Unable to find file {path}")
         exit(1)
-        
+
     with open(path) as fp:
         version_lines = fp.readlines()
-    
+
     data = dict()
     for line in version_lines:
         if '#' in line:
@@ -78,9 +78,9 @@ pmix_data = read_version_file(f"{ompi_top_srcdir}/3rd-party/openpmix/VERSION")
 prte_data = read_version_file(f"{ompi_top_srcdir}/3rd-party/prrte/VERSION")
 
 hwloc_embedded_version = get_tarball_version(f"{ompi_top_srcdir}/3rd-party/",
-                                             r"hwloc-(.*).tar")
+                                             r"hwloc-([^-]+).*\.tar")
 event_embedded_version = get_tarball_version(f"{ompi_top_srcdir}/3rd-party/",
-                                             r"libevent-(.*)-stable.tar")
+                                             r"libevent-([^-]+).*\.tar")
 
 # ---------------------------
 
@@ -129,6 +129,15 @@ key = 'READTHEDOCS'
 if key in os.environ and os.environ[key] == 'True':
     print("OMPI: found ReadTheDocs build environment")
 
+    # Tell Jinja2 templates the build is running on Read the Docs
+    if "html_context" not in globals():
+        html_context = {}
+    html_context["READTHEDOCS"] = True
+
+    # Define the canonical URL if you are using a custom domain on
+    # Read the Docs
+    html_baseurl = os.environ.get("READTHEDOCS_CANONICAL_URL", "")
+
     rtd_v = os.environ['READTHEDOCS_VERSION']
     if os.environ['READTHEDOCS_VERSION_TYPE'] == 'external':
         # Make "release" be shorter than the full "ompi_ver" value.
@@ -176,7 +185,31 @@ templates_path = ['_templates']
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'venv', 'py*/**']
+#
+# Note that we exclude the entire prrte-rst-content/ directory.
+# Here's why:
+#
+# * By default, Sphinx will warn about any .rst file that it finds in
+#   the doc tree that is not referenced via either the "include"
+#   directive or via a TOC.
+# * The prrte-rst-content/ directory contains files that we *do* use
+#   here in the OMPI docs, but it also contains files that we do
+#   *not* use here in the OMPI docs.
+# * Consequently, we explicitly ".. include:: <filename>" the specific
+#   files that we want from the prrte-rst-content/ directory.  And we
+#   specifically do *not* include at least some files in the
+#   prrte-rst-content directory.
+# * Listing files/patterns in exclude_patterns:
+#   * Will prevent Sphinx from searching for/finding new .rst files
+#     that match those patterns.
+#   * Will not prevent explicitly ".. include:"'ing a file with a name
+#     that matches a pattern in exclude_patterns.
+#
+# Hence, listing prrte-rst-content in exclude_patterns means that
+# Sphinx won't complain about the .rst files in that tree that we are
+# not referencing from here in the OMPI docs.
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'venv', 'py*/**',
+                    'prrte-rst-content' ]
 
 
 # Clarify the language for verbatim blocks (::)
@@ -200,6 +233,8 @@ html_theme = 'sphinx_rtd_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 #html_static_path = ['_static']
 
+# Put a "Last updated on:" timestamp at the bottom of each page.
+html_last_updated_fmt = '%Y-%m-%d %H:%M:%S %Z'
 
 # Short hand external links
 # Allows smoother transitioning for commonly used articles and sites
@@ -218,7 +253,7 @@ def find_man_pages_top():
         for root, dirs, files in os.walk(topdir):
             for filename in files:
                 # Parse filenames of the format a "foo.X.rst"
-                parts = re.search("^([^/]+?)\.([0-9]+)\.rst$", filename)
+                parts = re.search(r"^([^/]+?)\.([0-9]+)\.rst$", filename)
 
                 # Skip files that do not match that format (e.g.,
                 # "index.rst")

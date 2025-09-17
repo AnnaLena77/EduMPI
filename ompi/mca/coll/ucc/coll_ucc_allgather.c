@@ -9,21 +9,26 @@
 
 #include "coll_ucc_common.h"
 
-static inline ucc_status_t mca_coll_ucc_allgather_init(const void *sbuf, int scount, struct ompi_datatype_t *sdtype,
-                                                       void* rbuf, int rcount, struct ompi_datatype_t *rdtype,
+static inline ucc_status_t mca_coll_ucc_allgather_init(const void *sbuf, size_t scount, struct ompi_datatype_t *sdtype,
+                                                       void* rbuf, size_t rcount, struct ompi_datatype_t *rdtype,
                                                        mca_coll_ucc_module_t *ucc_module,
                                                        ucc_coll_req_h *req,
                                                        mca_coll_ucc_req_t *coll_req)
 {
-    ucc_datatype_t         ucc_sdt, ucc_rdt;
+    ucc_datatype_t ucc_sdt = UCC_DT_INT8, ucc_rdt = UCC_DT_INT8;
+    bool is_inplace = (MPI_IN_PLACE == sbuf);
     int comm_size = ompi_comm_size(ucc_module->comm);
 
-    if (!ompi_datatype_is_contiguous_memory_layout(sdtype, scount) ||
+    if (!(is_inplace || ompi_datatype_is_contiguous_memory_layout(sdtype, scount)) ||
         !ompi_datatype_is_contiguous_memory_layout(rdtype, rcount * comm_size)) {
         goto fallback;
     }
-    ucc_sdt = ompi_dtype_to_ucc_dtype(sdtype);
+
     ucc_rdt = ompi_dtype_to_ucc_dtype(rdtype);
+    if (!is_inplace) {
+        ucc_sdt = ompi_dtype_to_ucc_dtype(sdtype);
+    }
+
     if (COLL_UCC_DT_UNSUPPORTED == ucc_sdt ||
         COLL_UCC_DT_UNSUPPORTED == ucc_rdt) {
         UCC_VERBOSE(5, "ompi_datatype is not supported: dtype = %s",
@@ -34,6 +39,7 @@ static inline ucc_status_t mca_coll_ucc_allgather_init(const void *sbuf, int sco
 
     ucc_coll_args_t coll = {
         .mask      = 0,
+        .flags     = 0,
         .coll_type = UCC_COLL_TYPE_ALLGATHER,
         .src.info = {
             .buffer   = (void*)sbuf,
@@ -49,7 +55,7 @@ static inline ucc_status_t mca_coll_ucc_allgather_init(const void *sbuf, int sco
         }
     };
 
-    if (MPI_IN_PLACE == sbuf) {
+    if (is_inplace) {
         coll.mask  = UCC_COLL_ARGS_FIELD_FLAGS;
         coll.flags = UCC_COLL_ARGS_FLAG_IN_PLACE;
     }
@@ -90,11 +96,11 @@ printf("Hello aus ucc_allgather\n");
 fallback:
     UCC_VERBOSE(3, "running fallback allgather");
 #ifndef ENABLE_ANALYSIS
-    return ucc_module->previous_allgather(sbuf, scount, sdtype, rbuf, rcount, rdtype,
-                                          comm, ucc_module->previous_allgather_module);
+    return mca_coll_ucc_call_previous(allgather, ucc_module,
+        sbuf, scount, sdtype, rbuf, rcount, rdtype, comm);
 #else
-    return ucc_module->previous_allgather(sbuf, scount, sdtype, rbuf, rcount, rdtype,
-                                          comm, ucc_module->previous_allgather_module, &item);
+    return mca_coll_ucc_call_previous(allgather, ucc_module,
+        sbuf, scount, sdtype, rbuf, rcount, rdtype, comm, &item);
 #endif
 }
 
@@ -133,11 +139,12 @@ fallback:
     if (coll_req) {
         mca_coll_ucc_req_free((ompi_request_t **)&coll_req);
     }
+<<<<<<< HEAD
 #ifndef ENABLE_ANALYSIS
-    return ucc_module->previous_iallgather(sbuf, scount, sdtype, rbuf, rcount, rdtype,
-                                           comm, request, ucc_module->previous_iallgather_module);
+    return mca_coll_ucc_call_previous(iallgather, ucc_module,
+        sbuf, scount, sdtype, rbuf, rcount, rdtype, comm, request);
 #else
-    return ucc_module->previous_iallgather(sbuf, scount, sdtype, rbuf, rcount, rdtype,
-                                           comm, request, ucc_module->previous_iallgather_module, &item);
+    return mca_coll_ucc_call_previous(iallgather, ucc_module,
+        sbuf, scount, sdtype, rbuf, rcount, rdtype, comm, request, &item);
 #endif
 }

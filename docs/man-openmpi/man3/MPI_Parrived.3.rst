@@ -6,7 +6,7 @@ MPI_Parrived
 
 .. include_body
 
-:ref:`MPI_Parrived` - Tests for completion of a specified receive-side
+:ref:`MPI_Parrived` |mdash| Tests for completion of a specified receive-side
 partition.
 
 
@@ -21,7 +21,7 @@ C Syntax
 
    #include <mpi.h>
 
-   int MPI_Parrived(MPI_Request *request, int partition, int *flag)
+   int MPI_Parrived(MPI_Request request, int partition, int *flag)
 
 
 Fortran Syntax

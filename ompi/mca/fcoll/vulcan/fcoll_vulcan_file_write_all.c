@@ -12,6 +12,7 @@
  * Copyright (c) 2008-2021 University of Houston. All rights reserved.
  * Copyright (c) 2015-2018 Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
+ * Copyright (c) 2023      Jeffrey M. Squyres.  All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -760,8 +761,10 @@ exit :
     }
     free(broken_iov_arrays);
     free(fh->f_procs_in_group);
+    free(fh->f_aggr_list);
     fh->f_procs_in_group=NULL;
     fh->f_procs_per_group=0;
+    fh->f_aggr_list=NULL;
     free(result_counts);
     free(reqs);
      
@@ -845,7 +848,9 @@ static int shuffle_init ( int index, int cycles, int aggregator, int rank, mca_i
     int temp_index=0;
     MPI_Aint *memory_displacements=NULL;
     int *temp_disp_index=NULL;
+#if DEBUG_ON
     MPI_Aint global_count = 0;
+#endif
     int* blocklength_proc=NULL;
     ptrdiff_t* displs_proc=NULL;
 
@@ -1145,7 +1150,9 @@ static int shuffle_init ( int index, int cycles, int aggregator, int rank, mca_i
             }
             
             /*Now update the displacements array  with memory offsets*/
+#if DEBUG_ON
             global_count = 0;
+#endif
             for (i=0;i<entries_per_aggregator;i++){
                 temp_pindex =
                     file_offsets_for_agg[sorted_file_offsets[i]].process_id;
@@ -1158,8 +1165,10 @@ static int shuffle_init ( int index, int cycles, int aggregator, int rank, mca_i
                            temp_pindex, temp_disp_index[temp_pindex],
                            temp_pindex, data->disp_index[temp_pindex]);
                 }
+#if DEBUG_ON
                 global_count +=
                     file_offsets_for_agg[sorted_file_offsets[i]].length;
+#endif
             }
             
             if (NULL != temp_disp_index){

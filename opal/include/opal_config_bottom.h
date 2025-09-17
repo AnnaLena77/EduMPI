@@ -17,6 +17,7 @@
  *                         and Technology (RIST). All rights reserved.
  * Copyright (c) 2015-2017 Intel, Inc. All rights reserved.
  * Copyright (c) 2021      FUJITSU LIMITED.  All rights reserved.
+ * Copyright (c) 2023      NVIDIA Corporation.  All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -227,6 +228,12 @@
 #    define __opal_attribute_weak_alias__(a) __attribute__((__weak__, __alias__(a)))
 #else
 #    define __opal_attribute_weak_alias__(a)
+#endif
+
+#if OPAL_HAVE_ATTRIBUTE_CONSTRUCTOR
+#    define __opal_attribute_constructor__ __attribute__((__constructor__))
+#else
+#    define __opal_attribute_constructor__
 #endif
 
 #if OPAL_HAVE_ATTRIBUTE_DESTRUCTOR
@@ -561,6 +568,17 @@ typedef struct {
     opal_short_float_t imag;
 } opal_short_float_complex_t;
 #    endif
+
+/* gcc 13 does not define SSIZE_MAX as required by the POSIX standard.
+ * As a workaround we define ours.
+ */
+#ifndef SSIZE_MAX
+#  if SIZEOF_SSIZE_T == SIZEOF_LONG
+#    define SSIZE_MAX LONG_MAX
+#  elif SIZEOF_SSIZE_T == SIZEOF_LONG_LONG
+#    define SSIZE_MAX LONG_LONG_MAX
+#  endif
+#endif
 
 #else
 

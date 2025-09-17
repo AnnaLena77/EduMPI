@@ -114,5 +114,8 @@ DOI: [10.1007/978-3-031-99854-6_5](https://doi.org/10.1007/978-3-031-99854-6_5)
 
 ---
 
-
-
+Developers who clone the Open MPI Git repository will not have the
+HTML documentation and man pages by default; it must be built.
+Instructions for how to build the Open MPI documentation can be found
+here:
+https://docs.open-mpi.org/en/v5.0.x/developers/prerequisites.html#sphinx-and-therefore-python.

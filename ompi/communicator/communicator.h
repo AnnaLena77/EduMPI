@@ -22,9 +22,10 @@
  * Copyright (c) 2015      Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
  * Copyright (c) 2016-2017 IBM Corporation. All rights reserved.
- * Copyright (c) 2018-2022 Triad National Security, LLC. All rights
+ * Copyright (c) 2018-2024 Triad National Security, LLC. All rights
  *                         reserved.
  * Copyright (c) 2023      Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (c) 2024      NVIDIA Corporation.  All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -136,12 +137,19 @@ OMPI_DECLSPEC OBJ_CLASS_DECLARATION(ompi_communicator_t);
 #define OMPI_COMM_BLOCK_WORLD      16
 #define OMPI_COMM_BLOCK_OTHERS     8
 
+/**
+ * Placeholder to use in array of ompi communicators during CID allocation 
+ */
+#define OMPI_COMM_SENTINEL        0x00000001
+
 /* A macro comparing two CIDs */
 #define OMPI_COMM_CID_IS_LOWER(comm1,comm2) ( ((comm1)->c_index < (comm2)->c_index)? 1:0)
 
 OMPI_DECLSPEC extern opal_hash_table_t ompi_comm_hash;
 OMPI_DECLSPEC extern opal_pointer_array_t ompi_mpi_communicators;
 OMPI_DECLSPEC extern opal_pointer_array_t ompi_comm_f_to_c_table;
+
+OMPI_DECLSPEC extern int ompi_comm_output;
 
 struct ompi_comm_extended_cid_t {
     uint64_t  cid_base;
@@ -274,6 +282,10 @@ struct ompi_communicator_t {
     uint32_t c_epoch;  /* Identifier used to differentiate between two communicators
                           using the same c_contextid (not at the same time, obviously) */
 #endif
+    /* vector used to store remote cid values for communicators not using
+     * a global cid, i.e. when OMPI_COMM_IS_GLOBAL_INDEX(comm) returns 0.
+     */
+    uint32_t                     *c_index_vec;
     /* Non-blocking collective tag. These tags might be shared between
      * all non-blocking collective modules (to avoid message collision
      * between them in the case where multiple outstanding non-blocking
@@ -525,6 +537,30 @@ static inline uint32_t ompi_comm_get_local_cid (const ompi_communicator_t* comm)
     return comm->c_index;
 }
 
+int ompi_comm_get_remote_cid_from_pmix (ompi_communicator_t *comm, int dest, uint32_t *remote_cid);
+
+/**
+ * Get remote cid for the communicator.  In the case of communicators created
+ * using methods that don't supply an input communicator, i.e.
+ * MPI_Comm_create_from_group, the remote cid may be different from the local cid.
+ */
+static inline int ompi_comm_get_remote_cid (ompi_communicator_t *comm, int dest, uint32_t *remote_cid)
+{
+    int rc = OMPI_SUCCESS;
+
+    assert(NULL != remote_cid);
+
+    if (OPAL_LIKELY(OMPI_COMM_IS_GLOBAL_INDEX(comm))) {
+        *remote_cid = comm->c_index;
+    } else if (0 != comm->c_index_vec[dest]) {
+        *remote_cid = comm->c_index_vec[dest];
+    } else {
+        rc = ompi_comm_get_remote_cid_from_pmix(comm, dest, remote_cid);
+    }
+
+    return rc;
+}
+
 /**
  * Get the extended context ID for the communicator, suitable for passing
  * to ompi_comm_lookup_cid for getting the communicator back
@@ -548,14 +584,47 @@ static inline bool ompi_comm_compare_cids (const ompi_communicator_t *comm1, con
  * No error checking is done*/
 static inline ompi_communicator_t *ompi_comm_lookup (const uint32_t c_index)
 {
+    ompi_communicator_t *comm = NULL;
     /* array of pointers to communicators, indexed by context ID */
-    return (ompi_communicator_t *) opal_pointer_array_get_item (&ompi_mpi_communicators, c_index);
+    comm = (ompi_communicator_t *) opal_pointer_array_get_item (&ompi_mpi_communicators, c_index);
+    /*
+     * OMPI_COMM_SENTINEL indicates the slot is being used for CID allocation
+     * and is not a valid communicator
+     */
+    if ((ompi_communicator_t *)OMPI_COMM_SENTINEL == comm) {
+        comm = NULL;
+    }
+
+    /*
+     * return NULL if comm doesn't yet have an associated PML
+     */
+    if ((NULL != comm) && !OMPI_COMM_IS_PML_ADDED(comm)) {
+        comm = NULL;
+    }
+
+    return comm;
+}
+
+/**
+ * Number of entries in the ompi_mpi_communicators pointer array.
+ * Note this includes entries which may have NULL or OMPI_COMM_SENTINEL values.
+ */
+static inline int ompi_comm_get_num_communicators(void)
+{
+    return opal_pointer_array_get_size(&ompi_mpi_communicators);
 }
 
 static inline ompi_communicator_t *ompi_comm_lookup_cid (const ompi_comm_extended_cid_t cid)
 {
     ompi_communicator_t *comm = NULL;
     (void) opal_hash_table_get_value_ptr (&ompi_comm_hash, &cid, sizeof (cid), (void *) &comm);
+    /*
+     * return NULL if the comm does not yet have an asociated PML
+     */
+    if ((NULL != comm) && !OMPI_COMM_IS_PML_ADDED(comm)) {
+        comm = NULL;
+    }
+
     return comm;
 }
 
@@ -571,7 +640,8 @@ static inline struct ompi_proc_t* ompi_comm_peer_lookup (const ompi_communicator
     return ompi_group_peer_lookup(comm->c_remote_group,peer_id);
 }
 
-static inline bool ompi_comm_instances_same(const ompi_communicator_t *comm1, const ompi_communicator_t *comm2)
+static inline bool ompi_comm_instances_same(const ompi_communicator_t *comm1,
+                                            const ompi_communicator_t *comm2)
 {
     return comm1->instance == comm2->instance;
 }

@@ -19,6 +19,7 @@
  * Copyright (c) 2018      Amazon.com, Inc. or its affiliates.  All Rights reserved.
  * Copyright (c) 2022      Computer Architecture and VLSI Systems (CARV)
  *                         Laboratory, ICS Forth. All rights reserved.
+ * Copyright (c) 2023      Jeffrey M. Squyres.  All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -433,6 +434,7 @@ int mca_base_var_enum_create_flag(const char *name, const mca_base_var_enum_valu
 {
     mca_base_var_enum_flag_t *new_enum;
     int i;
+    int __opal_attribute_unused__ all_flags = 0;
 
     *enumerator = NULL;
 
@@ -459,7 +461,6 @@ int mca_base_var_enum_create_flag(const char *name, const mca_base_var_enum_valu
         return OPAL_ERR_OUT_OF_RESOURCE;
     }
 
-    int all_flags = 0;
     for (i = 0; i < new_enum->super.enum_value_count; ++i) {
         new_enum->enum_flags[i].flag = flags[i].flag;
         new_enum->enum_flags[i].string = strdup(flags[i].string);

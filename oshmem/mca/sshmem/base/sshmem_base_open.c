@@ -31,15 +31,7 @@
  * globals
  */
 
-/**
- * if 32 bit we set sshmem_base_start_address to 0
- * to let OS allocate segment automatically
- */
-#if UINTPTR_MAX == 0xFFFFFFFF
-void *mca_sshmem_base_start_address = (void*)0;
-#else
-void* mca_sshmem_base_start_address = (void*)0xFF000000;
-#endif
+void *mca_sshmem_base_start_address = (void *)UINTPTR_MAX;
 
 char * mca_sshmem_base_backing_file_dir = NULL;
 
@@ -57,7 +49,7 @@ mca_sshmem_base_register (mca_base_register_flag_t flags)
                                  "base",
                                  "start_address",
                                  "Specify base address for shared memory region",
-                                 MCA_BASE_VAR_TYPE_UNSIGNED_LONG_LONG,
+                                 MCA_BASE_VAR_TYPE_UNSIGNED_LONG,
                                  NULL,
                                  0,
                                  MCA_BASE_VAR_FLAG_SETTABLE,

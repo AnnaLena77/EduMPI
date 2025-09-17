@@ -19,7 +19,8 @@ dnl Copyright (c) 2019-2020 Intel, Inc.  All rights reserved.
 dnl Copyright (c) 2020-2022 Amazon.com, Inc. or its affiliates.  All Rights reserved.
 dnl Copyright (c) 2021      Nanook Consulting.  All rights reserved.
 dnl Copyright (c) 2021-2022 IBM Corporation.  All rights reserved.
-dnl Copyright (c) 2023      Jeffrey M. Squyres.  All rights reserved.
+dnl Copyright (c) 2023-2024 Jeffrey M. Squyres.  All rights reserved.
+dnl Copyright (c) 2025      Advanced Micro Devices, Inc. All rights reserved.
 dnl $COPYRIGHT$
 dnl
 dnl Additional copyrights may follow
@@ -85,7 +86,7 @@ OPAL_VAR_SCOPE_PUSH([prrte_setup_internal_happy prrte_setup_external_happy targe
     # unless internal specifically requested by the user, try to find
     # an external that works.
     prrte_setup_external_happy=0
-    AS_IF([test "$opal_prrte_mode" != "internal" -o "$opal_prrte_mode" != "disabled"],
+    AS_IF([test "$opal_prrte_mode" != "internal" -a "$opal_prrte_mode" != "disabled"],
           [_OMPI_SETUP_PRRTE_EXTERNAL(
               [prrte_setup_external_happy=1
                opal_prrte_mode="external"],
@@ -164,6 +165,8 @@ AC_DEFUN([_OMPI_SETUP_PRRTE_INTERNAL], [
 
     internal_prrte_CPPFLAGS=
     internal_prrte_args="--with-proxy-version-string=$OPAL_VERSION --with-proxy-package-name=\"Open MPI\" --with-proxy-bugreport=\"https://www.open-mpi.org/community/help/\""
+    # PRRTE sets -Werror on devel builds so avoid buid breaks caused by 3rd-party codes
+    internal_prrte_args="$internal_prrte_args --disable-devel-check"
 
     # Set --enable-prte-prefix-by-default to the deprecated options,
     # if they were specified.  Otherwise, set it to enabled if the
@@ -238,6 +241,7 @@ AC_DEFUN([_OMPI_SETUP_PRRTE_INTERNAL], [
     AS_IF([test "$internal_prrte_happy" = "no" -a "$enable_internal_rte" != "no"],
           [AC_MSG_ERROR([PRRTE configuration failed.  Cannot continue.])])
 
+    OMPI_HAVE_PRRTE_RST=0
     AS_IF([test "$internal_prrte_happy" = "yes"],
           [AC_MSG_CHECKING([for internal PRRTE RST files])
            AS_IF([test -n "$SPHINX_BUILD"],
@@ -310,6 +314,7 @@ AC_DEFUN([_OMPI_SETUP_PRRTE_EXTERNAL], [
     AS_IF([test -n "${prterun_path}"],
           [AC_DEFINE_UNQUOTED([OMPI_PRTERUN_PATH], ["${prterun_path}"], [Path to prterun])])
 
+    OMPI_HAVE_PRRTE_RST=0
     AS_IF([test "$setup_prrte_external_happy" = "yes"],
           [ # Determine if this external PRRTE has installed the RST
             # directories that we care about
@@ -327,7 +332,6 @@ AC_DEFUN([_OMPI_SETUP_PRRTE_EXTERNAL], [
                         [ # This version of PRRTE doesn't have installed RST
                           # files.
                           AC_MSG_RESULT([not found])
-                          OMPI_HAVE_PRRTE_RST=0
                         ])
                  ])
            $1],

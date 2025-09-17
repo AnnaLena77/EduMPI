@@ -6,6 +6,8 @@
  * Copyright (c) 2022      The University of Tennessee and The University
  *                         of Tennessee Research Foundation.  All rights
  *                         reserved.
+ * Copyright (c) 2023      Jeffrey M. Squyres.  All rights reserved.
+ * Copyright (c) 2024      NVIDIA Corporation.  All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -52,17 +54,35 @@
 #include "ompi/mca/topo/base/base.h"
 #include "opal/mca/pmix/base/base.h"
 
-#include "opal/mca/mpool/base/mpool_base_tree.h"
 #include "ompi/mca/pml/base/pml_base_bsend.h"
 #include "ompi/util/timings.h"
+#include "opal/mca/mpool/base/mpool_base_tree.h"
 #include "opal/mca/pmix/pmix-internal.h"
+#include "opal/util/clock_gettime.h"
 
 ompi_predefined_instance_t ompi_mpi_instance_null = {{{{0}}}};
 
+#if defined(OPAL_RECURSIVE_MUTEX_STATIC_INIT)
 static opal_recursive_mutex_t instance_lock = OPAL_RECURSIVE_MUTEX_STATIC_INIT;
+#elif defined(OPAL_HAVE_ATTRIBUTE_CONSTRUCTOR)
+static opal_recursive_mutex_t instance_lock;
+__opal_attribute_constructor__ static void instance_lock_init(void) {
+    OBJ_CONSTRUCT(&instance_lock, opal_recursive_mutex_t);
+}
+#else
+#error "No support for recursive mutexes available on this platform."
+#endif  /* defined(OPAL_RECURSIVE_MUTEX_STATIC_INIT) */
 
 /** MPI_Init instance */
 ompi_instance_t *ompi_mpi_instance_default = NULL;
+
+/**
+ * @brief: Base timer initialization. All timers returned to the user via MPI_Wtime
+ *         are relative to this timer. Setting it early in during the common
+ *         initialization (world or session model) allows for measuring the cost of
+ *         the MPI initialization.
+ */
+struct timespec ompi_wtime_time_origin = {.tv_sec = 0};
 
 enum {
     OMPI_INSTANCE_INITIALIZING = -1,
@@ -212,6 +232,8 @@ void ompi_mpi_instance_release (void)
     opal_argv_free (ompi_mpi_instance_pmix_psets);
     ompi_mpi_instance_pmix_psets = NULL;
 
+    OBJ_DESTRUCT(&ompi_mpi_instance_null);
+
     opal_finalize_cleanup_domain (&ompi_instance_basic_domain);
     OBJ_DESTRUCT(&ompi_instance_basic_domain);
 
@@ -345,6 +367,10 @@ static int ompi_mpi_instance_init_common (int argc, char **argv)
     pmix_status_t rc;
     opal_pmix_lock_t mylock;
     OMPI_TIMING_INIT(64);
+
+    // We intentionally don't use the OPAL timer framework here.  See
+    // https://github.com/open-mpi/ompi/issues/3003 for more details.
+    (void) opal_clock_gettime(&ompi_wtime_time_origin);
 
     ret = ompi_mpi_instance_retain ();
     if (OPAL_UNLIKELY(OMPI_SUCCESS != ret)) {
@@ -940,16 +966,7 @@ static int ompi_mpi_instance_finalize_common (void)
 
     ompi_proc_finalize();
 
-    OBJ_DESTRUCT(&ompi_mpi_instance_null);
-
     ompi_mpi_instance_release ();
-
-    if (0 == opal_initialized) {
-        /* if there is no MPI_T_init_thread that has been MPI_T_finalize'd,
-         * then be gentle to the app and release all the memory now (instead
-         * of the opal library destructor */
-        opal_class_finalize ();
-    }
 
     return OMPI_SUCCESS;
 }

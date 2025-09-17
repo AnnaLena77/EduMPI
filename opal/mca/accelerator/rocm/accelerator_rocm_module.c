@@ -85,17 +85,22 @@ static int mca_accelerator_rocm_check_addr (const void *addr, int *dev_id, uint6
     *flags = 0;
     err = hipPointerGetAttributes(&srcAttr, addr);
     if (hipSuccess == err) {
+#if HIP_VERSION >= 50731921
+        if (hipMemoryTypeDevice == srcAttr.type) {
+#else
         if (hipMemoryTypeDevice == srcAttr.memoryType) {
-            //We might want to set additional flags in a later iteration.
-            //*flags |= MCA_ACCELERATOR_FLAGS_HOST_LDSTR;
-            //*flags |= MCA_ACCELERATOR_FLAGS_HOST_ATOMICS;
-            /* First access on a device pointer triggers ROCM support lazy initialization. */
+#endif
             opal_accelerator_rocm_lazy_init();
+            *dev_id = srcAttr.device;
             ret = 1;
+#if HIP_VERSION >= 50731921
+        } else if (hipMemoryTypeUnified == srcAttr.type) {
+#else
         } else if (hipMemoryTypeUnified == srcAttr.memoryType) {
+#endif
             *flags |= MCA_ACCELERATOR_FLAGS_UNIFIED_MEMORY;
-            //*flags |= MCA_ACCELERATOR_FLAGS_HOST_LDSTR;
-            //*flags |= MCA_ACCELERATOR_FLAGS_HOST_ATOMICS;
+            opal_accelerator_rocm_lazy_init();
+            *dev_id = srcAttr.device;
             ret = 1;
         }
     }
@@ -246,8 +251,11 @@ static int mca_accelerator_rocm_memcpy_async(int dest_dev_id, int src_dev_id, vo
                                              opal_accelerator_transfer_type_t type)
 {
     if (NULL == stream || NULL == src ||
-        NULL == dest   || size <= 0) {
+        NULL == dest   || size < 0) {
         return OPAL_ERR_BAD_PARAM;
+    }
+    if (0 == size) {
+        return OPAL_SUCCESS;
     }
 
     hipError_t err = hipMemcpyAsync(dest, src, size, hipMemcpyDefault,
@@ -267,8 +275,11 @@ static int mca_accelerator_rocm_memcpy(int dest_dev_id, int src_dev_id, void *de
 {
     hipError_t err;
 
-    if (NULL == src || NULL == dest || size <=0) {
+    if (NULL == src || NULL == dest || size < 0) {
         return OPAL_ERR_BAD_PARAM;
+    }
+    if (0 == size) {
+        return OPAL_SUCCESS;
     }
 
     if (type == MCA_ACCELERATOR_TRANSFER_DTOH && size <= opal_accelerator_rocm_memcpyD2H_limit) {
@@ -537,7 +548,7 @@ static int mca_accelerator_rocm_get_buffer_id(int dev_id, const void *addr, opal
     *buf_id = 0;
 
 #if HIP_VERSION >= 50120531
-    hipError_t result = hipPointerGetAttribute((unsigned long long *)&buf_id, HIP_POINTER_ATTRIBUTE_BUFFER_ID,
+    hipError_t result = hipPointerGetAttribute((unsigned long long *)buf_id, HIP_POINTER_ATTRIBUTE_BUFFER_ID,
                                                (hipDeviceptr_t)addr);
     if (hipSuccess != result) {
         opal_output_verbose(10, opal_accelerator_base_framework.framework_output,
