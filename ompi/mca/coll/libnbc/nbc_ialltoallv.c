@@ -40,13 +40,13 @@ static inline int a2av_sched_inplace(int rank, int p, NBC_Schedule *schedule,
 #else
 static inline int a2av_sched_linear(int rank, int p, NBC_Schedule *schedule,
                                     const void *sendbuf, const int *sendcounts,
-                                    const int *sdispls, MPI_Aint sndext, MPI_Datatype sendtype,
+                                    const int *sdispls, MPI_Aint sndext, MPI_Datatype sendtype, const size_t sdtype_size,
                                     void *recvbuf, const int *recvcounts,
                                     const int *rdispls, MPI_Aint rcvext, MPI_Datatype recvtype, const size_t rdtype_size, qentry **q);
 
 static inline int a2av_sched_pairwise(int rank, int p, NBC_Schedule *schedule,
                                       const void *sendbuf, const int *sendcounts, const int *sdispls,
-                                      MPI_Aint sndext, MPI_Datatype sendtype,
+                                      MPI_Aint sndext, MPI_Datatype sendtype, const size_t sdtype_size,
                                       void *recvbuf, const int *recvcounts, const int *rdispls,
                                       MPI_Aint rcvext, MPI_Datatype recvtype, const size_t rdtype_size, qentry **q);
 
@@ -152,7 +152,7 @@ static int nbc_alltoallv_init(const void* sendbuf, const int *sendcounts, const 
   }
 
   if (inplace) {
-#ifdef ENABLE_ANALYSIS
+#ifndef ENABLE_ANALYSIS
     if(item != NULL) memcpy(item->usedAlgorithm, "sched_inplace", 13);
     res = a2av_sched_inplace(rank, p, schedule, recvbuf, recvcounts, rdispls, rcvext, recvtype,
                              rdtype_size, gap);
@@ -161,7 +161,8 @@ static int nbc_alltoallv_init(const void* sendbuf, const int *sendcounts, const 
                              rdtype_size, gap, &item);
 #endif
   } else {
-#ifdef ENABLE_ANALYSIS
+
+#ifndef ENABLE_ANALYSIS
     if(item != NULL) memcpy(item->usedAlgorithm, "sched_linear", 12);
     res = a2av_sched_linear(rank, p, schedule,
                             sendbuf, sendcounts, sdispls, sndext, sendtype, sdtype_size,
@@ -170,6 +171,7 @@ static int nbc_alltoallv_init(const void* sendbuf, const int *sendcounts, const 
     res = a2av_sched_linear(rank, p, schedule,
                             sendbuf, sendcounts, sdispls, sndext, sendtype, sdtype_size,
                             recvbuf, recvcounts, rdispls, rcvext, recvtype, rdtype_size, &item);
+#endif
   }
   if (OPAL_UNLIKELY(OMPI_SUCCESS != res)) {
     OBJ_RELEASE(schedule);

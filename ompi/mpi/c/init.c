@@ -35,7 +35,7 @@
 #include <sys/mman.h>
 
 #ifdef ENABLE_ANALYSIS
-#include <libpq-fe.h>
+#include <postgresql/libpq-fe.h>
 #include <pthread.h>
 #include <sched.h>
 #include <hwloc.h>
