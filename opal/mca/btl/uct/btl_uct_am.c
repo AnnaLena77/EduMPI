@@ -344,7 +344,7 @@ static size_t mca_btl_uct_sendi_pack(void *data, void *arg)
 
     am_header->value = args->am_header;
     _mca_btl_uct_send_pack((void *) ((intptr_t) data + 8), args->header, args->header_size,
-                           args->convertor, &args->payload_size, 1);
+                           args->convertor, &args->payload_size);
     return args->header_size + args->payload_size + 8;
 }
 
