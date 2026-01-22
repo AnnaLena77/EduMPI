@@ -467,10 +467,10 @@ static void* SQLMonitorFunc(void* _arg){
 	   }
             }
             //printf("Datenbankvorbereitung fuer: %s, Rank: %d\n", item->function, processrank);
-            /*MPI_Status status;
+            MPI_Status status;
             MPI_Request *request = item->request;
             int flag = 0;
-            if(request != MPI_REQUEST_NULL && request != NULL && item->function!="MPI_Wait"){
+            /*if(request != MPI_REQUEST_NULL && request != NULL && item->function!="MPI_Wait"){
                 while (!flag) {
 	       MPI_Test(request, &flag, &status);
 	       usleep(100);
@@ -487,15 +487,6 @@ static void* SQLMonitorFunc(void* _arg){
                 PQflush(conn);
                 res = PQexec(conn, copyQuery);
             }
-            /*struct timespec endii;
-            clock_gettime(CLOCK_MONOTONIC, &endii);
-            
-            long long startii_ns = startii.tv_sec * 1000000000LL + startii.tv_nsec;
-            long long endii_ns = endii.tv_sec * 1000000000LL + endii.tv_nsec;
-            double time_spentii = (endii_ns - startii_ns) / 1e9;
-            
-            // Zeit ausgeben
-            printf("Process. %d, Time spent: %.6f seconds\n", processrank, time_spentii);		*/
             
             PQclear(res);
             PQputCopyData(conn, PGCOPY_HEADER, 19);
@@ -743,37 +734,6 @@ void initializeQueue()
     MPI_Comm_size(comm, &size);
     MPI_Comm_rank(comm, &processrank);
     MPI_Get_processor_name(proc_name, &proc_name_length);
-    
-    
-    //fprintf(file, "function,communicationType,count,datasize,communicationArea,processorname,processrank,partnerrank,time_start,time_db\n");
-    
-    //fd = open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-    //O_CREAT: Datei wird erstellt, wenn nicht vorhanden
-    //O_WRONLY: Es darf nur in die Datei geschrieben werden
-    //S_IRUSR | S_IWUSR: Eigentümer darf Datei lesen und schreiben (Permissions)
-    
-    /*if(fd == -1){
-    	perror("open");
-    	exit(EXIT_FAILURE);
-    }*/
-    
-    //file_size = 6*20000000; // Größe der Datei (kann angepasst werden)
-    
-    // Ändere die Größe der Datei auf file_size Bytes
-    /*if (ftruncate(fd, file_size) == -1) {
-        perror("ftruncate");
-        close(fd);
-        exit(EXIT_FAILURE);
-    }
-    
-    mapped_data = mmap(NULL, file_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (mapped_data == MAP_FAILED) {
-        perror("mmap");
-        close(fd);
-        exit(EXIT_FAILURE);
-    }*/
-    
-    //fclose(file);
 
 #ifdef SEPERATE_THREAD_NO_HYPERTHREADING
     pthread_attr_init(&attr_logging);
