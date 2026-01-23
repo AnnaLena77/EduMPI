@@ -471,10 +471,10 @@ static void* SQLMonitorFunc(void* _arg){
             MPI_Request *request = item->request;
             int flag = 0;
             if(request != MPI_REQUEST_NULL && request != NULL && item->function!="MPI_Wait"){
-                /*while (!flag) {
+                while (!flag) {
 	       MPI_Test(request, &flag, &status);
 	       usleep(100);
-	   } */
+	   }
             }
             qentryToBinary(ringbuffer[reader_pos], buffer, &offset);
             PQputCopyData(conn, buffer, offset);
