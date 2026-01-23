@@ -470,7 +470,14 @@ static void* SQLMonitorFunc(void* _arg){
             MPI_Status status;
             MPI_Request *request = item->request;
             int flag = 0;
-            if(request != MPI_REQUEST_NULL && request != NULL && item->function!="MPI_Wait"){
+            if(request == NULL){
+                printf("1: request is NULL\n");
+            }
+            if(request == MPI_REQUEST_NULL){
+                printf("1: request is MPI_REQUEST_NULL\n");
+            }
+            
+            if(request != MPI_REQUEST_NULL && request != NULL && strcmp(item->function, "MPI_Wait")){
                 while (!flag) {
                     printf("Test1\n");
 	       MPI_Test(request, &flag, &status);
@@ -509,7 +516,15 @@ static void* SQLMonitorFunc(void* _arg){
         MPI_Status status;
         MPI_Request *request = item->request;
         int flag = 0;
-        if(request != MPI_REQUEST_NULL && request != NULL && item->function!="MPI_Wait"){
+        if(request == NULL){
+                printf("2: request is NULL\n");
+            }
+            if(request == MPI_REQUEST_NULL){
+                printf("2: request is MPI_REQUEST_NULL\n");
+            }
+            
+        
+        if(request != MPI_REQUEST_NULL && request != NULL && strcmp(item->function, "MPI_Wait")){
             while (!flag) {
                 printf("Test2\n");
 	   MPI_Test(request, &flag, &status);
