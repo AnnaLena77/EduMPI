@@ -472,6 +472,7 @@ static void* SQLMonitorFunc(void* _arg){
             int flag = 0;
             if(request != MPI_REQUEST_NULL && request != NULL && item->function!="MPI_Wait"){
                 while (!flag) {
+                    printf("Test1\n");
 	       MPI_Test(request, &flag, &status);
 	       usleep(100);
 	   }
@@ -493,49 +494,7 @@ static void* SQLMonitorFunc(void* _arg){
             start = current;
         }
     }
-        //printf("Reader: %d, Writer: %d\n", reader_pos, writer_pos);
-        
-        /*while(TAILQ_EMPTY(&head)){
-            if(!run_thread){
-                printf("finished\n");
-                return;
-            } else {
-	       sleep(0.1);
-                if(!TAILQ_EMPTY(&head)){
-                    break;
-                }
-            }
-        }
-        
-        qentry* test = TAILQ_FIRST(&head);
-        
-        while(test != NULL){
-            //printf("%s\n", test->function);  
-            char buffer[200];
-            int offset = 0;
-            qentryToBinary(&test, buffer, &offset);
-        
-            //PQputCopyData(conn, buffer, offset);
-            while(TAILQ_NEXT(test, pointers)==NULL){
-                if(!run_thread){
-                    test = NULL;
-                    break;
-                } 
-            }
-            qentry *test2 = test;
-            test = TAILQ_NEXT(test2, pointers);
-            free(test2);
-        }*/
-        
-        /*time_t dif = time(NULL) - start;
-        if(offset>=19990000 || dif>500000){
-            //fwrite(buffer, offset, 1, file);
-            //writeToPostgres(conn, buffer, offset);
-            offset = 0;
-            memset(buffer, 0, 20000000);
-            start = time(NULL);
-        }*/
-    
+  
     while(reader_pos != writer_pos){
         if(reader_pos == MAX_RINGSIZE-1){
             reader_pos = 0;
@@ -544,6 +503,18 @@ static void* SQLMonitorFunc(void* _arg){
         }
         char buffer[200];
         int offset = 0;
+        
+        MPI_Status status;
+        MPI_Request *request = item->request;
+        int flag = 0;
+        if(request != MPI_REQUEST_NULL && request != NULL && item->function!="MPI_Wait"){
+            while (!flag) {
+                printf("Test2\n");
+	   MPI_Test(request, &flag, &status);
+	   usleep(100);
+            }
+        }
+        
         qentryToBinary(ringbuffer[reader_pos], buffer, &offset);
         PQputCopyData(conn, buffer, offset);
         clock_t current = clock();
