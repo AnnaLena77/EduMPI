@@ -504,6 +504,8 @@ static void* SQLMonitorFunc(void* _arg){
         char buffer[200];
         int offset = 0;
         
+        qentry *item = &ringbuffer[reader_pos];
+        
         MPI_Status status;
         MPI_Request *request = item->request;
         int flag = 0;
