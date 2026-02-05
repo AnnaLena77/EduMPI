@@ -53,7 +53,6 @@ void intToBinary(int integer, char* buffer, int* offset){
 
 void int64ToBinary(int64_t integer, char* buffer, int* offset){
     int off = *offset;
-    size_t off = *offset;
     uint64_t u = (uint64_t)integer;
     
     printf("test int64\n");
