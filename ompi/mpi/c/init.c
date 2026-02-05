@@ -467,7 +467,7 @@ static void* SQLMonitorFunc(void* _arg){
 	   }
             }
             //printf("Datenbankvorbereitung fuer: %s, Rank: %d\n", item->function, processrank);
-            MPI_Status status;
+            /*MPI_Status status;
             MPI_Request *request = item->request;
             int flag = 0;
             if(request == NULL){
@@ -483,7 +483,7 @@ static void* SQLMonitorFunc(void* _arg){
 	       MPI_Test(request, &flag, &status);
 	       usleep(100);
 	   }
-            }
+            }*/
             qentryToBinary(ringbuffer[reader_pos], buffer, &offset);
             PQputCopyData(conn, buffer, offset);
         }

@@ -53,25 +53,29 @@ void intToBinary(int integer, char* buffer, int* offset){
 
 void int64ToBinary(int64_t integer, char* buffer, int* offset){
     int off = *offset;
+    size_t off = *offset;
+    uint64_t u = (uint64_t)integer;
     
-    buffer[off] = 0;
+    printf("test int64\n");
+
+    // length prefix (int32 big-endian) = 8 bytes for int8
+    buffer[off+0] = 0;
     buffer[off+1] = 0;
     buffer[off+2] = 0;
     buffer[off+3] = 8;
-    
     off += 4;
-    
-    buffer[off] = (integer >> 56) & 0xff;
-    buffer[off+1] = (integer >> 48) & 0xff;
-    buffer[off+2] = (integer >> 40) & 0xff;
-    buffer[off+3] = (integer >> 32) & 0xff;
-    buffer[off+4] = (integer >> 24) & 0xff;
-    buffer[off+5] = (integer >> 16) & 0xff;
-    buffer[off+6] = (integer >> 8) & 0xff;
-    buffer[off+7] = integer & 0xff;
-    
+
+    // int64 big-endian
+    buffer[off+0] = (uint8_t)(u >> 56);
+    buffer[off+1] = (uint8_t)(u >> 48);
+    buffer[off+2] = (uint8_t)(u >> 40);
+    buffer[off+3] = (uint8_t)(u >> 32);
+    buffer[off+4] = (uint8_t)(u >> 24);
+    buffer[off+5] = (uint8_t)(u >> 16);
+    buffer[off+6] = (uint8_t)(u >>  8);
+    buffer[off+7] = (uint8_t)(u >>  0);
+
     *offset += 12;
-}
 
 
 void doubleToBinary(double value, char* buffer, int* offset) {
