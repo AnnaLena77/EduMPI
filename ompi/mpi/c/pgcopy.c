@@ -57,7 +57,7 @@ void int64ToBinary(int64_t integer, char* buffer, int* offset){
     buffer[off] = 0;
     buffer[off+1] = 0;
     buffer[off+2] = 0;
-    buffer[off+3] = 4;
+    buffer[off+3] = 8;
     
     off += 4;
     
