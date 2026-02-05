@@ -61,14 +61,14 @@ void int64ToBinary(int64_t integer, char* buffer, int* offset){
     
     off += 4;
     
-    buffer[off] = (integer_value >> 56) & 0xff;
-    buffer[off+1] = (integer_value >> 48) & 0xff;
-    buffer[off+2] = (integer_value >> 40) & 0xff;
-    buffer[off+3] = (integer_value >> 32) & 0xff;
-    buffer[off+4] = (integer_value >> 24) & 0xff;
-    buffer[off+5] = (integer_value >> 16) & 0xff;
-    buffer[off+6] = (integer_value >> 8) & 0xff;
-    buffer[off+7] = integer_value & 0xff;
+    buffer[off] = (integer >> 56) & 0xff;
+    buffer[off+1] = (integer >> 48) & 0xff;
+    buffer[off+2] = (integer >> 40) & 0xff;
+    buffer[off+3] = (integer >> 32) & 0xff;
+    buffer[off+4] = (integer >> 24) & 0xff;
+    buffer[off+5] = (integer >> 16) & 0xff;
+    buffer[off+6] = (integer >> 8) & 0xff;
+    buffer[off+7] = integer & 0xff;
     
     *offset += 12;
 }
