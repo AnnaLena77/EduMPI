@@ -499,7 +499,7 @@ static void* SQLMonitorFunc(void* _arg){
             if (PQresultStatus(res) != PGRES_COPY_IN) {
                 fprintf(stderr, "COPY start failed: %s\n", PQresultErrorMessage(res));
                 PQclear(res);
-                return -1;
+                //return -1;
 	}
             
             PQclear(res);
