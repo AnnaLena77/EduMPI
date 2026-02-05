@@ -76,6 +76,7 @@ void int64ToBinary(int64_t integer, char* buffer, int* offset){
     buffer[off+7] = (uint8_t)(u >>  0);
 
     *offset += 12;
+}
 
 
 void doubleToBinary(double value, char* buffer, int* offset) {
