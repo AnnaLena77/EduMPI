@@ -496,6 +496,12 @@ static void* SQLMonitorFunc(void* _arg){
                 res = PQexec(conn, copyQuery);
             }
             
+            if (PQresultStatus(res) != PGRES_COPY_IN) {
+                fprintf(stderr, "COPY start failed: %s\n", PQresultErrorMessage(res));
+                PQclear(res);
+                return -1;
+	}
+            
             PQclear(res);
             PQputCopyData(conn, PGCOPY_HEADER, 19);
             start = current;
