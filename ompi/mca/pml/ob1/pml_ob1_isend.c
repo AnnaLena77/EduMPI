@@ -260,12 +260,12 @@ int mca_pml_ob1_isend(const void *buf,
             item = *q;
             //printf("Isend: %s\n", item->function);
             item->sendcount = item->sendcount + count;
-        	   if(datatype == MPI_PACKED){
+            if(datatype == MPI_PACKED){
                 item->sendDatasize += count;
             } else{
                 int type_size = 0;
                 MPI_Type_size(datatype, &type_size);
-        	       item->sendDatasize += count*type_size;
+        	   item->sendDatasize += count*type_size;
             }
             if(item->blocking == 0 && !strcmp(item->communicationType, "p2p")){
                 //qentry->sendmode & qentry->operation

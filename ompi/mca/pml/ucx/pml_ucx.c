@@ -95,6 +95,7 @@ mca_pml_ucx_module_t ompi_pml_ucx = {
 #define PML_UCX_REQ_ALLOCA() \
     ((char *)alloca(ompi_pml_ucx.request_size) + ompi_pml_ucx.request_size);
 
+//Connection between Processes, Address exchange
 #if HAVE_UCP_WORKER_ADDRESS_FLAGS
 static int mca_pml_ucx_send_worker_address_type(int addr_flags, int modex_scope)
 {
@@ -129,6 +130,8 @@ static int mca_pml_ucx_send_worker_address_type(int addr_flags, int modex_scope)
 }
 #endif
 
+//mca_pml_ucx_send_worker_address -> UCX address into modex, mca_pml_ucx_recv_worker_address -> takes them from peer
+//ucp_ep_h -> UCX endpoints
 static int mca_pml_ucx_send_worker_address(void)
 {
     ucs_status_t status;
@@ -647,7 +650,7 @@ int mca_pml_ucx_irecv(void *buf, size_t count, ompi_datatype_t *datatype,
             item = *q;
             item->blocking = 0;
             item->recvcount = item->recvcount + count;
-        	   item->recvDatasize = item->recvDatasize + count*sizeof(datatype);
+            //item->recvDatasize = item->recvDatasize + count*sizeof(datatype);
         } else item = NULL;
     } else item = NULL;
 #endif
@@ -701,7 +704,7 @@ int mca_pml_ucx_recv(void *buf, size_t count, ompi_datatype_t *datatype, int src
             item = *q;
             item->blocking = 1;
             item->recvcount = item->recvcount + count;
-        	   item->recvDatasize = item->recvDatasize + count*sizeof(datatype);
+            //item->recvDatasize = item->recvDatasize + count*sizeof(datatype);
         } else item = NULL;
     } else item = NULL;
 #endif
@@ -1025,6 +1028,7 @@ int mca_pml_ucx_isend(const void *buf, size_t count, ompi_datatype_t *datatype,
     }
 }
 
+//Non-blocking Send und dann aktives Warten darauf, dass send abgeschlossen ist (progress loop)
 static inline __opal_attribute_always_inline__ int
 mca_pml_ucx_send_nb(ucp_ep_h ep, const void *buf, size_t count,
                     ompi_datatype_t *datatype, ucp_datatype_t ucx_datatype,
@@ -1047,6 +1051,7 @@ mca_pml_ucx_send_nb(ucp_ep_h ep, const void *buf, size_t count,
     }
 }
 
+//Schnelles Senden, kein explizites Open MPI Request objekt, fast-completion
 #if HAVE_DECL_UCP_TAG_SEND_NBR
 static inline __opal_attribute_always_inline__ int
 mca_pml_ucx_send_nbr(ucp_ep_h ep, const void *buf, size_t count,
@@ -1131,11 +1136,12 @@ int mca_pml_ucx_send(const void *buf, size_t count, ompi_datatype_t *datatype, i
 #if HAVE_DECL_UCP_TAG_SEND_NBR
     if (OPAL_LIKELY((MCA_PML_BASE_SEND_BUFFERED != mode) &&
                     (MCA_PML_BASE_SEND_SYNCHRONOUS != mode))) {
+        //MPI_Send or MPI_Rsend -> ucx_send_nbr
         return mca_pml_ucx_send_nbr(ep, buf, count, datatype,
                                     PML_UCX_MAKE_SEND_TAG(tag, comm));
     }
 #endif
-
+    //MPI_Ssend and MPI Bsend -> ucx_send_nb
     return mca_pml_ucx_send_nb(ep, buf, count, datatype,
                                mca_pml_ucx_get_datatype(datatype),
                                PML_UCX_MAKE_SEND_TAG(tag, comm), mode);

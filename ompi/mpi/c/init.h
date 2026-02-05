@@ -22,9 +22,9 @@ typedef struct qentry {
     char sendDatatype[64];
     char recvDatatype[64];
     int sendcount;
-    int sendDatasize;
+    int64_t sendDatasize;
     int recvcount;
-    int recvDatasize;
+    int64_t recvDatasize;
     char operation[30]; //MPI_Reduce, MPI_Accumulate
     char communicationArea[64];
     MPI_Comm communicator;

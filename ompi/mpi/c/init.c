@@ -335,9 +335,9 @@ void qentryToBinary(qentry q, char *buffer, int *off){
         
         stringToBinary(item->communicationType, buffer, &offset);
         
-        intToBinary(item->sendDatasize, buffer, &offset);
+        int64ToBinary(item->sendDatasize, buffer, &offset);
         
-        intToBinary(item->recvDatasize, buffer, &offset);
+        int64ToBinary(item->recvDatasize, buffer, &offset);
         
         stringToBinary(item->communicationArea, buffer, &offset);
         
