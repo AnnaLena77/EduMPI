@@ -519,7 +519,7 @@ static void* SQLMonitorFunc(void* _arg){
         
         qentry *item = &ringbuffer[reader_pos];
         
-        MPI_Status status;
+        /*MPI_Status status;
         MPI_Request *request = item->request;
         int flag = 0;
         if(request == NULL){
@@ -536,7 +536,7 @@ static void* SQLMonitorFunc(void* _arg){
 	   MPI_Test(request, &flag, &status);
 	   usleep(100);
             }
-        }
+        }*/
         
         qentryToBinary(ringbuffer[reader_pos], buffer, &offset);
         PQputCopyData(conn, buffer, offset);
@@ -571,7 +571,7 @@ static void* SQLMonitorFunc(void* _arg){
         // PostgreSQL Abfrage für das Update
         res = PQexecParams(conn, update_query, 2, NULL, update_paramValues, update_paramLengths, update_paramFormats, 0);
         if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-            fprintf(stderr, "UPDATE failed: %s", PQerrorMessage(conn));
+            //fprintf(stderr, "UPDATE failed: %s", PQerrorMessage(conn));
         } 
         PQclear(res);
     }
