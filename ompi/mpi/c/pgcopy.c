@@ -54,8 +54,6 @@ void intToBinary(int integer, char* buffer, int* offset){
 void int64ToBinary(int64_t integer, char* buffer, int* offset){
     int off = *offset;
     uint64_t u = (uint64_t)integer;
-    
-    printf("test int64\n");
 
     // length prefix (int32 big-endian) = 8 bytes for int8
     buffer[off+0] = 0;
