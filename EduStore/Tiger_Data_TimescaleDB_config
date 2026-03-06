@@ -1,0 +1,113 @@
+https://www.tigerdata.com/docs/self-hosted/latest
+
+CREATE TABLE edumpi_runs (
+    edumpi_run_id serial4 NOT NULL,
+    start_time timestamptz NOT NULL,
+    end_time timestamptz NULL,
+    user_id varchar NULL,
+    program_name varchar NULL,
+    edumpi_runs_pkey (edumpi_run_id)
+);
+
+CREATE TABLE edumpi_cluster_info (
+    edumpi_cluster_id SERIAL PRIMARY KEY,
+    edumpi_run_id INT REFERENCES edumpi_runs(edumpi_run_id),
+    processorname text null,
+    processrank int4 null
+);
+
+
+CREATE TABLE edumpi_running_data ( 
+   edumpi_run_id INT,
+   function text null,
+   communicationtype text null,
+   senddatasize BIGINT null,
+   recvdatasize BIGINT null,
+   communicationarea text null,
+   processorname text null,
+   processrank int4 null,
+   partnerrank int4 null,
+   coll_algorithm text null,
+   time_start timestamptz NOT null,
+   time_end timestamptz NOT null,
+   latesendertime float,
+   laterecvrtime float,
+   time_diff float,
+   coll_partnerranks bytea
+);
+
+select create_hypertable('edumpi_running_data', 'time_end');
+
+create materialized view edumpi_secondly_data with (timescaledb.continuous) as 
+    select time_bucket('1 second', time_end) as time_end, 
+    time_start,
+    edumpi_run_id, 
+    processrank, processorname, 
+    communicationtype, 
+    sum(senddatasize) as send_ds, 
+    sum(recvdatasize) as recv_ds,
+    sum(latesendertime) as latesendertime,
+    sum(laterecvrtime) as laterecvrtime,
+    sum(time_diff) as time_diff
+from edumpi_running_data erd 
+group by time_bucket('1 second', time_end), time_start, edumpi_run_id, processrank, processorname, communicationtype;
+
+CALL refresh_continuous_aggregate('edumpi_data_secondly', NULL, NULL); (Alle Daten aus der Materialized View löschen, nachdem Haupt-Tabelle gelöscht ist)
+
+select add_continuous_aggregate_policy('edumpi_secondly_data',
+    start_offset => null,
+    end_offset => null,
+    schedule_interval => interval '1 seconds'
+);
+
+Remove Materialized View and Continous Aggregate
+
+SELECT remove_continuous_aggregate_policy('edumpi_data_secondly');
+DROP MATERIALIZED VIEW mpi_ds_secondly;
+
+
+
+
+Zweite View:
+
+CREATE MATERIALIZED VIEW edumpi_detailed_data
+WITH (timescaledb.continuous) AS
+SELECT
+    time_bucket('1 second', time_end) AS time_end,
+    time_start,
+    edumpi_run_id,
+    "function",
+    processrank,
+    partnerrank,
+    sum(senddatasize) as send_ds,
+    sum(recvdatasize) as recv_ds,
+    sum(time_diff) as comm_time,
+    communicationtype,
+    coll_algorithm,
+    coll_partnerranks
+FROM
+    edumpi_running_data
+GROUP BY
+    time_bucket('1 second', time_end),
+    time_start,
+    edumpi_run_id,
+    "function",
+    processrank,
+    partnerrank,
+    communicationtype,
+    coll_algorithm,
+    coll_partnerranks;
+    
+select add_continuous_aggregate_policy('edumpi_detailed_data',
+    start_offset => null,
+    end_offset => null,
+    schedule_interval => interval '1 seconds'
+);
+
+SELECT remove_continuous_aggregate_policy('edumpi_detailed_data');
+DROP MATERIALIZED VIEW edumpi_detailed_data;
+
+
+edumpi_tsdb=# ALTER MATERIALIZED VIEW edumpi_secondly_data set (timescaledb.materialized_only = false);
+edumpi_tsdb=# ALTER MATERIALIZED VIEW edumpi_detailed_data set (timescaledb.materialized_only = false);
+
