@@ -26,8 +26,8 @@ size_t                           oshmem_request_waiting = 0;
 size_t                           oshmem_request_completed = 0;
 opal_mutex_t                     oshmem_request_lock = {{0}};
 opal_condition_t                 oshmem_request_cond = {{0}};
-oshmem_predefined_request_t        oshmem_request_null = {{{{{0}}}}};
-oshmem_request_t                   oshmem_request_empty = {{{{0}}}};
+oshmem_predefined_request_t        oshmem_request_null = {{0}};
+oshmem_request_t                   oshmem_request_empty = {0};
 oshmem_status_public_t             oshmem_status_empty = {0};
 oshmem_request_fns_t               oshmem_request_functions = {
     NULL, /*oshmem_request_default_test,*/

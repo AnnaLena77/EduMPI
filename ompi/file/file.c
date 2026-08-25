@@ -47,7 +47,7 @@ opal_pointer_array_t ompi_file_f_to_c_table = {{0}};
 /*
  * MPI_FILE_NULL (_addr flavor is for F03 bindings)
  */
-ompi_predefined_file_t  ompi_mpi_file_null = {{{{0}}}};
+ompi_predefined_file_t  ompi_mpi_file_null = {0};
 ompi_predefined_file_t  *ompi_mpi_file_null_addr = &ompi_mpi_file_null;
 
 

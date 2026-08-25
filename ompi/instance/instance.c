@@ -60,7 +60,7 @@
 #include "opal/mca/pmix/pmix-internal.h"
 #include "opal/util/clock_gettime.h"
 
-ompi_predefined_instance_t ompi_mpi_instance_null = {{{{0}}}};
+ompi_predefined_instance_t ompi_mpi_instance_null = {0};
 
 #if defined(OPAL_RECURSIVE_MUTEX_STATIC_INIT)
 static opal_recursive_mutex_t instance_lock = OPAL_RECURSIVE_MUTEX_STATIC_INIT;

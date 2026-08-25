@@ -35,8 +35,8 @@ static int ompi_message_finalize (void);
 opal_free_list_t ompi_message_free_list = {{{0}}};
 opal_pointer_array_t  ompi_message_f_to_c_table = {{0}};
 
-ompi_predefined_message_t ompi_message_null = {{{{{0}}}}};
-ompi_predefined_message_t ompi_message_no_proc = {{{{{0}}}}};
+ompi_predefined_message_t ompi_message_null = {{0}};
+ompi_predefined_message_t ompi_message_no_proc = {{0}};
 
 static void ompi_message_constructor(ompi_message_t *msg)
 {

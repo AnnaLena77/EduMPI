@@ -65,9 +65,9 @@ opal_pointer_array_t ompi_mpi_communicators = {{0}};
 opal_pointer_array_t ompi_comm_f_to_c_table = {{0}};
 opal_hash_table_t ompi_comm_hash = {{0}};
 
-ompi_predefined_communicator_t  ompi_mpi_comm_world = {{{{0}}}};
-ompi_predefined_communicator_t  ompi_mpi_comm_self = {{{{0}}}};
-ompi_predefined_communicator_t  ompi_mpi_comm_null = {{{{0}}}};
+ompi_predefined_communicator_t  ompi_mpi_comm_world = {0};
+ompi_predefined_communicator_t  ompi_mpi_comm_self = {0};
+ompi_predefined_communicator_t  ompi_mpi_comm_null = {0};
 ompi_communicator_t  *ompi_mpi_comm_parent = NULL;
 
 int ompi_comm_output = -1;

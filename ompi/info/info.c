@@ -59,9 +59,9 @@
 /*
  * Global variables
  */
-ompi_predefined_info_t ompi_mpi_info_null = {{{{{0}}}}};
+ompi_predefined_info_t ompi_mpi_info_null = {{0}};
 ompi_predefined_info_t *ompi_mpi_info_null_addr = &ompi_mpi_info_null;
-ompi_predefined_info_t ompi_mpi_info_env = {{{{{0}}}}};
+ompi_predefined_info_t ompi_mpi_info_env = {{0}};
 
 /*
  * Local functions

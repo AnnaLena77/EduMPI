@@ -41,11 +41,11 @@
 #endif
 
 opal_pointer_array_t             ompi_request_f_to_c_table = {{0}};
-ompi_predefined_request_t        ompi_request_null = {{{{{0}}}}};
+ompi_predefined_request_t        ompi_request_null = {{0}};
 ompi_predefined_request_t        *ompi_request_null_addr = &ompi_request_null;
-ompi_request_t                   ompi_request_empty = {{{{0}}}};
+ompi_request_t                   ompi_request_empty = {0};
 #if MPI_VERSION >= 4
-ompi_request_t                   ompi_request_empty_send = {{{{0}}}};
+ompi_request_t                   ompi_request_empty_send = {0};
 #endif
 ompi_status_public_t             ompi_status_empty = {0};
 ompi_request_fns_t               ompi_request_functions = {
