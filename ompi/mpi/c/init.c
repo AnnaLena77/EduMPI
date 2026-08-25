@@ -410,7 +410,8 @@ static void* SQLMonitorFunc(void* _arg){
         const char *query = "INSERT INTO edumpi_runs (edumpi_run_id, start_time, user_id, program_name) VALUES ($1, $2, $3, $4)";
         const char *paramValues[4] = {job_id, start_time_str, user_id, program_name};
         int paramlengths[4] = {strlen(job_id), strlen(start_time_str), strlen(user_id), strlen(program_name)};
-        PGresult *res = PQexecParams(conn, query, 4, NULL, paramValues, paramlengths, NULL, 0);  
+        PGresult *res = PQexecParams(conn, query, 4, NULL, paramValues, paramlengths, NULL, 0);
+        PQclear(res);  
     }
     else {     
        while(!check_job_id){
@@ -418,6 +419,7 @@ static void* SQLMonitorFunc(void* _arg){
 	  const char *paramValues[1] = {job_id};
            PGresult *res = PQexecParams(conn, query, 1, NULL, paramValues, (const int*)strlen(job_id), NULL, 0);
            check_job_id = (PQntuples(res));
+           PQclear(res);
   
        }
    }
@@ -428,6 +430,7 @@ static void* SQLMonitorFunc(void* _arg){
        const char *query = "INSERT INTO edumpi_cluster_info (edumpi_run_id, processorname, processrank) VALUES ($1, $2, $3)";
        const char *paramValues[3] = {job_id ,proc_name, proc_rank};
        PGresult *res_ = PQexecParams(conn, query, 3, NULL, paramValues, (const int*)strlen(job_id)+strlen(proc_name)+strlen(proc_rank), NULL, 0);
+       PQclear(res_);
        
     
     clock_t start = clock();
@@ -457,7 +460,7 @@ static void* SQLMonitorFunc(void* _arg){
                 reader_pos ++;
             }
             
-            char buffer[250];
+            char buffer[2048];
             int offset = 0;
             qentry *item = &ringbuffer[reader_pos];
             if(reader_pos == writer_pos){
@@ -494,6 +497,9 @@ static void* SQLMonitorFunc(void* _arg){
         int resi = PQputCopyEnd(conn, NULL);
             if(resi != -1){
                 PQflush(conn);
+                while ((res = PQgetResult(conn)) != NULL) {
+                    PQclear(res);
+                }
                 res = PQexec(conn, copyQuery);
             }
             
@@ -515,7 +521,7 @@ static void* SQLMonitorFunc(void* _arg){
         } else {
             reader_pos ++;
         }
-        char buffer[200];
+        char buffer[2048];
         int offset = 0;
         
         qentry *item = &ringbuffer[reader_pos];
@@ -545,7 +551,9 @@ static void* SQLMonitorFunc(void* _arg){
         if(current>=(start + TIME_TO_WAIT * CLOCKS_PER_SEC)){
             PQputCopyEnd(conn, NULL);
             PQflush(conn);
-            
+            while ((res = PQgetResult(conn)) != NULL) {
+                PQclear(res);
+            }
             res = PQexec(conn, copyQuery);
             PQclear(res);
             PQputCopyData(conn, PGCOPY_HEADER, 19);
@@ -591,6 +599,7 @@ qentry* getWritingRingPos(){
 
     if(writer_pos == -1){
         writer_pos ++;
+        memset(&ringbuffer[0], 0, sizeof(qentry));
         return &ringbuffer[0];
     }
     
@@ -610,8 +619,7 @@ qentry* getWritingRingPos(){
     //Solange Writer vor dem Reader kann nichts passieren
     else{
        qentry* item = &ringbuffer[writer_pos+1];
-       item->end.tv_sec = 0;
-       item->end.tv_nsec = 0;
+       memset(item, 0, sizeof(qentry));
        writer_pos++;
        //printf("writing\n");
     }
