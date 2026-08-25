@@ -494,18 +494,15 @@ static void* SQLMonitorFunc(void* _arg){
             
         clock_t current = clock();
         if(current>=(start + TIME_TO_WAIT * CLOCKS_PER_SEC)){
-        int resi = PQputCopyEnd(conn, NULL);
-            if(resi != -1){
-                PQflush(conn);
-                while ((res = PQgetResult(conn)) != NULL) {
-                    PQclear(res);
-                }
-                res = PQexec(conn, copyQuery);
+            PQputCopyEnd(conn, NULL);
+            PQflush(conn);
+            while ((res = PQgetResult(conn)) != NULL) {
+                PQclear(res);
             }
+            res = PQexec(conn, copyQuery);
             
             if (PQresultStatus(res) != PGRES_COPY_IN) {
                 fprintf(stderr, "COPY start failed: %s\n", PQresultErrorMessage(res));
-                PQclear(res);
                 //return -1;
 	}
             
