@@ -29,6 +29,7 @@
 #include <unistd.h>
 #include <semaphore.h>
 #include <string.h>
+#include <strings.h>
 #include <math.h>
 #include <sys/queue.h>
 #include <sys/time.h>
@@ -52,6 +53,7 @@
 
 #ifdef ENABLE_ANALYSIS
 #include "ompi/mpi/c/init.h"
+#include "ompi/mpi/c/edumpi_ring.h"
 #include "ompi/peruse/peruse.h"
 #endif
 
@@ -100,6 +102,13 @@ qentry *q_qentry;
 qentry *ringbuffer;
 int writer_pos;
 int reader_pos;
+
+/* AMT mode (EDUMPI_MPI_THREAD_AMT=1): the program calls MPI from many threads at
+ * the same time, so events go into a multi-producer ring (edumpi_ring.h) instead
+ * of the single-producer ring above. */
+static int amt_mode = 0;
+static edumpi_amt_ring_t amt_ring;
+int monitor_started = 0;
 
 double timespec_diff(struct timespec start, struct timespec end) {
     long long elapsed_sec = end.tv_sec - start.tv_sec;
@@ -318,10 +327,10 @@ void print_timespec(struct timespec ts) {
            hours, minutes, seconds, ts.tv_nsec);
 }
 
-void qentryToBinary(qentry q, char *buffer, int *off){
+void qentryToBinary(qentry *q, char *buffer, int *off){
         counter ++;
         //printf("Counter: %d\n", counter);
-        qentry *item = &q;
+        qentry *item = q;
         int offset = *off;
             
         newRow(buffer, 16, &offset);
@@ -369,6 +378,31 @@ void qentryToBinary(qentry q, char *buffer, int *off){
 }
 
 #define TIME_TO_WAIT 0.5
+
+/* Wall-clock time in seconds. clock() is the CPU time of all threads of the
+ * process, which runs faster than real time in a multi-threaded program. */
+static double edumpi_wall_seconds(void){
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+}
+
+/* Short sleep for the monitor thread while the ring is empty. (sleep(0.1)
+ * takes an unsigned int, so it was sleep(0): a busy loop that kept one core
+ * at 100%.) */
+static void edumpi_idle_sleep(void){
+    struct timespec ts = {0, 1000000};
+    nanosleep(&ts, NULL);
+}
+
+/* AMT mode: hand one entry of the multi-producer ring to the COPY stream */
+#define AMT_DRAIN_BATCH 4096
+static void amt_emit(qentry *entry, void *ctx){
+    char buffer[2048];
+    int offset = 0;
+    qentryToBinary(entry, buffer, &offset);
+    PQputCopyData((PGconn *) ctx, buffer, offset);
+}
 
 //Monitor-Function for SQL-Connection
 static void* SQLMonitorFunc(void* _arg){
@@ -433,7 +467,7 @@ static void* SQLMonitorFunc(void* _arg){
        PQclear(res_);
        
     
-    clock_t start = clock();
+    double start = edumpi_wall_seconds();
     
     const char *copyQuery = "COPY edumpi_running_data FROM STDIN (FORMAT binary)";
     PGresult *res;
@@ -446,9 +480,14 @@ static void* SQLMonitorFunc(void* _arg){
     //char *buffer = (char*)malloc(sizeof(char)*20000000);
 
     while(run_thread){
-        if(writer_pos == -1 || reader_pos==writer_pos || (reader_pos == MAX_RINGSIZE-1 && writer_pos == 0)){
+        if(amt_mode){
+            if(0 == edumpi_amt_ring_drain(&amt_ring, amt_emit, conn, 0, AMT_DRAIN_BATCH)){
+                edumpi_idle_sleep();
+            }
+        }
+        else if(writer_pos == -1 || reader_pos==writer_pos || (reader_pos == MAX_RINGSIZE-1 && writer_pos == 0)){
             //printf("Reader sleeps at Position %d, %d\n", reader_pos, writer_pos);
-            sleep(0.1);
+            edumpi_idle_sleep();
             //printf("Prozess: %d haengt beim Lesen\n", processrank);
             if(!run_thread) break;
         }
@@ -465,7 +504,7 @@ static void* SQLMonitorFunc(void* _arg){
             qentry *item = &ringbuffer[reader_pos];
             if(reader_pos == writer_pos){
                 while(item->end.tv_nsec == 0){
-                    sleep(0.01);
+                    edumpi_idle_sleep();
                     //printf("Prozess: %d haengt beim Lesen\n", processrank);
                     if(!run_thread) break;
 	   }
@@ -488,12 +527,12 @@ static void* SQLMonitorFunc(void* _arg){
 	       usleep(100);
 	   }
             }*/
-            qentryToBinary(ringbuffer[reader_pos], buffer, &offset);
+            qentryToBinary(&ringbuffer[reader_pos], buffer, &offset);
             PQputCopyData(conn, buffer, offset);
         }
             
-        clock_t current = clock();
-        if(current>=(start + TIME_TO_WAIT * CLOCKS_PER_SEC)){
+        double current = edumpi_wall_seconds();
+        if(current >= start + TIME_TO_WAIT){
             PQputCopyEnd(conn, NULL);
             PQflush(conn);
             while ((res = PQgetResult(conn)) != NULL) {
@@ -515,7 +554,17 @@ static void* SQLMonitorFunc(void* _arg){
         }
     }
   
-    while(reader_pos != writer_pos){
+    if(amt_mode){
+        /* shutdown: emit everything that is left, complete or not */
+        while(edumpi_amt_ring_drain(&amt_ring, amt_emit, conn, 1, AMT_DRAIN_BATCH) > 0){
+        }
+        uint64_t dropped = edumpi_amt_ring_dropped(&amt_ring);
+        if(dropped > 0){
+            fprintf(stderr, "EduMPI (rank %d): %llu events were dropped because the ring buffer was full\n",
+                    processrank, (unsigned long long) dropped);
+        }
+    }
+    while(!amt_mode && reader_pos != writer_pos){
         if(reader_pos == MAX_RINGSIZE-1){
             reader_pos = 0;
         } else {
@@ -545,10 +594,10 @@ static void* SQLMonitorFunc(void* _arg){
             }
         }*/
         
-        qentryToBinary(ringbuffer[reader_pos], buffer, &offset);
+        qentryToBinary(&ringbuffer[reader_pos], buffer, &offset);
         PQputCopyData(conn, buffer, offset);
-        clock_t current = clock();
-        if(current>=(start + TIME_TO_WAIT * CLOCKS_PER_SEC)){
+        double current = edumpi_wall_seconds();
+        if(current >= start + TIME_TO_WAIT){
             PQputCopyEnd(conn, NULL);
             PQflush(conn);
             while ((res = PQgetResult(conn)) != NULL) {
@@ -607,6 +656,10 @@ float total_time;
 
 qentry* getWritingRingPos(){
 
+    if(amt_mode){
+        return edumpi_amt_ring_claim(&amt_ring);
+    }
+
     if(writer_pos == -1){
         writer_pos ++;
         memset(&ringbuffer[0], 0, sizeof(qentry));
@@ -616,8 +669,7 @@ qentry* getWritingRingPos(){
     //Ringbuffer ist voll, es müssen erst Items ausgelesen werden
     //gettimeofday(&start_time, NULL);
     while(writer_pos == reader_pos-1 || (reader_pos == 0 && writer_pos == MAX_RINGSIZE)){
-        printf("Writer sleeps at Position %d, %d\n", writer_pos, reader_pos);
-        sleep(0.01);
+        edumpi_idle_sleep();
     }
     //gettimeofday(&end_time, NULL);
     //total_time += timeDifference(end_time, start_time);
@@ -625,6 +677,7 @@ qentry* getWritingRingPos(){
     
     if(writer_pos == MAX_RINGSIZE-1){
         writer_pos = 0;
+        memset(&ringbuffer[0], 0, sizeof(qentry));
     }
     //Solange Writer vor dem Reader kann nichts passieren
     else{
@@ -755,12 +808,16 @@ void initializeQueue()
     CPU_SET(core_ids[1], &cpu_set_logging);
     pthread_attr_setaffinity_np(&attr_logging, sizeof(cpu_set_t), &cpu_set_logging);
     
-    pthread_create(&MONITOR_THREAD, &attr_logging, SQLMonitorFunc, &core_ids[1]);
+    if(0 == pthread_create(&MONITOR_THREAD, &attr_logging, SQLMonitorFunc, &core_ids[1])){
+        monitor_started = 1;
+    }
     
     hwloc_bitmap_free(cpuset);
     hwloc_topology_destroy(topology);
 #else
-    pthread_create(&MONITOR_THREAD, NULL, SQLMonitorFunc, NULL);
+    if(0 == pthread_create(&MONITOR_THREAD, NULL, SQLMonitorFunc, NULL)){
+        monitor_started = 1;
+    }
 #endif
     
     //gettimeofday(&init_sql_finished, NULL);
@@ -769,18 +826,62 @@ void initializeQueue()
 }
 
 
+/* Is the environment variable set to something other than 0/false/no? */
+static int edumpi_env_enabled(const char *name){
+    const char *v = getenv(name);
+    if(v == NULL || *v == '\0'){
+        return 0;
+    }
+    return !(0 == strcmp(v, "0") || 0 == strcasecmp(v, "false") || 0 == strcasecmp(v, "no"));
+}
+
+/*
+ * Set up the event ring. Called before ompi_mpi_init() by MPI_Init and
+ * MPI_Init_thread.
+ *
+ * EDUMPI_MPI_THREAD_AMT=1 selects the multi-producer ring for programs that call
+ * MPI from many threads at once (MPI_THREAD_MULTIPLE, e.g. asynchronous
+ * many-task runtimes). It is off by default. There is still one ring and one
+ * monitor thread per rank. EDUMPI_AMT_STALL_MS (default 10000) is how long an
+ * unfinished entry may hold back the entries behind it.
+ */
+void edumpi_analysis_init_pre(void)
+{
+    run_thread = 1;
+    counter = 0;
+    amt_mode = edumpi_env_enabled("EDUMPI_MPI_THREAD_AMT");
+    if(amt_mode){
+        const char *stall = getenv("EDUMPI_AMT_STALL_MS");
+        int64_t stall_ms = (stall != NULL && atol(stall) > 0) ? atol(stall) : 10000;
+        if(0 != edumpi_amt_ring_init(&amt_ring, MAX_RINGSIZE, stall_ms)){
+            fprintf(stderr, "EduMPI: could not allocate the AMT ring buffer\n");
+            abort();
+        }
+    } else {
+        ringbuffer = (qentry*)malloc(sizeof(qentry)*MAX_RINGSIZE);
+        writer_pos = -1;
+        reader_pos = -1;
+    }
+    q_qentry = (qentry*)malloc(sizeof(qentry));
+    job_id = getenv("SLURM_JOBID");
+    clock_gettime(CLOCK_REALTIME, &start_runtime);
+}
+
+/* Start the monitor thread. Called after ompi_mpi_init(), as it needs the rank. */
+void edumpi_analysis_init_post(int provided)
+{
+    initializeQueue();
+    if(!amt_mode && provided == MPI_THREAD_MULTIPLE && processrank == 0){
+        fprintf(stderr, "EduMPI: MPI_THREAD_MULTIPLE is active but EDUMPI_MPI_THREAD_AMT is not set. "
+                        "If MPI is called from several threads at once, set EDUMPI_MPI_THREAD_AMT=1.\n");
+    }
+}
+
 static const char FUNC_NAME[] = "MPI_Init";
 int MPI_Init(int *argc, char ***argv)
 {
 #ifdef ENABLE_ANALYSIS
-    run_thread = 1;
-    counter = 0;
-    ringbuffer = (qentry*)malloc(sizeof(qentry)*MAX_RINGSIZE);
-    writer_pos = -1;
-    reader_pos = -1;
-    q_qentry = (qentry*)malloc(sizeof(qentry));
-    job_id = getenv("SLURM_JOBID");
-    clock_gettime(CLOCK_REALTIME, &start_runtime); 
+    edumpi_analysis_init_pre();
 #endif
 
     //buffer = (char*)malloc(2000000);
@@ -824,7 +925,7 @@ int MPI_Init(int *argc, char ***argv)
                                       err, FUNC_NAME);
     }
     #ifdef ENABLE_ANALYSIS
-    	initializeQueue();
+    	edumpi_analysis_init_post(provided);
     #endif
     //printf("hier gehts weiter\n");
     SPC_INIT();

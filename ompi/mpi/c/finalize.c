@@ -62,7 +62,10 @@ int MPI_Finalize(void)
     //printf("Reader: %d, Writer: %d\n", reader_pos, writer_pos);
     run_thread = 0;
     //closeFile();
-    pthread_join(MONITOR_THREAD, NULL);
+    /* the monitor thread only exists if MPI_Init or MPI_Init_thread started it */
+    if(monitor_started){
+        pthread_join(MONITOR_THREAD, NULL);
+    }
     //clock_gettime(CLOCK_MONOTONIC, &end);
     //free(ringbuffer);
     

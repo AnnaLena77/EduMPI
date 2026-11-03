@@ -71,6 +71,11 @@ extern qentry *q_qentry;
 
 extern qentry* getWritingRingPos(void);
 
+/* Set up / start the event ring and the monitor thread (MPI_Init, MPI_Init_thread) */
+extern void edumpi_analysis_init_pre(void);
+extern void edumpi_analysis_init_post(int provided);
+extern int monitor_started;
+
 #ifndef INIT_H
 #define INIT_H
 #define MAX_RINGSIZE 1000000
