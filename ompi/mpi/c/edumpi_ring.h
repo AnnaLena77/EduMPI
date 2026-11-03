@@ -21,9 +21,13 @@
  *    returns, as in the single-producer mode). An entry that stays incomplete
  *    longer than the stall timeout is emitted as it is, so one long blocking
  *    call cannot hold back the tracing of everything behind it.
+ *  - An entry with "pending_request" set (MPI_Irecv) is also held back until
+ *    "request_done" is set, because the number of received bytes is only known
+ *    when the request has finished. This wait has its own, shorter timeout.
  *
- * Requires the type "qentry" (with a member "end" of type struct timespec) to
- * be defined before this header is included. It uses the GCC/Clang __atomic
+ * Requires the type "qentry" (with the members "end" of type struct timespec,
+ * "pending_request" and "request_done") to be defined before this header is
+ * included. It uses the GCC/Clang __atomic
  * builtins only, so that it can be tested without building Open MPI.
  */
 #ifndef EDUMPI_RING_H
@@ -51,7 +55,8 @@ typedef struct edumpi_amt_ring {
     qentry *slots;
     int32_t *states;
     int64_t size;
-    int64_t stall_ns;
+    int64_t stall_ns;        /* unfinished call (no end timestamp yet) */
+    int64_t request_wait_ns; /* finished call, but its request is not */
 
     /* written by the producers */
     int64_t head __attribute__((aligned(64)));
@@ -68,7 +73,7 @@ typedef struct edumpi_amt_ring {
 typedef void (*edumpi_amt_emit_fn)(qentry *entry, void *ctx);
 
 static inline int edumpi_amt_ring_init(edumpi_amt_ring_t *r, int64_t size,
-                                       int64_t stall_ms)
+                                       int64_t stall_ms, int64_t request_wait_ms)
 {
     memset(r, 0, sizeof(*r));
     r->slots = (qentry *) calloc((size_t) size, sizeof(qentry));
@@ -82,6 +87,7 @@ static inline int edumpi_amt_ring_init(edumpi_amt_ring_t *r, int64_t size,
     }
     r->size = size;
     r->stall_ns = stall_ms * 1000000LL;
+    r->request_wait_ns = request_wait_ms * 1000000LL;
     return 0;
 }
 
@@ -128,6 +134,12 @@ static inline int edumpi_amt_entry_complete(qentry *e)
            || 0 != __atomic_load_n(&e->end.tv_nsec, __ATOMIC_ACQUIRE);
 }
 
+static inline int edumpi_amt_request_ready(qentry *e)
+{
+    return 0 == __atomic_load_n(&e->pending_request, __ATOMIC_RELAXED)
+           || 0 != __atomic_load_n(&e->request_done, __ATOMIC_ACQUIRE);
+}
+
 static inline int64_t edumpi_amt_monotonic_ns(void)
 {
     struct timespec ts;
@@ -161,8 +173,10 @@ static inline int64_t edumpi_amt_ring_drain(edumpi_amt_ring_t *r,
         }
 
         qentry *e = &r->slots[idx];
-        int ready = force || edumpi_amt_entry_complete(e);
+        int ended = edumpi_amt_entry_complete(e);
+        int ready = force || (ended && edumpi_amt_request_ready(e));
         if (!ready) {
+            int64_t limit = ended ? r->request_wait_ns : r->stall_ns;
             int64_t now = edumpi_amt_monotonic_ns();
             if (!r->stalled) {
                 r->stalled = 1;
@@ -172,10 +186,10 @@ static inline int64_t edumpi_amt_ring_drain(edumpi_amt_ring_t *r,
             }
             int64_t since = (int64_t) r->stall_since.tv_sec * 1000000000LL
                             + r->stall_since.tv_nsec;
-            if (now - since < r->stall_ns) {
+            if (now - since < limit) {
                 break;
             }
-            /* Incomplete for too long: emit it as it is. */
+            /* Not finished for too long: emit it as it is. */
         }
 
         emit(e, ctx);

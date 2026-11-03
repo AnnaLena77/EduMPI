@@ -182,6 +182,12 @@ recv_request_pml_complete(mca_pml_ob1_recv_request_t *recvreq)
             PERUSE_TRACE_COMM_EVENT( PERUSE_COMM_REQ_XFER_END,
                     &recvreq->req_recv.req_base, PERUSE_RECV );
         }
+#ifdef ENABLE_ANALYSIS
+        /* the entry may be written now (also for messages without data) */
+        if(recvreq->q != NULL){
+            edumpi_request_done(recvreq->q);
+        }
+#endif
 
         for(i = 0; i < recvreq->req_rdma_cnt; i++) {
             struct mca_btl_base_registration_handle_t *handle = recvreq->req_rdma[i].btl_reg;

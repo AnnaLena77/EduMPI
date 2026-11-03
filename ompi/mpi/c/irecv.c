@@ -49,6 +49,11 @@ int MPI_Irecv(void *buf, int count, MPI_Datatype type, int source,
     clock_gettime(CLOCK_REALTIME, &item->start);
     initQentry(&item, source, "MPI_Irecv", 9, 0, 0, "p2p", 3, NULL, type, comm, 0, NULL);
     item->request = request;
+    /* The number of received bytes is only known when the request is finished: the
+     * monitor thread waits for the PML to mark the entry (request_done). */
+    if(MPI_PROC_NULL != source){
+        item->pending_request = 1;
+    }
     #endif
 
     int rc = MPI_SUCCESS;
@@ -98,6 +103,9 @@ int MPI_Irecv(void *buf, int count, MPI_Datatype type, int source,
     rc = MCA_PML_CALL(irecv(buf,count,type,source,tag,comm,request));
 #else
     rc = MCA_PML_CALL(irecv(buf,count,type,source,tag,comm,request, &item));
+    if(MPI_SUCCESS != rc){
+        item->pending_request = 0;
+    }
     clock_gettime(CLOCK_REALTIME, &item->end);
     //qentryIntoQueue(&item);
 #endif

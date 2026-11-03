@@ -58,8 +58,34 @@ typedef struct qentry {
     struct timespec sent;//later
     struct timespec bufferFree; //later
     //struct collective_p2p collectives;
+    /* For a request that is not finished when the MPI wrapper returns (MPI_Irecv):
+     * the wrapper sets pending_request, the PML sets request_done (and the number of
+     * received bytes) when the request is finished. The monitor thread does not write
+     * the entry to the database before that, but not longer than EDUMPI_REQUEST_WAIT_MS. */
+    int pending_request;
+    int request_done;
     TAILQ_ENTRY(qentry) pointers;
 } qentry;
+
+/* Can the entry be written? (false while it waits for its request) */
+static inline int edumpi_request_ready(qentry *e)
+{
+    return 0 == __atomic_load_n(&e->pending_request, __ATOMIC_RELAXED)
+           || 0 != __atomic_load_n(&e->request_done, __ATOMIC_ACQUIRE);
+}
+
+/* The PML finished the request: nothing more will be added to the entry */
+static inline void edumpi_request_done(qentry *e)
+{
+    __atomic_store_n(&e->request_done, 1, __ATOMIC_RELEASE);
+}
+
+/* ... and it knows how many bytes were received */
+static inline void edumpi_request_done_bytes(qentry *e, int64_t recv_bytes)
+{
+    __atomic_store_n(&e->recvDatasize, recv_bytes, __ATOMIC_RELAXED);
+    edumpi_request_done(e);
+}
 #endif
 
 extern void qentryIntoQueue(qentry **q);

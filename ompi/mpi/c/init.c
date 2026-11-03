@@ -110,6 +110,10 @@ static int amt_mode = 0;
 static edumpi_amt_ring_t amt_ring;
 int monitor_started = 0;
 
+/* How long (seconds) an entry waits for its request to finish (MPI_Irecv, see
+ * pending_request in init.h) before it is written without the received size. */
+static double request_wait_s = 2.0;
+
 double timespec_diff(struct timespec start, struct timespec end) {
     long long elapsed_sec = end.tv_sec - start.tv_sec;
     long long elapsed_ns = end.tv_nsec - start.tv_nsec;
@@ -468,6 +472,8 @@ static void* SQLMonitorFunc(void* _arg){
        
     
     double start = edumpi_wall_seconds();
+    int held = 0;            /* the next entry waits for its request ...     */
+    double held_since = 0.0; /* ... since this time (default mode only)      */
     
     const char *copyQuery = "COPY edumpi_running_data FROM STDIN (FORMAT binary)";
     PGresult *res;
@@ -480,10 +486,30 @@ static void* SQLMonitorFunc(void* _arg){
     //char *buffer = (char*)malloc(sizeof(char)*20000000);
 
     while(run_thread){
+        /* Default mode: hold the next entry back while its request is not finished */
+        int hold = 0;
+        if(!amt_mode && run_thread && writer_pos != -1 && reader_pos != writer_pos
+           && !(reader_pos == MAX_RINGSIZE-1 && writer_pos == 0)){
+            int next = (reader_pos == MAX_RINGSIZE-1) ? 0 : reader_pos + 1;
+            if(edumpi_request_ready(&ringbuffer[next])){
+                held = 0;
+            } else {
+                double now_held = edumpi_wall_seconds();
+                if(!held){
+                    held = 1;
+                    held_since = now_held;
+                }
+                hold = (now_held - held_since < request_wait_s);
+            }
+        }
+
         if(amt_mode){
             if(0 == edumpi_amt_ring_drain(&amt_ring, amt_emit, conn, 0, AMT_DRAIN_BATCH)){
                 edumpi_idle_sleep();
             }
+        }
+        else if(hold){
+            edumpi_idle_sleep();
         }
         else if(writer_pos == -1 || reader_pos==writer_pos || (reader_pos == MAX_RINGSIZE-1 && writer_pos == 0)){
             //printf("Reader sleeps at Position %d, %d\n", reader_pos, writer_pos);
@@ -529,6 +555,7 @@ static void* SQLMonitorFunc(void* _arg){
             }*/
             qentryToBinary(&ringbuffer[reader_pos], buffer, &offset);
             PQputCopyData(conn, buffer, offset);
+            held = 0;
         }
             
         double current = edumpi_wall_seconds();
@@ -844,16 +871,23 @@ static int edumpi_env_enabled(const char *name){
  * many-task runtimes). It is off by default. There is still one ring and one
  * monitor thread per rank. EDUMPI_AMT_STALL_MS (default 10000) is how long an
  * unfinished entry may hold back the entries behind it.
+ *
+ * EDUMPI_REQUEST_WAIT_MS (default 2000, both modes) is how long an entry of a
+ * non-blocking receive waits for its request to finish, so that the number of
+ * received bytes is in the database.
  */
 void edumpi_analysis_init_pre(void)
 {
     run_thread = 1;
     counter = 0;
     amt_mode = edumpi_env_enabled("EDUMPI_MPI_THREAD_AMT");
+    const char *wait = getenv("EDUMPI_REQUEST_WAIT_MS");
+    int64_t request_wait_ms = (wait != NULL && atol(wait) >= 0) ? atol(wait) : 2000;
+    request_wait_s = (double) request_wait_ms / 1000.0;
     if(amt_mode){
         const char *stall = getenv("EDUMPI_AMT_STALL_MS");
         int64_t stall_ms = (stall != NULL && atol(stall) > 0) ? atol(stall) : 10000;
-        if(0 != edumpi_amt_ring_init(&amt_ring, MAX_RINGSIZE, stall_ms)){
+        if(0 != edumpi_amt_ring_init(&amt_ring, MAX_RINGSIZE, stall_ms, request_wait_ms)){
             fprintf(stderr, "EduMPI: could not allocate the AMT ring buffer\n");
             abort();
         }

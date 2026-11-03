@@ -26,6 +26,9 @@ static int mca_pml_ucx_request_free(ompi_request_t **rptr)
     PML_UCX_VERBOSE(9, "free request *%p=%p", (void*)rptr, (void*)req);
 
     *rptr = MPI_REQUEST_NULL;
+#ifdef ENABLE_ANALYSIS
+    edumpi_ucx_req_ext_reset(req); /* only requests of the UCX pool are freed here */
+#endif
     mca_pml_ucx_request_reset(req);
     ucp_request_free(req);
     return OMPI_SUCCESS;
@@ -86,6 +89,9 @@ mca_pml_ucx_recv_completion_internal(void *request, ucs_status_t status,
                     OMPI_SPC_BYTES_RECEIVED_USER, OMPI_SPC_BYTES_RECEIVED_MPI);
 
     mca_pml_ucx_set_recv_status(&req->req_status, status, info);
+#ifdef ENABLE_ANALYSIS
+    edumpi_ucx_recv_finished(req);
+#endif
     PML_UCX_ASSERT( !(REQUEST_COMPLETE(req)));
     ompi_request_complete(req, true);
 }
@@ -211,6 +217,9 @@ void mca_pml_ucx_request_init(void *request)
     mca_pml_ucx_request_init_common(ompi_req, false, OMPI_REQUEST_ACTIVE,
                                     mca_pml_ucx_request_free,
                                     mca_pml_ucx_request_cancel);
+#ifdef ENABLE_ANALYSIS
+    edumpi_ucx_req_ext_reset(ompi_req);
+#endif
 }
 
 void mca_pml_ucx_request_cleanup(void *request)

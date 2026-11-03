@@ -239,7 +239,12 @@ int mca_pml_ucx_open(void)
                                UCP_PARAM_FIELD_MT_WORKERS_SHARED |
                                UCP_PARAM_FIELD_ESTIMATED_NUM_EPS;
     params.features          = UCP_FEATURE_TAG;
+#ifdef ENABLE_ANALYSIS
+    /* EduMPI: private area behind every request, see pml_ucx_request.h */
+    params.request_size      = sizeof(ompi_request_t) + sizeof(edumpi_ucx_req_ext_t);
+#else
     params.request_size      = sizeof(ompi_request_t);
+#endif
     params.request_init      = mca_pml_ucx_request_init;
     params.request_cleanup   = mca_pml_ucx_request_cleanup;
     params.tag_sender_mask   = PML_UCX_SPECIFIC_SOURCE_MASK;
@@ -656,7 +661,7 @@ int mca_pml_ucx_irecv(void *buf, size_t count, ompi_datatype_t *datatype,
             item = *q;
             item->blocking = 0;
             item->recvcount = item->recvcount + count;
-            //item->recvDatasize = item->recvDatasize + count*sizeof(datatype);
+            //item->recvDatasize = item->recvDatasize + count*edumpi_datatype_size(datatype);
         } else item = NULL;
     } else item = NULL;
 #endif
@@ -691,6 +696,12 @@ int mca_pml_ucx_irecv(void *buf, size_t count, ompi_datatype_t *datatype,
     PML_UCX_VERBOSE(8, "got request %p", (void*)req);
     req->req_mpi_object.comm = comm;
     *request                 = req;
+#ifdef ENABLE_ANALYSIS
+    if(item != NULL){
+        /* the received size is stored in the entry when the request finishes */
+        edumpi_ucx_attach_entry(req, item);
+    }
+#endif
     return OMPI_SUCCESS;
 }
 
@@ -710,7 +721,7 @@ int mca_pml_ucx_recv(void *buf, size_t count, ompi_datatype_t *datatype, int src
             item = *q;
             item->blocking = 1;
             item->recvcount = item->recvcount + count;
-            //item->recvDatasize = item->recvDatasize + count*sizeof(datatype);
+            //item->recvDatasize = item->recvDatasize + count*edumpi_datatype_size(datatype);
         } else item = NULL;
     } else item = NULL;
 #endif
@@ -748,6 +759,11 @@ int mca_pml_ucx_recv(void *buf, size_t count, ompi_datatype_t *datatype, int src
         status = ucp_request_test(req, &info);
         if (status != UCS_INPROGRESS) {
             result = mca_pml_ucx_set_recv_status_public(mpi_status, status, &info);
+#ifdef ENABLE_ANALYSIS
+            if(item != NULL && UCS_OK == status){
+                item->recvDatasize += (int64_t) info.length; /* bytes actually received */
+            }
+#endif
 
 #if SPC_ENABLE == 1
             size_t dt_size;
@@ -844,7 +860,7 @@ mca_pml_ucx_bsend(ucp_ep_h ep, const void *buf, size_t count,
             item = *q;
             item->blocking = 1;
             item->sendcount = item->sendcount + count;
-        	   item->sendDatasize = item->sendDatasize + count*sizeof(datatype);
+        	   item->sendDatasize = item->sendDatasize + count*edumpi_datatype_size(datatype);
         } else item = NULL;
     } else item = NULL;
 #endif
@@ -974,7 +990,7 @@ int mca_pml_ucx_isend(const void *buf, size_t count, ompi_datatype_t *datatype,
             item->blocking = 0;
             strcpy(item->usedBtl,"ucx");
             item->sendcount = item->sendcount + count;
-        	   item->sendDatasize = item->sendDatasize + count*sizeof(datatype);
+        	   item->sendDatasize = item->sendDatasize + count*edumpi_datatype_size(datatype);
         	   //printf("Datasize: %d\n", item->sendDatasize);
         	   
             //int ranki;
@@ -1114,7 +1130,7 @@ int mca_pml_ucx_send(const void *buf, size_t count, ompi_datatype_t *datatype, i
             item = *q;
             item->blocking = 1;
             item->sendcount = item->sendcount + count;
-        	   item->sendDatasize = item->sendDatasize + count*sizeof(datatype);
+        	   item->sendDatasize = item->sendDatasize + count*edumpi_datatype_size(datatype);
             //int ranki;
             //MPI_Comm_rank(comm, &ranki);
             //printf("UXC_SEND Kommt von: %s\n Rank %d sendet an Rank %d\n", item->function, ranki, dst);
@@ -1265,7 +1281,7 @@ int mca_pml_ucx_imrecv(void *buf, size_t count, ompi_datatype_t *datatype,
             item = *q;
             item->blocking = 0;
             item->recvcount = item->recvcount + count;
-        	   item->recvDatasize = item->recvDatasize + count*sizeof(datatype);
+        	   item->recvDatasize = item->recvDatasize + count*edumpi_datatype_size(datatype);
         } else item = NULL;
     } else item = NULL;
 #endif
@@ -1306,7 +1322,7 @@ int mca_pml_ucx_mrecv(void *buf, size_t count, ompi_datatype_t *datatype,
             item = *q;
             item->blocking = 1;
             item->recvcount = item->recvcount + count;
-        	   item->recvDatasize = item->recvDatasize + count*sizeof(datatype);
+        	   item->recvDatasize = item->recvDatasize + count*edumpi_datatype_size(datatype);
         } else item = NULL;
     } else item = NULL;
 #endif

@@ -20,6 +20,9 @@ typedef struct qentry {
     int64_t seq;
     int64_t check;
     char pad[800];
+    int64_t recv_size;
+    int pending_request;
+    int request_done;
     struct timespec end;
 } qentry;
 
@@ -122,7 +125,7 @@ static void test_many_producers(int64_t ring_size)
     for (int p = 0; p < NPROD; p++) {
         seen.last_seq[p] = 0;
     }
-    CHECK(0 == edumpi_amt_ring_init(&ring, ring_size, 10000), "init");
+    CHECK(0 == edumpi_amt_ring_init(&ring, ring_size, 10000, 2000), "init");
 
     cons_arg_t carg = {&ring, &seen, 0};
     pthread_t cons, prods[NPROD];
@@ -162,7 +165,7 @@ static void test_ring_full_drops(void)
 {
     edumpi_amt_ring_t ring;
     int64_t emitted = 0;
-    CHECK(0 == edumpi_amt_ring_init(&ring, 1024, 10000), "init");
+    CHECK(0 == edumpi_amt_ring_init(&ring, 1024, 10000, 2000), "init");
     for (int i = 0; i < 5000; i++) {
         qentry *e = edumpi_amt_ring_claim(&ring);
         e->seq = i + 1;
@@ -185,7 +188,7 @@ static void test_stall_timeout(void)
 {
     edumpi_amt_ring_t ring;
     int64_t emitted = 0;
-    CHECK(0 == edumpi_amt_ring_init(&ring, 64, 200), "init"); /* 200 ms */
+    CHECK(0 == edumpi_amt_ring_init(&ring, 64, 200, 2000), "init"); /* 200 ms */
 
     qentry *stuck = edumpi_amt_ring_claim(&ring); /* never completed */
     stuck->seq = 1;
@@ -207,7 +210,7 @@ static void test_force_drain(void)
 {
     edumpi_amt_ring_t ring;
     int64_t emitted = 0;
-    CHECK(0 == edumpi_amt_ring_init(&ring, 64, 60000), "init");
+    CHECK(0 == edumpi_amt_ring_init(&ring, 64, 60000, 2000), "init");
     for (int i = 0; i < 10; i++) {
         qentry *e = edumpi_amt_ring_claim(&ring);
         e->seq = i + 1; /* none of them completed */
@@ -219,8 +222,113 @@ static void test_force_drain(void)
     edumpi_amt_ring_destroy(&ring);
 }
 
+/* ------------------------------------------------------------------ test 5 */
+/* An MPI_Irecv entry waits for its request; a timeout releases it. */
+static void test_pending_request(void)
+{
+    edumpi_amt_ring_t ring;
+    int64_t emitted = 0;
+    CHECK(0 == edumpi_amt_ring_init(&ring, 64, 10000, 200), "init"); /* request wait 200 ms */
+
+    qentry *irecv = edumpi_amt_ring_claim(&ring);
+    irecv->seq = 1;
+    irecv->pending_request = 1; /* set by the wrapper before the PML call */
+    complete(irecv);            /* the wrapper returned */
+    for (int i = 0; i < 3; i++) {
+        qentry *e = edumpi_amt_ring_claim(&ring);
+        e->seq = 2 + i;
+        complete(e);
+    }
+    edumpi_amt_ring_drain(&ring, noop_emit, &emitted, 0, 100);
+    CHECK(0 == emitted, "entries behind a pending request wait (%" PRId64 ")", emitted);
+
+    __atomic_store_n(&irecv->recv_size, 4, __ATOMIC_RELAXED);
+    __atomic_store_n(&irecv->request_done, 1, __ATOMIC_RELEASE); /* the PML finished it */
+    edumpi_amt_ring_drain(&ring, noop_emit, &emitted, 0, 100);
+    CHECK(4 == emitted, "all 4 are emitted once the request is done (%" PRId64 ")", emitted);
+
+    /* a request that never finishes is released by the timeout */
+    qentry *idle = edumpi_amt_ring_claim(&ring);
+    idle->pending_request = 1;
+    complete(idle);
+    qentry *behind = edumpi_amt_ring_claim(&ring);
+    complete(behind);
+    emitted = 0;
+    edumpi_amt_ring_drain(&ring, noop_emit, &emitted, 0, 100);
+    CHECK(0 == emitted, "idle request holds back (%" PRId64 ")", emitted);
+    usleep(300 * 1000);
+    edumpi_amt_ring_drain(&ring, noop_emit, &emitted, 0, 100);
+    CHECK(2 == emitted, "timeout releases it (%" PRId64 ")", emitted);
+    edumpi_amt_ring_destroy(&ring);
+}
+
+/* A completion thread sets the size later, like the UCX completion callback. */
+#define NREQ 20000
+typedef struct {
+    qentry *slots[NREQ];
+    int next_to_finish;
+    int stop;
+} completer_t;
+
+static void *completer(void *arg)
+{
+    completer_t *c = (completer_t *) arg;
+    int done = 0;
+    while (done < NREQ) {
+        int published = __atomic_load_n(&c->next_to_finish, __ATOMIC_ACQUIRE);
+        while (done < published) {
+            qentry *e = c->slots[done++];
+            __atomic_store_n(&e->recv_size, 4, __ATOMIC_RELAXED);
+            __atomic_store_n(&e->request_done, 1, __ATOMIC_RELEASE);
+        }
+        struct timespec ts = {0, 20000};
+        nanosleep(&ts, NULL);
+    }
+    return NULL;
+}
+
+typedef struct {
+    int64_t total, without_size;
+} size_seen_t;
+
+static void size_emit(qentry *e, void *ctx)
+{
+    size_seen_t *s = (size_seen_t *) ctx;
+    s->total++;
+    if (4 != __atomic_load_n(&e->recv_size, __ATOMIC_RELAXED)) {
+        s->without_size++;
+    }
+}
+
+static void test_async_completion(void)
+{
+    static completer_t comp;
+    edumpi_amt_ring_t ring;
+    size_seen_t seen = {0, 0};
+    CHECK(0 == edumpi_amt_ring_init(&ring, 1 << 16, 10000, 5000), "init");
+    pthread_t th;
+    pthread_create(&th, NULL, completer, &comp);
+    for (int i = 0; i < NREQ; i++) {
+        qentry *e = edumpi_amt_ring_claim(&ring);
+        e->pending_request = 1;
+        complete(e);
+        comp.slots[i] = e;
+        __atomic_store_n(&comp.next_to_finish, i + 1, __ATOMIC_RELEASE);
+        edumpi_amt_ring_drain(&ring, size_emit, &seen, 0, 4096);
+    }
+    pthread_join(th, NULL);
+    while (edumpi_amt_ring_drain(&ring, size_emit, &seen, 0, 4096) > 0) {
+    }
+    CHECK(NREQ == seen.total, "all %d entries emitted (%" PRId64 ")", NREQ, seen.total);
+    CHECK(0 == seen.without_size, "%" PRId64 " entries were written before their size was known",
+          seen.without_size);
+    edumpi_amt_ring_destroy(&ring);
+}
+
 int main(void)
 {
+    test_pending_request();
+    test_async_completion();
     test_ring_full_drops();
     test_stall_timeout();
     test_force_drain();

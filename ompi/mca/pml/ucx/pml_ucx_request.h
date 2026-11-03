@@ -160,6 +160,67 @@ static inline void mca_pml_ucx_request_reset(ompi_request_t *req)
     req->req_complete          = REQUEST_PENDING;
 }
 
+#ifdef ENABLE_ANALYSIS
+/*
+ * EduMPI: private area behind each UCX request (see request_size in pml_ucx.c).
+ * It links an MPI_Irecv request to its event entry, so that the completion
+ * callback can store the number of received bytes in the entry and tell the
+ * monitor thread that the entry may be written. Only requests from the UCX
+ * request pool have this area (not persistent or "completed" requests).
+ */
+typedef struct edumpi_ucx_req_ext {
+    qentry  *q;       /* entry of the MPI_Irecv, set after the receive was posted */
+    int64_t  bytes;   /* received bytes, valid if cb_done is set                  */
+    int      cb_done; /* the completion callback has run                          */
+} edumpi_ucx_req_ext_t;
+
+static inline edumpi_ucx_req_ext_t *edumpi_ucx_req_ext(ompi_request_t *req)
+{
+    return (edumpi_ucx_req_ext_t *) ((char *) req + sizeof(ompi_request_t));
+}
+
+static inline void edumpi_ucx_req_ext_reset(ompi_request_t *req)
+{
+    edumpi_ucx_req_ext_t *x = edumpi_ucx_req_ext(req);
+    x->q = NULL;
+    x->bytes = 0;
+    x->cb_done = 0;
+}
+
+/* Completion callback side. Call before ompi_request_complete(): afterwards the
+ * request may be freed and reused. */
+static inline void edumpi_ucx_recv_finished(ompi_request_t *req)
+{
+    edumpi_ucx_req_ext_t *x = edumpi_ucx_req_ext(req);
+    __atomic_store_n(&x->bytes, (int64_t) req->req_status._ucount, __ATOMIC_RELAXED);
+    __atomic_store_n(&x->cb_done, 1, __ATOMIC_SEQ_CST);
+    qentry *q = __atomic_load_n(&x->q, __ATOMIC_SEQ_CST);
+    if (NULL != q) {
+        edumpi_request_done_bytes(q, x->bytes);
+    }
+}
+
+/* MPI_Irecv side. The receive may already be finished (the callback can run
+ * before this), so check again after the entry was attached. At least one of the
+ * two sides sees the other one; doing it twice is harmless. */
+static inline void edumpi_ucx_attach_entry(ompi_request_t *req, qentry *q)
+{
+    edumpi_ucx_req_ext_t *x = edumpi_ucx_req_ext(req);
+    __atomic_store_n(&x->q, q, __ATOMIC_SEQ_CST);
+    if (0 != __atomic_load_n(&x->cb_done, __ATOMIC_SEQ_CST)) {
+        edumpi_request_done_bytes(q, x->bytes);
+    }
+}
+
+/* Size of the datatype in bytes. (sizeof(datatype) is the size of the handle.) */
+static inline size_t edumpi_datatype_size(ompi_datatype_t *datatype)
+{
+    size_t dt_size = 0;
+    ompi_datatype_type_size(datatype, &dt_size);
+    return dt_size;
+}
+#endif
+
 /* Use when setting a request's status field.
  * Note that a new function 'mca_mpl_ucx_set_send_status_public' shall
  * be created and used instead if updating a publicly visible status becomes
