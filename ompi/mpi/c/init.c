@@ -497,6 +497,9 @@ static void* SQLMonitorFunc(void* _arg){
             PQputCopyEnd(conn, NULL);
             PQflush(conn);
             while ((res = PQgetResult(conn)) != NULL) {
+                if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+                    fprintf(stderr, "COPY into edumpi_running_data failed: %s\n", PQresultErrorMessage(res));
+                }
                 PQclear(res);
             }
             res = PQexec(conn, copyQuery);
@@ -549,6 +552,9 @@ static void* SQLMonitorFunc(void* _arg){
             PQputCopyEnd(conn, NULL);
             PQflush(conn);
             while ((res = PQgetResult(conn)) != NULL) {
+                if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+                    fprintf(stderr, "COPY into edumpi_running_data failed: %s\n", PQresultErrorMessage(res));
+                }
                 PQclear(res);
             }
             res = PQexec(conn, copyQuery);
@@ -559,6 +565,13 @@ static void* SQLMonitorFunc(void* _arg){
         }
     }
     PQputCopyEnd(conn, NULL);
+    PQflush(conn);
+    while ((res = PQgetResult(conn)) != NULL) {
+        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+            fprintf(stderr, "COPY into edumpi_running_data failed: %s\n", PQresultErrorMessage(res));
+        }
+        PQclear(res);
+    }
     
     if(processrank == 0){
         struct timespec end_runtime;
