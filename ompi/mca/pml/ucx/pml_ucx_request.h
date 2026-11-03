@@ -192,7 +192,10 @@ static inline void edumpi_ucx_req_ext_reset(ompi_request_t *req)
 static inline void edumpi_ucx_recv_finished(ompi_request_t *req)
 {
     edumpi_ucx_req_ext_t *x = edumpi_ucx_req_ext(req);
-    __atomic_store_n(&x->bytes, (int64_t) req->req_status._ucount, __ATOMIC_RELAXED);
+    /* A cancelled receive (e.g. a receive that is still posted at shutdown) did not
+     * receive anything; its _ucount is a leftover of an earlier use of the request. */
+    int64_t received = req->req_status._cancelled ? 0 : (int64_t) req->req_status._ucount;
+    __atomic_store_n(&x->bytes, received, __ATOMIC_RELAXED);
     __atomic_store_n(&x->cb_done, 1, __ATOMIC_SEQ_CST);
     qentry *q = __atomic_load_n(&x->q, __ATOMIC_SEQ_CST);
     if (NULL != q) {
