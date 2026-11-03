@@ -57,6 +57,29 @@ EduMPI extends Open MPI with a **logging framework** integrated at `MPI_Init`:
 
 ---
 
+## 🧵 Tracing programs that call MPI from many threads (AMT runtimes)
+
+Asynchronous many-task runtimes (HPX, Dagger, Itoyori, ...) call MPI from many
+worker threads at the same time (`MPI_THREAD_MULTIPLE`). For these programs set
+
+    EDUMPI_MPI_THREAD_AMT=1
+
+before `mpirun`. It is off by default. There is still one ring buffer and one
+monitor thread per rank, but the ring accepts events from any number of threads
+at the same time. It never blocks the program: if the ring is full, events are
+dropped and the number of dropped events is printed at `MPI_Finalize`.
+
+| Variable | Meaning | Default |
+|---|---|---|
+| `EDUMPI_MPI_THREAD_AMT` | use the thread-safe ring | off |
+| `EDUMPI_AMT_STALL_MS` | how long (ms) an unfinished call may hold back the entries after it | 10000 |
+
+`MPI_Init_thread` is instrumented like `MPI_Init` (programs that start MPI with
+`MPI_Init_thread` were not traced before). Without the flag, EduMPI prints a hint
+if `MPI_THREAD_MULTIPLE` is active. Tests: `test/edumpi/`.
+
+---
+
 ## 🖥️ Screenshots
 
   ![Screenshot](docs/screenshots/gui.png)
