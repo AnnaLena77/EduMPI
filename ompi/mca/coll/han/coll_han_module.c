@@ -7,6 +7,8 @@
  * Copyright (c) 2021      Triad National Security, LLC. All rights
  *                         reserved.
  * Copyright (c) 2022      IBM Corporation. All rights reserved
+ * Copyright (c) 2024-2026 NVIDIA Corporation.  All rights reserved.
+ * Copyright (c) 2024      Amazon.com, Inc. or its affiliates. All Rights Reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -86,6 +88,8 @@ static void mca_coll_han_module_construct(mca_coll_han_module_t * module)
     module->dynamic_errors = 0;
 
     han_module_clear(module);
+
+    module->super.coll_revoke_local = mca_coll_han_revoke_local;
 }
 
 
@@ -116,7 +120,12 @@ mca_coll_han_module_destruct(mca_coll_han_module_t * module)
 
     if (module->cached_low_comms != NULL) {
         for (i = 0; i < COLL_HAN_LOW_MODULES; i++) {
+            int cid = module->cached_low_comms[i]->c_index;
             ompi_comm_free(&(module->cached_low_comms[i]));
+            ompi_communicator_t *tmp = ompi_comm_lookup(cid);
+            if (NULL != tmp) {
+                OBJ_RELEASE(tmp);
+            }
             module->cached_low_comms[i] = NULL;
         }
         free(module->cached_low_comms);
@@ -124,7 +133,12 @@ mca_coll_han_module_destruct(mca_coll_han_module_t * module)
     }
     if (module->cached_up_comms != NULL) {
         for (i = 0; i < COLL_HAN_UP_MODULES; i++) {
+            int cid = module->cached_up_comms[i]->c_index;
             ompi_comm_free(&(module->cached_up_comms[i]));
+            ompi_communicator_t *tmp = ompi_comm_lookup(cid);
+            if (NULL != tmp) {
+                OBJ_RELEASE(tmp);
+            }
             module->cached_up_comms[i] = NULL;
         }
         free(module->cached_up_comms);
@@ -140,7 +154,12 @@ mca_coll_han_module_destruct(mca_coll_han_module_t * module)
     }
     for(i=0 ; i<NB_TOPO_LVL ; i++) {
         if(NULL != module->sub_comm[i]) {
+            int cid = module->sub_comm[i]->c_index;
             ompi_comm_free(&(module->sub_comm[i]));
+            ompi_communicator_t *tmp = ompi_comm_lookup(cid);
+            if (NULL != tmp) {
+                OBJ_RELEASE(tmp);
+            }
         }
     }
 
@@ -269,6 +288,7 @@ mca_coll_han_comm_query(struct ompi_communicator_t * comm, int *priority)
         /* We are on a topologic sub-communicator, return only the selector */
         han_module->super.coll_allgatherv = mca_coll_han_allgatherv_intra_dynamic;
     }
+    han_module->super.coll_revoke_local = mca_coll_han_revoke_local;
 
     opal_output_verbose(10, ompi_coll_base_framework.framework_output,
                         "coll:han:comm_query (%s/%s): pick me! pick me!",

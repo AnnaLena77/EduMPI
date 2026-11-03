@@ -13,6 +13,8 @@
  * Copyright (c) 2006-2008 Cisco Systems, Inc.  All rights reserved.
  * Copyright (c) 2010-2012 Oracle and/or its affiliates.  All rights reserved.
  * Copyright (c) 2012      Oak Ridge National Labs.  All rights reserved.
+ * Copyright (c) 2025      NVIDIA Corporation.  All rights reserved.
+ * Copyright (c) 2026      Jeffrey M. Squyres.  All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -54,6 +56,8 @@ recheck_request_status:
             ompi_grequest_invoke_query(request, &request->req_status);
         }
         if (MPI_STATUS_IGNORE != status) {
+            /* make sure we get the correct status */
+            opal_atomic_rmb();
             OMPI_COPY_STATUS(status, request->req_status, false);
         }
         if( request->req_persistent ) {
@@ -127,12 +131,14 @@ int ompi_request_default_test_any(
                 ompi_grequest_invoke_query(request, &request->req_status);
             }
             if (MPI_STATUS_IGNORE != status) {
+                /* make sure we get the correct status */
+                opal_atomic_rmb();
                 OMPI_COPY_STATUS(status, request->req_status, false);
             }
 
             if( request->req_persistent ) {
                 request->req_state = OMPI_REQUEST_INACTIVE;
-                return OMPI_SUCCESS;
+                return request->req_status.MPI_ERROR;
             }
             /* If there is an error on the request, don't free it */
             if (MPI_SUCCESS != request->req_status.MPI_ERROR) {
@@ -183,7 +189,7 @@ int ompi_request_default_test_all(
     size_t num_completed = 0;
     ompi_request_t *request;
     int do_it_once = 0;
-    opal_atomic_mb();
+
     for (i = 0; i < count; i++) {
         request = requests[i];
 
@@ -244,26 +250,25 @@ int ompi_request_default_test_all(
                 ompi_grequest_invoke_query(request, &request->req_status);
             }
             OMPI_COPY_STATUS(&statuses[i], request->req_status, true);
-            if( request->req_persistent ) {
-                request->req_state = OMPI_REQUEST_INACTIVE;
-                continue;
+            if (MPI_SUCCESS != request->req_status.MPI_ERROR) {
+                rc = MPI_ERR_IN_STATUS;
+#if OPAL_ENABLE_FT_MPI
+                if (MPI_ERR_PROC_FAILED == request->req_status.MPI_ERROR
+                    || MPI_ERR_REVOKED == request->req_status.MPI_ERROR) {
+                    rc = request->req_status.MPI_ERROR;
+                }
+#endif /* OPAL_ENABLE_FT_MPI */
             }
-            /* MPI-2:4.5.1 says that we can return MPI_ERR_IN_STATUS
-               even if MPI_STATUSES_IGNORE was used.  Woot! */
-            /* Only free the request if there was no error on it */
-            if (MPI_SUCCESS == request->req_status.MPI_ERROR) {
+            if (request->req_persistent) {
+                request->req_state = OMPI_REQUEST_INACTIVE;
+            } else if (MPI_SUCCESS == request->req_status.MPI_ERROR) {
+                /* MPI-2:4.5.1 says that we can return MPI_ERR_IN_STATUS
+                   even if MPI_STATUSES_IGNORE was used.  Woot! */
+                /* Only free the request if there was no error on it */
                 int tmp = ompi_request_free(rptr);
                 if (tmp != OMPI_SUCCESS) {
                     return tmp;
                 }
-            } else {
-                rc = MPI_ERR_IN_STATUS;
-#if OPAL_ENABLE_FT_MPI
-                if (MPI_ERR_PROC_FAILED == request->req_status.MPI_ERROR
-                 || MPI_ERR_REVOKED == request->req_status.MPI_ERROR) {
-                    rc = request->req_status.MPI_ERROR;
-                }
-#endif /* OPAL_ENABLE_FT_MPI */
             }
         }
     } else {
@@ -279,24 +284,23 @@ int ompi_request_default_test_all(
             if (OMPI_REQUEST_GEN == request->req_type) {
                 ompi_grequest_invoke_query(request, &request->req_status);
             }
-            if( request->req_persistent ) {
-                request->req_state = OMPI_REQUEST_INACTIVE;
-                continue;
+            if (MPI_SUCCESS != request->req_status.MPI_ERROR) {
+                rc = MPI_ERR_IN_STATUS;
+#if OPAL_ENABLE_FT_MPI
+                if (MPI_ERR_PROC_FAILED == request->req_status.MPI_ERROR
+                    || MPI_ERR_REVOKED == request->req_status.MPI_ERROR) {
+                    rc = request->req_status.MPI_ERROR;
+                }
+#endif /* OPAL_ENABLE_FT_MPI */
             }
-            /* Only free the request if there was no error */
-            if (MPI_SUCCESS == request->req_status.MPI_ERROR) {
+            if (request->req_persistent) {
+                request->req_state = OMPI_REQUEST_INACTIVE;
+            } else if (MPI_SUCCESS == request->req_status.MPI_ERROR) {
+                /* Only free the request if there was no error */
                 int tmp = ompi_request_free(rptr);
                 if (tmp != OMPI_SUCCESS) {
                     return tmp;
                 }
-            } else {
-                rc = MPI_ERR_IN_STATUS;
-#if OPAL_ENABLE_FT_MPI
-                if (MPI_ERR_PROC_FAILED == request->req_status.MPI_ERROR
-                 || MPI_ERR_REVOKED == request->req_status.MPI_ERROR) {
-                    rc = request->req_status.MPI_ERROR;
-                }
-#endif /* OPAL_ENABLE_FT_MPI */
             }
         }
     }
@@ -394,7 +398,7 @@ int ompi_request_default_test_some(
 #endif /* OPAL_ENABLE_FT_MPI */
         }
 
-        if( request->req_persistent ) {
+        if (request->req_persistent) {
             request->req_state = OMPI_REQUEST_INACTIVE;
         } else {
             /* Only free the request if there was no error */

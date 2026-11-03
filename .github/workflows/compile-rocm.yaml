@@ -2,6 +2,9 @@ name: ROCM
 
 on: [pull_request]
 
+permissions:
+  contents: read
+
 env:
   ROCM_VER: 5-4
 jobs:
@@ -21,7 +24,7 @@ jobs:
         echo -e 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600' | sudo tee /etc/apt/preferences.d/rocm-pin-600
         sudo apt update
         sudo apt install -y rocm-hip-runtime
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
             submodules: recursive
     - name: Build Open MPI

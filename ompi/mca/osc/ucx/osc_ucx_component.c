@@ -188,6 +188,7 @@ static int component_register(void) {
     free(description_str);
 
     opal_common_ucx_thread_enabled = opal_using_threads();
+    opal_common_ucx_single_threaded = opal_single_threaded;
     mca_osc_ucx_component.acc_single_intrinsic = false;
 
     opal_asprintf(&description_str, "Enable optimizations for MPI_Fetch_and_op, MPI_Accumulate, etc for codes "
@@ -268,6 +269,11 @@ static int ucp_context_init(bool enable_mt, int proc_world_size) {
 #if HAVE_DECL_UCP_PARAM_FIELD_ESTIMATED_NUM_PPN
     context_params.estimated_num_ppn = opal_process_info.num_local_peers + 1;
     context_params.field_mask |= UCP_PARAM_FIELD_ESTIMATED_NUM_PPN;
+#endif
+
+#if HAVE_DECL_UCP_PARAM_FIELD_NODE_LOCAL_ID
+    context_params.node_local_id = opal_process_info.my_local_rank;
+    context_params.field_mask |= UCP_PARAM_FIELD_NODE_LOCAL_ID;
 #endif
 
     status = ucp_init(&context_params, config, &mca_osc_ucx_component.wpool->ucp_ctx);

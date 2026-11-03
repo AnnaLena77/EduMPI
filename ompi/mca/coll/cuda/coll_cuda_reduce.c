@@ -4,6 +4,8 @@
  *                         reserved.
  * Copyright (c) 2014-2015 NVIDIA Corporation.  All rights reserved.
  * Copyright (c) 2022      Amazon.com, Inc. or its affiliates.  All Rights reserved.
+ * Copyright (c) 2024      Triad National Security, LLC. All rights reserved.
+ * Copyright (c) 2024      Advanced Micro Devices, Inc. All Rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -50,12 +52,13 @@ mca_coll_cuda_reduce(const void *sbuf, void *rbuf, int count,
     int rank = ompi_comm_rank(comm);
     ptrdiff_t gap;
     char *rbuf1 = NULL, *sbuf1 = NULL, *rbuf2 = NULL;
+    int rbuf_dev, sbuf_dev;
     size_t bufsize;
     int rc;
 
     bufsize = opal_datatype_span(&dtype->super, count, &gap);
 
-    rc = mca_coll_cuda_check_buf((void *)sbuf);
+    rc = mca_coll_cuda_check_buf((void *)sbuf, &sbuf_dev);
     if (rc < 0) {
         return rc;
     }
@@ -64,11 +67,12 @@ mca_coll_cuda_reduce(const void *sbuf, void *rbuf, int count,
         if (NULL == sbuf1) {
             return OMPI_ERR_OUT_OF_RESOURCE;
         }
-        mca_coll_cuda_memcpy(sbuf1, sbuf, bufsize);
+        mca_coll_cuda_memcpy(sbuf1, MCA_ACCELERATOR_NO_DEVICE_ID, sbuf, sbuf_dev, bufsize,
+                             MCA_ACCELERATOR_TRANSFER_DTOH);
         sbuf = sbuf1 - gap;
     }
 
-    rc = mca_coll_cuda_check_buf(rbuf);
+    rc = mca_coll_cuda_check_buf(rbuf, &rbuf_dev);
     if (rc < 0) {
         return rc;
     }
@@ -78,7 +82,8 @@ mca_coll_cuda_reduce(const void *sbuf, void *rbuf, int count,
             if (NULL != sbuf1) free(sbuf1);
             return OMPI_ERR_OUT_OF_RESOURCE;
         }
-        mca_coll_cuda_memcpy(rbuf1, rbuf, bufsize);
+        mca_coll_cuda_memcpy(rbuf1, MCA_ACCELERATOR_NO_DEVICE_ID, rbuf, rbuf_dev, bufsize,
+                             MCA_ACCELERATOR_TRANSFER_DTOH);
         rbuf2 = rbuf; /* save away original buffer */
         rbuf = rbuf1 - gap;
     }
@@ -97,7 +102,8 @@ mca_coll_cuda_reduce(const void *sbuf, void *rbuf, int count,
     }
     if (NULL != rbuf1) {
         rbuf = rbuf2;
-        mca_coll_cuda_memcpy(rbuf, rbuf1, bufsize);
+        mca_coll_cuda_memcpy(rbuf, rbuf_dev, rbuf1, MCA_ACCELERATOR_NO_DEVICE_ID, bufsize,
+                             MCA_ACCELERATOR_TRANSFER_HTOD);
         free(rbuf1);
     }
     return rc;
@@ -111,12 +117,13 @@ mca_coll_cuda_reduce_local(const void *sbuf, void *rbuf, int count,
 {
     ptrdiff_t gap;
     char *rbuf1 = NULL, *sbuf1 = NULL, *rbuf2 = NULL;
+    int sbuf_dev, rbuf_dev;
     size_t bufsize;
     int rc;
 
     bufsize = opal_datatype_span(&dtype->super, count, &gap);
 
-    rc = mca_coll_cuda_check_buf((void *)sbuf);
+    rc = mca_coll_cuda_check_buf((void *)sbuf, &sbuf_dev);
     if (rc < 0) {
         return rc;
     }
@@ -126,11 +133,12 @@ mca_coll_cuda_reduce_local(const void *sbuf, void *rbuf, int count,
         if (NULL == sbuf1) {
             return OMPI_ERR_OUT_OF_RESOURCE;
         }
-        mca_coll_cuda_memcpy(sbuf1, sbuf, bufsize);
+        mca_coll_cuda_memcpy(sbuf1, MCA_ACCELERATOR_NO_DEVICE_ID, sbuf, sbuf_dev, bufsize,
+                             MCA_ACCELERATOR_TRANSFER_DTOH);
         sbuf = sbuf1 - gap;
     }
 
-    rc = mca_coll_cuda_check_buf(rbuf);
+    rc = mca_coll_cuda_check_buf(rbuf, &rbuf_dev);
     if (rc < 0) {
         return rc;
     }
@@ -141,7 +149,8 @@ mca_coll_cuda_reduce_local(const void *sbuf, void *rbuf, int count,
             if (NULL != sbuf1) free(sbuf1);
             return OMPI_ERR_OUT_OF_RESOURCE;
         }
-        mca_coll_cuda_memcpy(rbuf1, rbuf, bufsize);
+        mca_coll_cuda_memcpy(rbuf1, MCA_ACCELERATOR_NO_DEVICE_ID, rbuf, rbuf_dev, bufsize,
+                             MCA_ACCELERATOR_TRANSFER_DTOH);
         rbuf2 = rbuf; /* save away original buffer */
         rbuf = rbuf1 - gap;
     }
@@ -154,7 +163,8 @@ mca_coll_cuda_reduce_local(const void *sbuf, void *rbuf, int count,
     }
     if (NULL != rbuf1) {
         rbuf = rbuf2;
-        mca_coll_cuda_memcpy(rbuf, rbuf1, bufsize);
+        mca_coll_cuda_memcpy(rbuf, rbuf_dev, rbuf1, MCA_ACCELERATOR_NO_DEVICE_ID, bufsize,
+                             MCA_ACCELERATOR_TRANSFER_HTOD);
         free(rbuf1);
     }
     return rc;

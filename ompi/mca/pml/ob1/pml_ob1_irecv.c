@@ -341,7 +341,9 @@ mca_pml_ob1_imrecv( void *buf,
     recvreq->req_rdma_idx = 0;
     recvreq->req_pending = false;
     recvreq->req_ack_sent = false;
-    
+    recvreq->req_match_received = false;
+    /* release: pair with rmb in recv_request_pml_complete_check */
+    opal_atomic_wmb();
 
     MCA_PML_BASE_RECV_START(&recvreq->req_recv);
 
@@ -459,6 +461,10 @@ mca_pml_ob1_mrecv( void *buf,
     recvreq->req_rdma_cnt = 0;
     recvreq->req_rdma_idx = 0;
     recvreq->req_pending = false;
+    recvreq->req_ack_sent = false;
+    recvreq->req_match_received = false;
+    /* release: pair with rmb in recv_request_pml_complete_check */
+    opal_atomic_wmb();
 
     MCA_PML_BASE_RECV_START(&recvreq->req_recv);
 

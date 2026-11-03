@@ -9,6 +9,7 @@
  * Copyright (c) 2019      Intel, Inc.  All rights reserved.
  * Copyright (c) 2022      Amazon.com, Inc. or its affiliates.
  *                         All Rights reserved.
+ * Copyright (c) 2026      Triad National Security, LLC. All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -249,6 +250,11 @@ int mca_pml_ucx_open(void)
 #if HAVE_DECL_UCP_PARAM_FIELD_ESTIMATED_NUM_PPN
     params.estimated_num_ppn = opal_process_info.num_local_peers + 1;
     params.field_mask       |= UCP_PARAM_FIELD_ESTIMATED_NUM_PPN;
+#endif
+
+#if HAVE_DECL_UCP_PARAM_FIELD_NODE_LOCAL_ID
+    params.node_local_id = opal_process_info.my_local_rank;
+    params.field_mask   |= UCP_PARAM_FIELD_NODE_LOCAL_ID;
 #endif
 
     status = ucp_init(&params, config, &ompi_pml_ucx.ucp_context);
@@ -1278,6 +1284,7 @@ int mca_pml_ucx_imrecv(void *buf, size_t count, ompi_datatype_t *datatype,
     }
 
     PML_UCX_VERBOSE(8, "got request %p", (void*)req);
+    req->req_mpi_object.comm = (*message)->comm;
     PML_UCX_MESSAGE_RELEASE(message);
     *request = req;
     return OMPI_SUCCESS;
@@ -1317,6 +1324,7 @@ int mca_pml_ucx_mrecv(void *buf, size_t count, ompi_datatype_t *datatype,
         return OMPI_ERROR;
     }
 
+    req->req_mpi_object.comm = (*message)->comm;
     PML_UCX_MESSAGE_RELEASE(message);
 
     return ompi_request_wait(&req, status);

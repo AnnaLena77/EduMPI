@@ -13,6 +13,7 @@
  * Copyright (c) 2007-2008 Sun Microsystems, Inc.  All rights reserved.
  * Copyright (c) 2015      Research Organization for Information Science
  *                         and Technology (RIST). All rights reserved.
+ * Copyright (c) 2025      Advanced Micro Devices, Inc. All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -771,18 +772,13 @@ int MPI_Init(int *argc, char ***argv)
     #endif
     int err;
     int provided;
-    char *env;
     int required = MPI_THREAD_SINGLE;
 
     /* check for environment overrides for required thread level.  If
        there is, check to see that it is a valid/supported thread level.
-       If not, default to MPI_THREAD_MULTIPLE. mmap example c*/
-
-    if (NULL != (env = getenv("OMPI_MPI_THREAD_LEVEL"))) {
-        required = atoi(env);
-        if (required < MPI_THREAD_SINGLE || required > MPI_THREAD_MULTIPLE) {
-            required = MPI_THREAD_MULTIPLE;
-        }
+       If not, default to MPI_THREAD_MULTIPLE. */
+    if (OMPI_SUCCESS > ompi_getenv_mpi_thread_level(&required)) {
+        required = MPI_THREAD_MULTIPLE;
     }
     //printf("Test 2\n");
 

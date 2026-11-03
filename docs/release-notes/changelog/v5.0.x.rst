@@ -4,6 +4,152 @@ Open MPI v5.0.x series
 This file contains all the NEWS updates for the Open MPI v5.0.x
 series, in reverse chronological order.
 
+Open MPI Version v5.0.11
+------------------------------
+:Date: August 2026
+
+- Internal PMIx and PRRTe versions:
+  - PMIx (v5.0.11). Repo: ``https://github.com/openpmix/openpmix``. Commit hash: ``3795947f0fa625f406f1d085d1e70a8413b3febc``.
+  - PRRTE (v3.0.14). Repo: ``https://github.com/openpmix/prrte``. Commit hash: ``a99bf3a006ddc8609e85da8f8eef13ba6d27aaba``.
+
+- Partitioned Communication (MPI_Psend/MPI_Precv) Enhancements
+  - Support MPI_PROC_NULL in partitioned communication
+  - Fixed MPI_Parrived for null and inactive requests (fixes #14003)
+  - part/persist: cancel the setup handshake when freeing a request
+  - Added a partcomm fix for mismatched types
+  - spc: add missing per-function counters for partitioned communication
+  - Fixed brace initialization (fixes #13757)
+  - Dropped erroneous always-inline attribute from mca_part_persist_start (fixes #13721)
+
+- PML/OB1 and Request Correctness/Reliability
+  - Fixed critical race in wait_sync on weakly-ordered architectures (opal/threads)
+  - Added memory/release barriers to sendreq and recvreq lock/unlock paths, unlocked completion paths, and recv_req_matched on weakly-ordered architectures
+  - Drained pckt_pending from mca_pml_ob1_progress to avoid orphaned FINs
+  - Cleared req_match_received during mrecv/imrecv reinit; drained stale send ranges on sendreq reuse
+  - Added acquire/release barriers for sync struct handoff between request and test/wait
+  - pml/cm: pack data from application buffer in successive MPI_Start calls
+  - Fixed buffered sends for OB1 as well
+  - Fixed MPI_Testall spuriously returning MPI_ERR_IN_STATUS
+  - Fixed remnants of req_complete being a bool
+
+- Collectives, Accelerator, and Fault Tolerance
+  - coll/ucc: fixed UCC teardown ordering and resource leak during MPI_Finalize
+  - coll/hcoll: fixed hcoll context leak on MPI_Finalize
+  - coll/cuda: stage full input for MPI_IN_PLACE in reduce_scatter_block
+  - coll/accelerator: use dev_id and transfer type; also check for ROCm component
+  - accelerator/cuda: defer VMM/mpool probes until mem_type is known
+  - btl/ofi: fault tolerance fixes; try to identify/report failed procs when not identifiable from failed op's context
+  - btl,mtl/ofi: set device only flag
+  - Return MPI_ERR_PROC_FAILED on I(m)probe when appropriate
+  - Reworked communicator teardown ordering in MPI_Finalize; replaced EXTRA_RETAIN mechanism with proper sub-communicator ownership; released c_keyhash instead of destructing it
+
+- OSHMEM Enhancements
+  - OSHMEM/SCOLL/UCC: Advertise ep_map field so teams are cacheable
+  - OSHMEM/MCA/SSHMEM/BASE: Changed default base address to NULL
+
+- Fortran
+  - Fortran REAL16: improved detection and wiring across OMPI/OPAL
+  - Fixed problems with neighbor collectives
+
+- Bug Fixes and Minor Enhancements
+  - Fixed pdata leak on the MPI_Lookup_name error path; gave MPI_Lookup_name a range when the caller does not
+  - opal: removed malloc attribute from realloc wrapper
+  - Checked opal_asprintf() return in mca_base_var_build_env(); set str to NULL after free
+  - Made yield_when_idle a modifyable MPI_T_cvar
+  - btl/sm: bounded peer-supplied descriptor copy in endpoint destructor
+  - op/aarch64, op/base: plugged misc memory leaks
+  - external data pack: switched to using size_t
+  - OMPI/RTE: Modified job name printing to use thread local storage
+  - Pointed the ftagree alg to the correct MCA param
+  - Reserved dist graph tags outside the libnbc tag range
+  - Updated the datatype tests to call opal_finalize
+  - configury: fixed --with-knem=PATH; allowed knem to be disabled
+  - contrib/platform/mellanox: dropped deprecated mpirun-prefix-by-default
+  - Documentation: documented the name-publishing info keys that actually exist; fixed shmem_wait argument descriptions; fixed typo in mpi_minimum_memory_alignment info key; fixed spelling and grammar throughout RST docs; added a limited llms.txt for the v5.0.x series
+  - CI/build system: updated PR-check actions; bumped actions/checkout to v6; removed V=1 from community Jenkins make invocations; enabled verbose output in community Jenkins build/test
+
+Open MPI Version v5.0.10rc2
+------------------------------
+:Date: 11 February 2026
+
+- Internal PMIx and PRRTe versions:
+  - PMIx (v5.0.10). Repo: ``https://github.com/openpmix/openpmix``. Commit hash: ``52275072f255ce0b94bd714e0e83f6a34d471c51``.
+  - PRRTE (v3.0.13). Repo: ``https://github.com/openpmix/prrte``. Commit hash: ``643db1bd3d53bb44bd5afc1dc40e3786f7da9009``.
+
+- OSHMEM Enhancements
+  - OSHMEM/SPML/UCX: Implemented put_signal and put_signal_nbi operations for OpenSHMEM 1.5 compliance
+  - OSHMEM/SHMEM/C: Added shmem_signal_fetch implementation
+  - OSHMEM/ATOMIC/UCX: Added UCX version check for non-blocking atomics value packing
+
+- OFI (libfabric) Improvements
+  - BTL/OFI: Added fault tolerance support
+  - BTL/OFI: Set domain threading model based on MPI thread support level
+  - BTL/OFI: Added FI_COMPLETION flag to tx and rx attributes
+  - BTL/OFI: Check for valid pointer in error handler to prevent crashes
+  - OFI: Share domain between MTL and BTL components for better resource utilization
+
+- Fault Tolerance (ULFM) Enhancements
+  - Revoke: Fixed null dereference and improved debug prints
+  - Revoke: Centralized entrypoint for locally revoking a communicator
+  - Revoke: Fixed coll/han subcomms revocation
+  - Removed era_comm_free function and documented reasoning (prevents use-after-free with revoke)
+  - Communicators: Prevent subcomms from being freed before user's communicator
+  - Communicators: Always populate failed procs in comms' groups
+  - Communicators: Retain coll info when adding a callback to the event queue
+
+- Bug Fixes and Minor Enhancements
+  - PML/UCX: Fixed problem with MPI_Mrecv and MPI_Imrecv operations
+  - PML/OB1: Moved sendreq 'error after freed' check to correct location
+  - BTL: Fixed ompi_info display for btl_flags enumeration
+  - BTL/SM: Fixed wrong payload_buffer size during freelist initialization
+  - COLL/UCC: Fixed indentation issues and prevented SEGV on error handling
+  - SHAREDFP/LOCKEDFILE: Removed filename length limitation
+  - OPAL/COMMON/UCX: Fixed assert - changed thread mode sent to UCX API
+  - OPAL: Fixed logic error in opal_bitmap.c array length calculation
+  - Fortran: Create Fortran module directory if it doesn't exist
+  - Fortran: mpi_f08/request_get_status: removed invalid fast-path that returned flag=false for MPI_STATUS_IGNORE when operation was completed (fixes #13671)
+  - I/O: Fixed inverted collective_buffering hint logic (strncmp misuse: 'true' was disabling, 'false' enabling)
+  - Documentation: Updated TCP tuning page
+  - Documentation: Added notes that some functions currently require mpirun
+  - Documentation: Fixed typo in mpicc manpage
+  - Build system: Fixed code scanning alerts (security issues 1-7, 12, 17-19, 21-22)
+  - Build system: Fixed typos throughout the codebase
+  - Build system: Properly support git workspaces in update-my-copyright.py script
+  - GitHub Actions: Updated permissions for better security
+  - CI: Commented out hello_sessions_c test in macOS workflow
+  - CI: ompi_nvidia – add concurrency queue to serialize PR runs and avoid pod collisions
+  - CI: Trufflehog – add allowlist for libevent test private key false positive
+
+Open MPI Version v5.0.9
+------------------------------
+:Date: 30 October 2025
+
+- Internal PMIx and PRRTe versions:
+  - PMIx (v5.0.9). Repo: ``https://github.com/openpmix/openpmix``. Commit hash: ``b357357c09915779eabd362f6857f61b41680329``.
+  - PRRTE (v3.0.12). Repo: ``https://github.com/openpmix/prrte``. Commit hash: ``b357357c09915779eabd362f6857f61b41680329``.
+
+- Functionality Enhancements
+  - GPFS: Added support for GPFS 5.2.3-0 and newer versions
+  - OFI: Enhanced accelerator memory support with proper rcache flag handling
+  - OFI: Added memory monitor export for better memory management
+  - ROCm: Added missing header for memcpy operations in accelerator component
+  - UCC: Set node local id for better collective operation performance
+  - UCX: Set node local id in PML component for improved communication
+
+- Bug Fixes and Minor Enhancements
+  - PML OB1: Fixed critical bug in MCA_PML_OB1_ADD_ACK_TO_PENDING that could cause memory overruns or allocation failures
+  - CUDA: Fixed CUDA detection when multiple libcuda.so files exist in CUDA install directory
+  - Fortran: Fixed off-by-one string copy error in C2F string conversion
+  - Fortran: Fixed ompi string c2f conversion when Fortran string length is less than C string length
+  - Threading: Fixed OMPI_MPI_THREAD_LEVEL environment variable handling to allow useful overrides in threaded library use cases
+  - Threading: Enhanced OMPI_MPI_THREAD_LEVEL to accept both numeric (0-3) and string ('multiple', 'MPI_THREAD_MULTIPLE', etc.) values
+  - OSC: Fixed rdma component when not using ob1 PML
+  - S390x: Fixed alignment of opal_atomic_int128_t to be 16-byte aligned
+  - Configury: Improved Fortran complex(real16) testing and module file cleanup
+  - Documentation: Fixed MCA environment variable prefix documentation for PRRTE
+  - Documentation: Updated MPI_Init*/MPI_Finalize*/MPI_Session_* man pages with numerous improvements
+  - Build system: Removed whitespace from conftestval-style tests and cleaned up configuration
+
 Open MPI Version v5.0.8
 ------------------------------
 :Date: 30 May 2025
@@ -137,7 +283,7 @@ Open MPI version v5.0.4
   - pml/ucx: propagate MPI serialized thread mode for all worker creations
   - pml/ob1: make no. of events an mca parameter
   - oshmem/shmem: fix warnings regarding types and unused variables in shmem
-  - Add an AARCH64 OP component for for NEON and SVE ISA
+  - Add an AARCH64 OP component for NEON and SVE ISA
   - Fix MPI function names in error output
   - Fix MPI_Neighbor_alltoall{v,w}_init to handle NULL parameters
   - Fix a bug in intercomm creation

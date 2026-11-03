@@ -96,10 +96,14 @@ mca_part_persist_free_req(struct mca_part_persist_request_t* req)
     opal_list_remove_item(ompi_part_persist.progress_list, (opal_list_item_t*)req->progress_elem);
     OBJ_RELEASE(req->progress_elem);
 
-    for(i = 0; i < req->real_parts; i++) {
-        ompi_request_free(&(req->persist_reqs[i]));
+    /* The per-partition requests are only created once the setup handshake
+     * has completed, so an uninitialized request has none. */
+    if(NULL != req->persist_reqs) {
+        for(i = 0; i < req->real_parts; i++) {
+            ompi_request_free(&(req->persist_reqs[i]));
+        }
+        free(req->persist_reqs);
     }
-    free(req->persist_reqs);
     free(req->flags);
 
     if( MCA_PART_PERSIST_REQUEST_PRECV == req->req_type ) {
@@ -221,6 +225,18 @@ mca_part_persist_progress(void)
     OPAL_LIST_FOREACH(current, ompi_part_persist.progress_list, mca_part_persist_list_t) {
         mca_part_persist_request_t *req = (mca_part_persist_request_t *) current->item;
 
+        /* A request that MPI_Request_free has been called on is reclaimed
+         * once it is inactive.  This is checked before anything else, and
+         * for uninitialized requests as well as initialized ones: a request
+         * that was never started never completes its lazy setup handshake,
+         * so it would otherwise be left on the progress list forever.  Its
+         * handshake was already cancelled by mca_part_persist_free, so it
+         * must not be run through the setup path below. */
+        if(true == req->req_free_called && true == req->req_part_complete && REQUEST_COMPLETED == req->req_ompi.req_complete &&  OMPI_REQUEST_INACTIVE == req->req_ompi.req_state) {
+            to_delete = req;
+            continue;
+        }
+
         /* Check to see if request is initilaized */
         if(false == req->initialized) {
             int done = 0; 
@@ -266,23 +282,40 @@ mca_part_persist_progress(void)
                     req->my_recv_tag  = req->setup_info[1].setup_tag;
                     req->real_parts   = req->setup_info[1].num_parts;
                     req->real_count   = req->setup_info[1].count;
+                    req->real_dt_size = req->setup_info[1].dt_size;
+
 
                     err = opal_datatype_type_size(&(req->req_datatype->super), &dt_size_);
                     if(OMPI_SUCCESS != err) return OMPI_ERROR;
                     dt_size = (dt_size_ > (size_t) UINT_MAX) ? MPI_UNDEFINED : (uint32_t) dt_size_;
                     uint32_t bytes = req->real_count * dt_size;
 
-                    /* Set up persistent sends */
+
+
+		    /* Set up persistent sends */
                     req->persist_reqs = (ompi_request_t**) malloc(sizeof(ompi_request_t*)*(req->real_parts));
                     req->flags = (int*) calloc(req->real_parts,sizeof(int));
-                    for(i = 0; i < req->real_parts; i++) {
-                         void *buf = ((void*) (((char*)req->req_addr) + (bytes * i)));
+
+                    if(req->real_dt_size == dt_size) {
+
+     	                for(i = 0; i < req->real_parts; i++) {
+                            void *buf = ((void*) (((char*)req->req_addr) + (bytes * i)));
 #ifndef ENABLE_ANALYSIS
-                         err = MCA_PML_CALL(irecv_init(buf, req->real_count, req->req_datatype, req->world_peer, req->my_send_tag+i, ompi_part_persist.part_comm, &(req->persist_reqs[i])));
+                            err = MCA_PML_CALL(irecv_init(buf, req->real_count, req->req_datatype, req->world_peer, req->my_send_tag+i, ompi_part_persist.part_comm, &(req->persist_reqs[i])));
 #else
-                         err = MCA_PML_CALL(irecv_init(buf, req->real_count, req->req_datatype, req->world_peer, req->my_send_tag+i, ompi_part_persist.part_comm, &(req->persist_reqs[i]), NULL));
+                            err = MCA_PML_CALL(irecv_init(buf, req->real_count, req->req_datatype, req->world_peer, req->my_send_tag+i, ompi_part_persist.part_comm, &(req->persist_reqs[i]), NULL));
 #endif
-                    }
+                        }
+                    } else {
+                        for(i = 0; i < req->real_parts; i++) {
+                            void *buf = ((void*) (((char*)req->req_addr) + (req->real_count * req->real_dt_size * i)));
+#ifndef ENABLE_ANALYSIS
+                            err = MCA_PML_CALL(irecv_init(buf, req->real_count * req->real_dt_size, MPI_BYTE, req->world_peer, req->my_send_tag+i, ompi_part_persist.part_comm, &(req->persist_reqs[i])));
+#else
+                            err = MCA_PML_CALL(irecv_init(buf, req->real_count * req->real_dt_size, MPI_BYTE, req->world_peer, req->my_send_tag+i, ompi_part_persist.part_comm, &(req->persist_reqs[i]), NULL));
+#endif
+                        }
+		    }
                     err = req->persist_reqs[0]->req_start(req->real_parts, (&(req->persist_reqs[0])));                     
 
                     /* Send back a message */
@@ -319,11 +352,7 @@ mca_part_persist_progress(void)
                 {
                     req->first_send = false;
                     mca_part_persist_complete(req);
-                } 
-            }
-
-            if(true == req->req_free_called && true == req->req_part_complete && REQUEST_COMPLETED == req->req_ompi.req_complete &&  OMPI_REQUEST_INACTIVE == req->req_ompi.req_state) {
-                to_delete = req;
+                }
             }
         }
 
@@ -373,12 +402,15 @@ mca_part_persist_precv_init(void *buf,
 
     mca_part_persist_request_t *req = (mca_part_persist_request_t *) recvreq;
 
-    /* Set lazy initializion flags */
+    /* Set lazy initializion flags.  real_parts and persist_reqs are not
+     * known until the setup handshake completes; keep them empty so that
+     * freeing a request that was never started is safe. */
     req->initialized = false;
-    req->first_send  = true; 
+    req->first_send  = true;
     req->flag_post_setup_recv = false;
     req->flags = NULL;
-
+    req->persist_reqs = NULL;
+    req->real_parts = 0;
     /* Non-blocking receive on setup info */
     
 #ifndef ENABLE_ANALYSIS
@@ -394,7 +426,6 @@ mca_part_persist_precv_init(void *buf,
     if(OMPI_SUCCESS != err) return OMPI_ERROR;
     dt_size = (dt_size_ > (size_t) UINT_MAX) ? MPI_UNDEFINED : (uint32_t) dt_size_;
     req->req_bytes = parts * count * dt_size;
-
 
     /* Set ompi request initial values */
     req->req_ompi.req_persistent = true;
@@ -445,18 +476,20 @@ mca_part_persist_psend_init(const void* buf,
                                     datatype, buf, parts, count, flags);
     mca_part_persist_request_t *req = (mca_part_persist_request_t *) sendreq;
 
-    /* Set lazy initialization variables */
+    /* Set lazy initialization variables.  The per-partition sends are not
+     * created until the setup handshake completes; keep the array empty so
+     * that freeing a request that was never started is safe. */
     req->initialized = false;
-    req->first_send  = true; 
-    
+    req->first_send  = true;
+    req->persist_reqs = NULL;
+
+
 
     /* Determine total bytes to send. */
     err = opal_datatype_type_size(&(req->req_datatype->super), &dt_size_);
     if(OMPI_SUCCESS != err) return OMPI_ERROR;
     dt_size = (dt_size_ > (size_t) UINT_MAX) ? MPI_UNDEFINED : (uint32_t) dt_size_;
     req->req_bytes = parts * count * dt_size;
-
-
 
     /* non-blocking send set-up data */
     req->setup_info[0].world_rank = ompi_comm_rank(&ompi_mpi_comm_world.comm);
@@ -468,7 +501,7 @@ mca_part_persist_psend_init(const void* buf,
     req->real_parts = parts;
     req->setup_info[0].count = count;
     req->real_count = count;
-
+    req->setup_info[0].dt_size = dt_size;
 
     req->flags = (int*) calloc(req->real_parts, sizeof(int));
 #ifndef ENABLE_ANALYSIS
@@ -510,7 +543,7 @@ mca_part_persist_psend_init(const void* buf,
     return err;
 }
 
-__opal_attribute_always_inline__ static inline int
+static inline int
 mca_part_persist_start(size_t count, ompi_request_t** requests)
 {
     int err = OMPI_SUCCESS;
@@ -545,7 +578,6 @@ mca_part_persist_start(size_t count, ompi_request_t** requests)
         req->req_ompi.req_status.MPI_ERROR = OMPI_SUCCESS;
         req->req_ompi.req_status._cancelled = 0;
         req->req_part_complete = false;
-        req->req_ompi.req_complete = false;
         OPAL_ATOMIC_SWAP_PTR(&req->req_ompi.req_complete, REQUEST_PENDING);   
     }
 
@@ -588,6 +620,13 @@ mca_part_persist_parrived(size_t min_part,
     int _flag = false;
     mca_part_persist_request_t *req = (mca_part_persist_request_t *)request;
 
+    // An inactive (never-started) precv request has no flags array yet.
+    // MPI-5.0 sec 4.2.2 (p.119): an inactive request is trivially arrived.
+    if(NULL == req->flags && OMPI_REQUEST_INACTIVE == request->req_state) {
+        *flag = 1;
+        return err;
+    }
+
     if(0 != req->flags) {
         _flag = 1;
         if(req->req_parts == req->real_parts) {
@@ -623,6 +662,28 @@ mca_part_persist_free(ompi_request_t** request)
 
     if(true == req->req_free_called) return OMPI_ERROR;
     req->req_free_called = true;
+
+    /* If this request never completed its lazy setup handshake, its setup
+     * requests are still outstanding against req->setup_info[], which will
+     * be recycled when the request is reclaimed.  The setup receive is
+     * posted on the user's communicator with the user's peer and tag, so if
+     * it is left posted it will also match -- and consume -- the setup
+     * message of the next partitioned operation that uses that same
+     * communicator, peer, and tag; that operation would then never be set up
+     * and would never complete.  Cancel the handshake here rather than when
+     * the request is reclaimed in the progress engine: the next partitioned
+     * operation can be initialized before the progress engine runs again. */
+    if(false == req->initialized &&
+       OMPI_REQUEST_INACTIVE == req->req_ompi.req_state) {
+        if(false == req->flag_post_setup_recv) {
+            ompi_request_cancel(req->setup_req[1]);
+            ompi_request_wait(&(req->setup_req[1]), MPI_STATUS_IGNORE);
+        }
+        if(MCA_PART_PERSIST_REQUEST_PSEND == req->req_type) {
+            ompi_request_cancel(req->setup_req[0]);
+            ompi_request_wait(&(req->setup_req[0]), MPI_STATUS_IGNORE);
+        }
+    }
 
     *request = MPI_REQUEST_NULL;
     return OMPI_SUCCESS;

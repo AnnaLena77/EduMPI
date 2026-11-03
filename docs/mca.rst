@@ -137,7 +137,7 @@ thumb that the developers use are:
 #. Instead of using a constant for an important value, make it an MCA
    parameter.
 #. If a task can be implemented in multiple, user-discernible ways,
-   implement as many as possible, and use an an MCA parameter to
+   implement as many as possible, and use an MCA parameter to
    choose between them at run-time.
 
 For example, an easy MCA parameter to describe is the boundary between
@@ -252,13 +252,13 @@ shells):
              When setting PMIx- and PRRTE-specific MCA parameters via
              environment variables, use a different prefix:
 
-             +----------+----------------+
-             | Open MPI | ``OMPI_MCA_``  |
-             +----------+----------------+
-             | PMIx     | ``PMIX_MCA_``  |
-             +----------+----------------+
-             | PRRTE    | ``PRRTE_MCA_`` |
-             +----------+----------------+
+             +----------+-----------------------------------+
+             | Open MPI | ``OMPI_MCA_``                     |
+             +----------+-----------------------------------+
+             | PMIx     | ``PMIX_MCA_``                     |
+             +----------+-----------------------------------+
+             | PRRTE    | ``PRTE_MCA_`` (with a single "R") |
+             +----------+-----------------------------------+
 
 Tuning MCA parameter files
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -737,7 +737,7 @@ but may be removed in future releases.
         / rank / stdout / stderr / stdddiag.
       - ``orte_output_filename``
 
-        Value: ``<filenname>``
+        Value: ``<filename>``
       - ``output``
 
         Value: ``file=<filename>``
@@ -1145,4 +1145,3 @@ Multiple suffixes may be appended to a mapping value:
 
    # New environment variable: (suffix on value)
    export PRTE_MCA_rmaps_default_mapping_policy=ppr:4:package:hwtcpus:oversubscribe
-
