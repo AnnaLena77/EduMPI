@@ -184,6 +184,9 @@ static void mca_pml_ob1_send_request_construct(mca_pml_ob1_send_request_t* req)
     req->req_rdma_cnt = 0;
     req->req_throttle_sends = false;
     req->rdma_frag = NULL;
+#ifdef ENABLE_ANALYSIS
+    req->q = NULL;
+#endif
     OBJ_CONSTRUCT(&req->req_send_ranges, opal_list_t);
     OBJ_CONSTRUCT(&req->req_send_range_lock, opal_mutex_t);
 }

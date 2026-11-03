@@ -184,6 +184,9 @@ static void mca_pml_ob1_recv_request_construct(mca_pml_ob1_recv_request_t* reque
     request->req_recv.req_base.req_ompi.req_cancel = mca_pml_ob1_recv_request_cancel;
     request->req_rdma_cnt = 0;
     request->local_handle = NULL;
+#ifdef ENABLE_ANALYSIS
+    request->q = NULL;
+#endif
     OBJ_CONSTRUCT(&request->lock, opal_mutex_t);
 }
 
