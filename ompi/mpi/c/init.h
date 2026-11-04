@@ -64,8 +64,39 @@ typedef struct qentry {
      * the entry to the database before that, but not longer than EDUMPI_REQUEST_WAIT_MS. */
     int pending_request;
     int request_done;
+    /* Lifecycle of the entry of a non-blocking receive in the UCX PML, one atomic word:
+     * (ticket << 2) | state. The ticket is unique for every claimed ring slot. A receive that
+     * waits too long is "abandoned" by the monitor thread (the slot is freed without writing
+     * the entry) and is written as a new entry when its message arrives. Monitor thread and
+     * completion callback decide who gets the entry with one compare-and-swap, and the ticket
+     * makes that safe even if the slot was reused in the meantime. */
+    uint64_t lifecycle;
     TAILQ_ENTRY(qentry) pointers;
 } qentry;
+
+#ifndef EDUMPI_LC
+enum {
+    EDUMPI_LC_NONE = 0,       /* nothing special (all entries except pending UCX receives) */
+    EDUMPI_LC_PENDING = 1,    /* the receive was posted and has not finished */
+    EDUMPI_LC_FINISHING = 2,  /* the completion callback is filling in the entry */
+    EDUMPI_LC_ABANDONED = 3   /* the monitor thread gave up waiting; the slot is free */
+};
+#define EDUMPI_LC(ticket, state) (((uint64_t)(ticket) << 2) | (uint64_t)(state))
+
+/* Monitor thread: stop waiting for this entry. Returns 1 if the entry is now abandoned
+ * (do not write it, the completion creates a new entry), 0 if it is not a pending UCX
+ * receive or the completion is just filling it in. */
+static inline int edumpi_lifecycle_try_abandon(qentry *e)
+{
+    uint64_t lc = __atomic_load_n(&e->lifecycle, __ATOMIC_ACQUIRE);
+    if ((lc & 3) != EDUMPI_LC_PENDING) {
+        return 0;
+    }
+    return __atomic_compare_exchange_n(&e->lifecycle, &lc,
+                                       (lc & ~(uint64_t) 3) | EDUMPI_LC_ABANDONED, 0,
+                                       __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
+}
+#endif
 
 /* Can the entry be written? (false while it waits for its request) */
 static inline int edumpi_request_ready(qentry *e)

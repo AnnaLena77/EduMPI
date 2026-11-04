@@ -114,6 +114,10 @@ int monitor_started = 0;
  * pending_request in init.h) before it is written without the received size. */
 static double request_wait_s = 2.0;
 
+/* ticket of the entries of the single-producer ring (the multi-producer ring numbers its slots
+ * itself): see lifecycle in init.h */
+static uint64_t edumpi_ticket_counter = 0;
+
 double timespec_diff(struct timespec start, struct timespec end) {
     long long elapsed_sec = end.tv_sec - start.tv_sec;
     long long elapsed_ns = end.tv_nsec - start.tv_nsec;
@@ -391,6 +395,13 @@ static double edumpi_wall_seconds(void){
     return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
 }
 
+/* Age of an entry in seconds: the time since its call returned (end is a CLOCK_REALTIME stamp). */
+static double edumpi_entry_age_seconds(qentry *e){
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME, &now);
+    return (double)(now.tv_sec - e->end.tv_sec) + (double)(now.tv_nsec - e->end.tv_nsec) * 1e-9;
+}
+
 /* Short sleep for the monitor thread while the ring is empty. (sleep(0.1)
  * takes an unsigned int, so it was sleep(0): a busy loop that kept one core
  * at 100%.) */
@@ -491,9 +502,18 @@ static void* SQLMonitorFunc(void* _arg){
         if(!amt_mode && run_thread && writer_pos != -1 && reader_pos != writer_pos
            && !(reader_pos == MAX_RINGSIZE-1 && writer_pos == 0)){
             int next = (reader_pos == MAX_RINGSIZE-1) ? 0 : reader_pos + 1;
-            if(edumpi_request_ready(&ringbuffer[next])){
+            qentry *cand = &ringbuffer[next];
+            if(edumpi_request_ready(cand)){
                 held = 0;
+            } else if(cand->end.tv_sec != 0 || cand->end.tv_nsec != 0){
+                /* The call returned, the request has not finished. The wait is measured from
+                 * the time the receive was posted, so a pool of idle receives is not waited
+                 * for one after the other. */
+                held = 0;
+                hold = (edumpi_entry_age_seconds(cand) < request_wait_s)
+                       || ((__atomic_load_n(&cand->lifecycle, __ATOMIC_ACQUIRE) & 3) == EDUMPI_LC_FINISHING);
             } else {
+                /* the call itself has not returned */
                 double now_held = edumpi_wall_seconds();
                 if(!held){
                     held = 1;
@@ -528,6 +548,14 @@ static void* SQLMonitorFunc(void* _arg){
             char buffer[2048];
             int offset = 0;
             qentry *item = &ringbuffer[reader_pos];
+            if(!edumpi_request_ready(item) && run_thread
+               && (item->end.tv_sec != 0 || item->end.tv_nsec != 0)
+               && edumpi_lifecycle_try_abandon(item)){
+                /* A UCX receive that waited too long: do not write it without data. It is
+                 * written as a new entry when its message arrives. */
+                held = 0;
+                goto entry_done;
+            }
             if(reader_pos == writer_pos){
                 while(item->end.tv_nsec == 0){
                     edumpi_idle_sleep();
@@ -556,6 +584,7 @@ static void* SQLMonitorFunc(void* _arg){
             qentryToBinary(&ringbuffer[reader_pos], buffer, &offset);
             PQputCopyData(conn, buffer, offset);
             held = 0;
+            entry_done: ;
         }
             
         double current = edumpi_wall_seconds();
@@ -689,7 +718,7 @@ qentry* getWritingRingPos(){
 
     if(writer_pos == -1){
         writer_pos ++;
-        memset(&ringbuffer[0], 0, sizeof(qentry));
+        edumpi_entry_reset(&ringbuffer[0], ++edumpi_ticket_counter);
         return &ringbuffer[0];
     }
     
@@ -704,12 +733,12 @@ qentry* getWritingRingPos(){
     
     if(writer_pos == MAX_RINGSIZE-1){
         writer_pos = 0;
-        memset(&ringbuffer[0], 0, sizeof(qentry));
+        edumpi_entry_reset(&ringbuffer[0], ++edumpi_ticket_counter);
     }
     //Solange Writer vor dem Reader kann nichts passieren
     else{
        qentry* item = &ringbuffer[writer_pos+1];
-       memset(item, 0, sizeof(qentry));
+       edumpi_entry_reset(item, ++edumpi_ticket_counter);
        writer_pos++;
        //printf("writing\n");
     }

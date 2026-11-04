@@ -23,6 +23,7 @@ typedef struct qentry {
     int64_t recv_size;
     int pending_request;
     int request_done;
+    uint64_t lifecycle;
     struct timespec end;
 } qentry;
 
@@ -41,9 +42,12 @@ static int failures = 0;
 
 static void complete(qentry *e)
 {
-    /* what the MPI wrappers do when the call returns: set "end" last */
-    __atomic_store_n(&e->end.tv_nsec, 1 + (long) (e->seq % 1000), __ATOMIC_RELEASE);
-    __atomic_store_n(&e->end.tv_sec, 1, __ATOMIC_RELEASE);
+    /* what the MPI wrappers do when the call returns: stamp "end" with the real time (the
+     * request wait is measured from it), the seconds last */
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    __atomic_store_n(&e->end.tv_nsec, ts.tv_nsec + 1, __ATOMIC_RELEASE);
+    __atomic_store_n(&e->end.tv_sec, ts.tv_sec, __ATOMIC_RELEASE);
 }
 
 /* ------------------------------------------------------------------ test 1 */
@@ -325,8 +329,162 @@ static void test_async_completion(void)
     edumpi_amt_ring_destroy(&ring);
 }
 
-int main(void)
+/* ------------------------------------------------------------------ test 6 */
+/*
+ * Abandoning a pending receive and completing it late. Like the UCX PML does it: the
+ * monitor thread abandons receives that wait longer than the limit, the completion
+ * callback finishes the entry in place if it still can and otherwise writes a new entry.
+ * The ring is small and the completions come around the limit, so the slots of abandoned
+ * entries are reused all the time. Every request must end up as exactly one entry with data.
+ */
+#ifndef NABAND
+#define NABAND 30000
+#endif
+
+typedef struct {
+    edumpi_amt_ring_t *ring;
+    qentry *slots[NABAND];
+    uint64_t ticket[NABAND];
+    int64_t post_ns[NABAND];
+    int published;
+    int completed;
+} aband_t;
+
+static void finish_request(aband_t *a, int i)
 {
+    qentry *q = a->slots[i];
+    uint64_t expected = EDUMPI_LC(a->ticket[i], EDUMPI_LC_PENDING);
+    if (__atomic_compare_exchange_n(&q->lifecycle, &expected,
+                                    EDUMPI_LC(a->ticket[i], EDUMPI_LC_FINISHING), 0,
+                                    __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+        /* in place */
+        __atomic_store_n(&q->recv_size, 4, __ATOMIC_RELAXED);
+        __atomic_store_n(&q->request_done, 1, __ATOMIC_RELEASE);
+    } else {
+        /* abandoned: a new entry with the data */
+        qentry *n = edumpi_amt_ring_claim(a->ring);
+        n->seq = i + 1;
+        n->recv_size = 4;
+        complete(n);
+    }
+}
+
+static void *aband_completer(void *arg)
+{
+    aband_t *a = (aband_t *) arg;
+    unsigned seed = 12345;
+    for (int i = 0; i < NABAND;) {
+        int published = __atomic_load_n(&a->published, __ATOMIC_ACQUIRE);
+        if (i >= published) {
+            struct timespec ts = {0, 50000};
+            nanosleep(&ts, NULL);
+            continue;
+        }
+        /* the completion arrives 0 to 6 ms after the request was posted, around the limit
+         * of 3 ms: some before, some after it */
+        int64_t due = a->post_ns[i] + (int64_t) (rand_r(&seed) % 6000) * 1000;
+        while (edumpi_amt_monotonic_ns() < due) {
+            struct timespec ts = {0, 20000};
+            nanosleep(&ts, NULL);
+        }
+        finish_request(a, i++);
+        __atomic_store_n(&a->completed, i, __ATOMIC_RELEASE);
+    }
+    return NULL;
+}
+
+typedef struct {
+    int with_data[NABAND + 1];
+    int without_data;
+    int bad;
+} aband_seen_t;
+
+static void aband_emit(qentry *e, void *ctx)
+{
+    aband_seen_t *s = (aband_seen_t *) ctx;
+    if (4 != __atomic_load_n(&e->recv_size, __ATOMIC_RELAXED)) {
+        s->without_data++;
+        return;
+    }
+    if (e->seq < 1 || e->seq > NABAND) {
+        s->bad++;
+        return;
+    }
+    s->with_data[e->seq]++;
+}
+
+static void test_abandon_race(void)
+{
+    static aband_t a;
+    static aband_seen_t seen;
+    edumpi_amt_ring_t ring;
+    CHECK(0 == edumpi_amt_ring_init(&ring, 1024, 10000, 3), "init"); /* request wait 3 ms */
+    a.ring = &ring;
+    pthread_t th;
+    pthread_create(&th, NULL, aband_completer, &a);
+
+    for (int i = 0; i < NABAND; i++) {
+        qentry *e = edumpi_amt_ring_claim(&ring);
+        e->seq = i + 1;
+        e->pending_request = 1;
+        a.ticket[i] = __atomic_load_n(&e->lifecycle, __ATOMIC_RELAXED) >> 2;
+        __atomic_store_n(&e->lifecycle, EDUMPI_LC(a.ticket[i], EDUMPI_LC_PENDING), /* as the UCX attach does */
+                         __ATOMIC_RELEASE);
+        a.slots[i] = e;
+        a.post_ns[i] = edumpi_amt_monotonic_ns();
+        complete(e);
+        __atomic_store_n(&a.published, i + 1, __ATOMIC_RELEASE);
+        edumpi_amt_ring_drain(&ring, aband_emit, &seen, 0, 4096);
+        /* a realistic rate: about 20 microseconds per request, so fewer new requests within
+         * the wait of 3 ms than the ring has slots (a busy wait: nanosleep is too coarse) */
+        int64_t until = edumpi_amt_monotonic_ns() + 20000;
+        while (edumpi_amt_monotonic_ns() < until) {
+        }
+    }
+    /* keep draining while the completions are still coming in (the late ones need slots) */
+    while (__atomic_load_n(&a.completed, __ATOMIC_ACQUIRE) < NABAND) {
+        edumpi_amt_ring_drain(&ring, aband_emit, &seen, 0, 4096);
+        struct timespec ts = {0, 100000};
+        nanosleep(&ts, NULL);
+    }
+    pthread_join(th, NULL);
+    /* let the remaining ones age and be abandoned or finished, then drain what is left */
+    for (int round = 0; round < 50; round++) {
+        edumpi_amt_ring_drain(&ring, aband_emit, &seen, 0, 4096);
+        struct timespec ts = {0, 1000000};
+        nanosleep(&ts, NULL);
+    }
+    while (edumpi_amt_ring_drain(&ring, aband_emit, &seen, 1, 4096) > 0) {
+    }
+
+    int exactly_once = 0, missing = 0, twice = 0;
+    for (int i = 1; i <= NABAND; i++) {
+        if (1 == seen.with_data[i]) exactly_once++;
+        else if (0 == seen.with_data[i]) missing++;
+        else twice++;
+    }
+    printf("abandon race: %d of %d requests written exactly once with data, %d missing, "
+           "%d twice, %d entries without data, dropped %" PRIu64 "\n",
+           exactly_once, NABAND, missing, twice, seen.without_data,
+           edumpi_amt_ring_dropped(&ring));
+    CHECK(0 == seen.bad, "entries with a wrong id: %d", seen.bad);
+    CHECK(0 == seen.without_data, "no entry may be written without its data (%d)", seen.without_data);
+    CHECK(0 == twice, "no request may be written twice (%d)", twice);
+    CHECK(0 == missing, "requests lost: %d", missing);
+    CHECK(0 == edumpi_amt_ring_dropped(&ring), "events dropped: %" PRIu64,
+          edumpi_amt_ring_dropped(&ring));
+    edumpi_amt_ring_destroy(&ring);
+}
+
+int main(int argc, char **argv)
+{
+    /* "./amt_ring_test abandon" runs only the abandon-race test */
+    if (argc > 1 && 0 == strcmp(argv[1], "abandon")) {
+        test_abandon_race();
+        printf(0 == failures ? "ALL TESTS PASSED\n" : "%d FAILURE(S)\n", failures);
+        return failures ? 1 : 0;
+    }
+    test_abandon_race();
     test_pending_request();
     test_async_completion();
     test_ring_full_drops();

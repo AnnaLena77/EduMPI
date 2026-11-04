@@ -23,16 +23,22 @@
  *    call cannot hold back the tracing of everything behind it.
  *  - An entry with "pending_request" set (MPI_Irecv) is also held back until
  *    "request_done" is set, because the number of received bytes is only known
- *    when the request has finished. This wait has its own, shorter timeout.
+ *    when the request has finished. The wait is measured from the time the
+ *    receive was posted. If the receive is still pending after that time and
+ *    it is a pending UCX receive (lifecycle state PENDING), it is abandoned:
+ *    the slot is freed without writing the entry, and the completion of the
+ *    receive writes a new entry when its message arrives. No data is lost and
+ *    nothing waits behind an idle receive.
  *
  * Requires the type "qentry" (with the members "end" of type struct timespec,
- * "pending_request" and "request_done") to be defined before this header is
- * included. It uses the GCC/Clang __atomic
+ * "pending_request", "request_done" and "lifecycle") to be defined before this
+ * header is included. It uses the GCC/Clang __atomic
  * builtins only, so that it can be tested without building Open MPI.
  */
 #ifndef EDUMPI_RING_H
 #define EDUMPI_RING_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,6 +51,41 @@
 #else
 #define EDUMPI_CPU_RELAX() __asm__ __volatile__("" ::: "memory")
 #endif
+
+#ifndef EDUMPI_LC
+/* same definitions as in init.h (there is no init.h in the stand-alone test) */
+enum {
+    EDUMPI_LC_NONE = 0,
+    EDUMPI_LC_PENDING = 1,
+    EDUMPI_LC_FINISHING = 2,
+    EDUMPI_LC_ABANDONED = 3
+};
+#define EDUMPI_LC(ticket, state) (((uint64_t)(ticket) << 2) | (uint64_t)(state))
+static inline int edumpi_lifecycle_try_abandon(qentry *e)
+{
+    uint64_t lc = __atomic_load_n(&e->lifecycle, __ATOMIC_ACQUIRE);
+    if ((lc & 3) != EDUMPI_LC_PENDING) {
+        return 0;
+    }
+    return __atomic_compare_exchange_n(&e->lifecycle, &lc,
+                                       (lc & ~(uint64_t) 3) | EDUMPI_LC_ABANDONED, 0,
+                                       __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
+}
+#endif
+
+/*
+ * Zero an entry for a new event and give it a new ticket. The lifecycle word is not zeroed
+ * but stored atomically: the completion callback of an abandoned receive may still do a
+ * compare-and-swap on it (which fails because the ticket is different now).
+ */
+static inline void edumpi_entry_reset(qentry *slot, uint64_t ticket)
+{
+    const size_t before = offsetof(qentry, lifecycle);
+    const size_t after = before + sizeof(slot->lifecycle);
+    memset(slot, 0, before);
+    memset((char *) slot + after, 0, sizeof(*slot) - after);
+    __atomic_store_n(&slot->lifecycle, EDUMPI_LC(ticket, EDUMPI_LC_NONE), __ATOMIC_RELEASE);
+}
 
 enum {
     EDUMPI_SLOT_FREE = 0,
@@ -120,7 +161,7 @@ static inline qentry *edumpi_amt_ring_claim(edumpi_amt_ring_t *r)
                                         __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) {
             int64_t idx = h % r->size;
             qentry *slot = &r->slots[idx];
-            memset(slot, 0, sizeof(*slot));
+            edumpi_entry_reset(slot, (uint64_t) h + 1); /* unique ticket */
             __atomic_store_n(&r->states[idx], EDUMPI_SLOT_ACTIVE,
                              __ATOMIC_RELEASE);
             return slot;
@@ -138,6 +179,17 @@ static inline int edumpi_amt_request_ready(qentry *e)
 {
     return 0 == __atomic_load_n(&e->pending_request, __ATOMIC_RELAXED)
            || 0 != __atomic_load_n(&e->request_done, __ATOMIC_ACQUIRE);
+}
+
+/* age of an entry: the time since its call returned (end is a CLOCK_REALTIME stamp) */
+static inline int64_t edumpi_amt_age_ns(qentry *e)
+{
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME, &now);
+    int64_t t_now = (int64_t) now.tv_sec * 1000000000LL + now.tv_nsec;
+    int64_t t_end = (int64_t) __atomic_load_n(&e->end.tv_sec, __ATOMIC_ACQUIRE) * 1000000000LL
+                    + __atomic_load_n(&e->end.tv_nsec, __ATOMIC_ACQUIRE);
+    return t_now - t_end;
 }
 
 static inline int64_t edumpi_amt_monotonic_ns(void)
@@ -175,8 +227,28 @@ static inline int64_t edumpi_amt_ring_drain(edumpi_amt_ring_t *r,
         qentry *e = &r->slots[idx];
         int ended = edumpi_amt_entry_complete(e);
         int ready = force || (ended && edumpi_amt_request_ready(e));
-        if (!ready) {
-            int64_t limit = ended ? r->request_wait_ns : r->stall_ns;
+        if (!ready && ended) {
+            /* The call returned, but its request has not finished. The wait is measured
+             * from the time the receive was posted, so that a pool of idle receives is not
+             * waited for one after the other. */
+            if (edumpi_amt_age_ns(e) < r->request_wait_ns) {
+                break;
+            }
+            if ((__atomic_load_n(&e->lifecycle, __ATOMIC_ACQUIRE) & 3) == EDUMPI_LC_FINISHING) {
+                break; /* the completion is filling in the entry right now */
+            }
+            if (edumpi_lifecycle_try_abandon(e)) {
+                /* Written when the message arrives: free the slot without writing it. */
+                r->stalled = 0;
+                __atomic_store_n(&r->states[idx], EDUMPI_SLOT_FREE, __ATOMIC_RELAXED);
+                __atomic_store_n(&r->tail, tail + 1, __ATOMIC_RELEASE);
+                n++;
+                continue;
+            }
+            /* not a UCX receive: emit it as it is */
+        } else if (!ready) {
+            /* the call itself has not returned (a blocking call): wait for it, but not
+             * longer than the stall timeout */
             int64_t now = edumpi_amt_monotonic_ns();
             if (!r->stalled) {
                 r->stalled = 1;
@@ -186,7 +258,7 @@ static inline int64_t edumpi_amt_ring_drain(edumpi_amt_ring_t *r,
             }
             int64_t since = (int64_t) r->stall_since.tv_sec * 1000000000LL
                             + r->stall_since.tv_nsec;
-            if (now - since < limit) {
+            if (now - since < r->stall_ns) {
                 break;
             }
             /* Not finished for too long: emit it as it is. */
