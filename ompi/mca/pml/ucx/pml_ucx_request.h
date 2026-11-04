@@ -197,6 +197,12 @@ static inline void edumpi_ucx_finish_entry(qentry *q, int64_t bytes, int source)
     if (source >= 0 && q->partnerrank < 0) {
         q->partnerrank = source;
     }
+    /* The entry is stamped with the time the message arrived, not with the time the
+     * receive was posted. A receive that is posted early (HPX keeps a pool of them
+     * posted all the time) would otherwise show up seconds before its message, in
+     * another second of the timeline than the matching send. */
+    clock_gettime(CLOCK_REALTIME, &q->end);
+    q->start = q->end;
     edumpi_request_done_bytes(q, bytes);
 }
 

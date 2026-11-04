@@ -191,6 +191,9 @@ recv_request_pml_complete(mca_pml_ob1_recv_request_t *recvreq)
                && src >= 0 && recvreq->q->partnerrank < 0){
                 recvreq->q->partnerrank = src;
             }
+            /* stamped with the arrival of the message, see edumpi_ucx_finish_entry */
+            clock_gettime(CLOCK_REALTIME, &recvreq->q->end);
+            recvreq->q->start = recvreq->q->end;
             edumpi_request_done(recvreq->q);
         }
 #endif
