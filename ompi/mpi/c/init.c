@@ -178,6 +178,7 @@ void convert_MPI_datatype(MPI_Datatype type, char *datatype_field){
  * ("MPI COMM 3 DUP FROM 0"). MPI_Comm_get_name reports the latter only after a name was set,
  * so those communicators used to be stored with an empty label. */
 static void edumpi_comm_label(MPI_Comm comm, char *out, size_t outlen){
+    char base[64];
     out[0] = '\0';
     if(comm == NULL || comm == MPI_COMM_NULL){
         return;
@@ -187,9 +188,16 @@ static void edumpi_comm_label(MPI_Comm comm, char *out, size_t outlen){
         return;
     }
     if(comm->c_name != NULL && comm->c_name[0] != '\0'){
-        snprintf(out, outlen, "%s", comm->c_name);
+        snprintf(base, sizeof(base), "%s", comm->c_name);
     } else {
-        snprintf(out, outlen, "MPI COMM %d", (int) comm->c_index);
+        snprintf(base, sizeof(base), "MPI COMM %d", (int) comm->c_index);
+    }
+    /* The disjoint parts of a split (even and odd ranks, say) have the same context id and so the
+     * same name. Add the world rank of the first member to tell them apart. */
+    if(!OMPI_COMM_IS_INTER(comm) && ompi_comm_size(comm) < ompi_comm_size(MPI_COMM_WORLD)){
+        snprintf(out, outlen, "%.52s @%d", base, edumpi_world_rank(comm, 0));
+    } else {
+        snprintf(out, outlen, "%s", base);
     }
 }
 
