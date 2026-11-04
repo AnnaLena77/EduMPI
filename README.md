@@ -73,6 +73,13 @@ dropped and the number of dropped events is printed at `MPI_Finalize`.
 |---|---|---|
 | `EDUMPI_MPI_THREAD_AMT` | use the thread-safe ring | off |
 | `EDUMPI_AMT_STALL_MS` | how long (ms) an unfinished call may hold back the entries after it | 10000 |
+| `EDUMPI_REQUEST_WAIT_MS` | how long (ms) the entry of a non-blocking receive waits for its message before it is written without the received size and sender (both ring modes) | 2000 |
+
+The entry of an `MPI_Irecv` is written when its message has arrived: it then has the received
+size and the rank of the sender (also for `MPI_ANY_SOURCE`), and it is stamped with the arrival
+time. A receive that stays idle longer than `EDUMPI_REQUEST_WAIT_MS` (for example the receives a
+runtime keeps posted during a quiet phase) is written without data; raise the value if your
+program has such phases, otherwise the first messages after the pause lose their size.
 
 `MPI_Init_thread` is instrumented like `MPI_Init` (programs that start MPI with
 `MPI_Init_thread` were not traced before). Without the flag, EduMPI prints a hint
