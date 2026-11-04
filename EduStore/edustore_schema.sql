@@ -61,6 +61,7 @@ SELECT
     processrank,
     processorname,
     communicationtype,
+    communicationarea,
     SUM(senddatasize) AS send_ds,
     SUM(recvdatasize) AS recv_ds,
     SUM(latesendertime) AS latesendertime,
@@ -73,7 +74,8 @@ GROUP BY
     edumpi_run_id,
     processrank,
     processorname,
-    communicationtype;
+    communicationtype,
+    communicationarea;
 
 SELECT add_continuous_aggregate_policy(
     'edumpi_secondly_data',
@@ -103,6 +105,7 @@ SELECT
     SUM(recvdatasize) AS recv_ds,
     SUM(time_diff) AS comm_time,
     communicationtype,
+    communicationarea,
     coll_algorithm,
     coll_partnerranks
 FROM edumpi_running_data
@@ -114,6 +117,7 @@ GROUP BY
     processrank,
     partnerrank,
     communicationtype,
+    communicationarea,
     coll_algorithm,
     coll_partnerranks;
 
