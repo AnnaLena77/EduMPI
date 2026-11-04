@@ -171,6 +171,7 @@ static inline void mca_pml_ucx_request_reset(ompi_request_t *req)
 typedef struct edumpi_ucx_req_ext {
     qentry  *q;       /* entry of the MPI_Irecv, set after the receive was posted */
     int64_t  bytes;   /* received bytes, valid if cb_done is set                  */
+    int      source;  /* rank of the sender, valid if cb_done is set (-1: none)   */
     int      cb_done; /* the completion callback has run                          */
 } edumpi_ucx_req_ext_t;
 
@@ -184,7 +185,19 @@ static inline void edumpi_ucx_req_ext_reset(ompi_request_t *req)
     edumpi_ucx_req_ext_t *x = edumpi_ucx_req_ext(req);
     x->q = NULL;
     x->bytes = 0;
+    x->source = -1;
     x->cb_done = 0;
+}
+
+/* The receive finished: the entry gets the received size and, for a receive that
+ * was posted with MPI_ANY_SOURCE, the rank of the sender (the entry has the
+ * wildcard until now). Then the monitor thread may write the entry. */
+static inline void edumpi_ucx_finish_entry(qentry *q, int64_t bytes, int source)
+{
+    if (source >= 0 && q->partnerrank < 0) {
+        q->partnerrank = source;
+    }
+    edumpi_request_done_bytes(q, bytes);
 }
 
 /* Completion callback side. Call before ompi_request_complete(): afterwards the
@@ -195,11 +208,13 @@ static inline void edumpi_ucx_recv_finished(ompi_request_t *req)
     /* A cancelled receive (e.g. a receive that is still posted at shutdown) did not
      * receive anything; its _ucount is a leftover of an earlier use of the request. */
     int64_t received = req->req_status._cancelled ? 0 : (int64_t) req->req_status._ucount;
+    int source = req->req_status._cancelled ? -1 : req->req_status.MPI_SOURCE;
     __atomic_store_n(&x->bytes, received, __ATOMIC_RELAXED);
+    __atomic_store_n(&x->source, source, __ATOMIC_RELAXED);
     __atomic_store_n(&x->cb_done, 1, __ATOMIC_SEQ_CST);
     qentry *q = __atomic_load_n(&x->q, __ATOMIC_SEQ_CST);
     if (NULL != q) {
-        edumpi_request_done_bytes(q, x->bytes);
+        edumpi_ucx_finish_entry(q, received, source);
     }
 }
 
@@ -211,7 +226,7 @@ static inline void edumpi_ucx_attach_entry(ompi_request_t *req, qentry *q)
     edumpi_ucx_req_ext_t *x = edumpi_ucx_req_ext(req);
     __atomic_store_n(&x->q, q, __ATOMIC_SEQ_CST);
     if (0 != __atomic_load_n(&x->cb_done, __ATOMIC_SEQ_CST)) {
-        edumpi_request_done_bytes(q, x->bytes);
+        edumpi_ucx_finish_entry(q, x->bytes, x->source);
     }
 }
 

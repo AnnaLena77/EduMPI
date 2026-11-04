@@ -183,8 +183,14 @@ recv_request_pml_complete(mca_pml_ob1_recv_request_t *recvreq)
                     &recvreq->req_recv.req_base, PERUSE_RECV );
         }
 #ifdef ENABLE_ANALYSIS
-        /* the entry may be written now (also for messages without data) */
+        /* the entry may be written now (also for messages without data). A receive
+         * posted with MPI_ANY_SOURCE gets the rank of the sender. */
         if(recvreq->q != NULL){
+            int src = recvreq->req_recv.req_base.req_ompi.req_status.MPI_SOURCE;
+            if(!recvreq->req_recv.req_base.req_ompi.req_status._cancelled
+               && src >= 0 && recvreq->q->partnerrank < 0){
+                recvreq->q->partnerrank = src;
+            }
             edumpi_request_done(recvreq->q);
         }
 #endif
