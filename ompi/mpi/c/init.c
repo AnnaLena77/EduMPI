@@ -197,7 +197,9 @@ int edumpi_world_rank(MPI_Comm comm, int rank){
     if(rank < 0 || comm == NULL || comm == MPI_COMM_NULL || comm == MPI_COMM_WORLD){
         return rank;
     }
-    if(rank >= ompi_comm_remote_size(comm)){
+    /* ompi_comm_remote_size() is 0 for an intra-communicator */
+    int peers = OMPI_COMM_IS_INTER(comm) ? ompi_comm_remote_size(comm) : ompi_comm_size(comm);
+    if(rank >= peers){
         return rank;
     }
     ompi_proc_t *proc = ompi_comm_peer_lookup(comm, rank);
