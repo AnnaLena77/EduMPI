@@ -230,7 +230,7 @@ static inline void edumpi_ucx_complete_entry(edumpi_ucx_req_ext_t *x, qentry *q,
                                     EDUMPI_LC(x->ticket, EDUMPI_LC_FINISHING), 0,
                                     __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
         if (source >= 0 && q->partnerrank < 0) {
-            q->partnerrank = source;
+            q->partnerrank = edumpi_world_rank(q->communicator, source);
         }
         clock_gettime(CLOCK_REALTIME, &q->end);
         q->start = q->end;
@@ -240,7 +240,7 @@ static inline void edumpi_ucx_complete_entry(edumpi_ucx_req_ext_t *x, qentry *q,
 
     /* abandoned: write a new, complete entry */
     qentry *n = getWritingRingPos();
-    initQentry(&n, (source >= 0) ? source : x->partner, "MPI_Irecv", 9, 0, 0, "p2p", 3,
+    initQentry(&n, (source >= 0) ? edumpi_world_rank(x->communicator, source) : x->partner, "MPI_Irecv", 9, 0, 0, "p2p", 3,
                NULL, NULL, NULL, 0, NULL);
     memcpy(n->communicationArea, x->area, sizeof(n->communicationArea));
     n->communicator = x->communicator;

@@ -189,7 +189,7 @@ recv_request_pml_complete(mca_pml_ob1_recv_request_t *recvreq)
             int src = recvreq->req_recv.req_base.req_ompi.req_status.MPI_SOURCE;
             if(!recvreq->req_recv.req_base.req_ompi.req_status._cancelled
                && src >= 0 && recvreq->q->partnerrank < 0){
-                recvreq->q->partnerrank = src;
+                recvreq->q->partnerrank = edumpi_world_rank(recvreq->q->communicator, src);
             }
             /* stamped with the arrival of the message, see edumpi_ucx_finish_entry */
             clock_gettime(CLOCK_REALTIME, &recvreq->q->end);

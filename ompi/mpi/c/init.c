@@ -173,6 +173,40 @@ void convert_MPI_datatype(MPI_Datatype type, char *datatype_field){
     }
 }
 
+/* Label of a communicator for the database: MPI_COMM_WORLD, a name set by the program
+ * (MPI_Comm_set_name), or the name Open MPI gives when it creates the communicator
+ * ("MPI COMM 3 DUP FROM 0"). MPI_Comm_get_name reports the latter only after a name was set,
+ * so those communicators used to be stored with an empty label. */
+static void edumpi_comm_label(MPI_Comm comm, char *out, size_t outlen){
+    out[0] = '\0';
+    if(comm == NULL || comm == MPI_COMM_NULL){
+        return;
+    }
+    if(comm == MPI_COMM_WORLD){
+        snprintf(out, outlen, "MPI_COMM_WORLD");
+        return;
+    }
+    if(comm->c_name != NULL && comm->c_name[0] != '\0'){
+        snprintf(out, outlen, "%s", comm->c_name);
+    } else {
+        snprintf(out, outlen, "MPI COMM %d", (int) comm->c_index);
+    }
+}
+
+int edumpi_world_rank(MPI_Comm comm, int rank){
+    if(rank < 0 || comm == NULL || comm == MPI_COMM_NULL || comm == MPI_COMM_WORLD){
+        return rank;
+    }
+    if(rank >= ompi_comm_remote_size(comm)){
+        return rank;
+    }
+    ompi_proc_t *proc = ompi_comm_peer_lookup(comm, rank);
+    if(proc == NULL){
+        return rank;
+    }
+    return (int) proc->super.proc_name.vpid;
+}
+
 void initQentry(qentry **q, int dest, char *function, int function_len, int sendCount, int recvCount, char *commType, int commType_len, MPI_Datatype sendType, MPI_Datatype recvType, MPI_Comm comm, int blocking, MPI_Op op){
     if(q==NULL || *q==NULL){
     	return;
@@ -206,20 +240,13 @@ void initQentry(qentry **q, int dest, char *function, int function_len, int send
             memcpy(item->operation, get_mpi_op_name(op), 10);
         }
         
-        if(comm == NULL){
-            memcpy(item->communicationArea, "", 0);
-        }
-        else if(comm == MPI_COMM_WORLD){
-            memcpy(item->communicationArea, "MPI_COMM_WORLD", 14);
-            item->communicator = comm;
-        } else {
-            int comm_name_length;
-            MPI_Comm_get_name(comm, item->communicationArea, &comm_name_length);
+        edumpi_comm_label(comm, item->communicationArea, sizeof(item->communicationArea));
+        if(comm != NULL){
             item->communicator = comm;
         }
         memcpy(item->processorname, proc_name, proc_name_length);
         item->processrank = processrank;
-        item->partnerrank = dest;
+        item->partnerrank = edumpi_world_rank(comm, dest);
         
         //printf("Test Rank: %d, WriterPos: %d, Bcast: %p\n", processrank, writer_pos, item);
         

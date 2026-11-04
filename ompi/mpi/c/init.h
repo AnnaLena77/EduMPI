@@ -122,6 +122,8 @@ static inline void edumpi_request_done_bytes(qentry *e, int64_t recv_bytes)
 extern void qentryIntoQueue(qentry **q);
 extern void initQentry(qentry **q, int dest, char *function, int function_len, int sendCount, int recvCount, char *commType, int commType_len, MPI_Datatype sendType, MPI_Datatype recvType, MPI_Comm comm, int blocking, MPI_Op op);
 extern double timespec_diff(struct timespec start, struct timespec end);
+/* Rank of a peer in MPI_COMM_WORLD (the rank inside comm is what the MPI calls carry). */
+extern int edumpi_world_rank(MPI_Comm comm, int rank);
 //extern void writeIntoFile(qentry q);
 
 extern qentry *q_qentry;

@@ -94,7 +94,7 @@ int MPI_Recv(void *buf, int count, MPI_Datatype type, int source,
 #else
     rc = MCA_PML_CALL(recv(buf, count, type, source, tag, comm, status, &item));
     if(item->partnerrank == -1){
-        item->partnerrank = status->MPI_SOURCE;
+        item->partnerrank = edumpi_world_rank(comm, status->MPI_SOURCE);
     }
     //writeIntoFile(&item);
     //free(item);
