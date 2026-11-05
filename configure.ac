@@ -61,6 +61,10 @@ AC_PREREQ(2.60)
 AC_CONFIG_AUX_DIR(config)
 AC_CONFIG_MACRO_DIR(config)
 
+# EduHPX measuring MPI: the recording of MPI events is always compiled in. opal and ompi must see the same
+# -DENABLE_ANALYSIS, so it is set here once for the whole tree and a plain ./configure builds the measuring MPI.
+CPPFLAGS="-DENABLE_ANALYSIS=1 $CPPFLAGS"
+
 OAC_PUSH_PREFIX([OPAL])
 
 OPAL_CAPTURE_CONFIGURE_CLI([OPAL_CONFIGURE_CLI])

@@ -41,6 +41,9 @@ endif
 
 headers = bindings.h
 
+# EduHPX: headers of the event recording (not listed anywhere else, so "make dist" would drop them)
+EXTRA_DIST = init.h edumpi_req_ext.h
+
 # attr_fn.c contains attribute manipulation functions which do not
 # profiling implications, and so are always built.
 libmpi_c_la_SOURCES = \

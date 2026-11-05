@@ -28,6 +28,8 @@
 SUBDIRS = config contrib 3rd-party $(MCA_PROJECT_SUBDIRS) test docs
 DIST_SUBDIRS = config contrib 3rd-party $(MCA_PROJECT_DIST_SUBDIRS) test docs
 EXTRA_DIST = README.md VERSION Doxyfile LICENSE autogen.pl AUTHORS
+# EduHPX measuring MPI: log format, reader and test program
+EXTRA_DIST += docs/eduhpx_mpi_log_format.md tools/eduhpx_dump.py tools/eduhpx_mpi_test.c
 
 include examples/Makefile.include
 
