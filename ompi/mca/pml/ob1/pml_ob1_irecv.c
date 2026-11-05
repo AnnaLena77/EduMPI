@@ -133,7 +133,6 @@ int mca_pml_ob1_irecv(void *addr,
     if(item!=NULL){ 
         recvreq->q = item;
         /* the entry waits for this request: complete it with the protocol of edumpi_req_ext.h */
-        recvreq->q_ticket = __atomic_load_n(&item->lifecycle, __ATOMIC_RELAXED) >> 2;
         recvreq->ext_mode = (1 == item->pending_request);
         clock_gettime(CLOCK_REALTIME, &recvreq->activate);
     }

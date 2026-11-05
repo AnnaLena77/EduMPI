@@ -5,12 +5,6 @@
 #include <sys/time.h>
 #include "ompi/mpi/c/bindings.h"
 
-extern void enqueue(char** operation, char** datatype, int count, int datasize, char** communicator, int processrank, int partnerrank, time_t ctime);
-extern void initializeMongoDB(void);
-extern void closeMongoDB(void);
-extern pthread_t MONITOR_THREAD;
-extern int run_thread;
-extern int counter;
 
 #ifndef QENTRY_H_
 #define QENTRY_H_
@@ -58,45 +52,15 @@ typedef struct qentry {
     struct timespec sent;//later
     struct timespec bufferFree; //later
     //struct collective_p2p collectives;
-    /* For a request that is not finished when the MPI wrapper returns (MPI_Irecv):
-     * the wrapper sets pending_request, the PML sets request_done (and the number of
-     * received bytes) when the request is finished. The monitor thread does not write
-     * the entry to the database before that, but not longer than EDUMPI_REQUEST_WAIT_MS. */
+    /* For a request that is not finished when the MPI wrapper returns (MPI_Irecv, an MPI_Isend in flight):
+     * the wrapper or the PML sets pending_request, the PML sets request_done (and for a receive the number of
+     * received bytes) when the request is finished. The entry is not written to the log before that. */
     int pending_request;
     int request_done;
-    /* Lifecycle of the entry of a non-blocking receive in the UCX PML, one atomic word:
-     * (ticket << 2) | state. The ticket is unique for every claimed ring slot. A receive that
-     * waits too long is "abandoned" by the monitor thread (the slot is freed without writing
-     * the entry) and is written as a new entry when its message arrives. Monitor thread and
-     * completion callback decide who gets the entry with one compare-and-swap, and the ticket
-     * makes that safe even if the slot was reused in the meantime. */
-    uint64_t lifecycle;
-    TAILQ_ENTRY(qentry) pointers;
+    /* Time the request finished (MPI_Irecv: the message arrived, MPI_Isend: the send request completed) */
+    struct timespec done;
+    int recv_any_source; /* receive posted with MPI_ANY_SOURCE: partnerrank is the real sender */
 } qentry;
-
-#ifndef EDUMPI_LC
-enum {
-    EDUMPI_LC_NONE = 0,       /* nothing special (all entries except pending UCX receives) */
-    EDUMPI_LC_PENDING = 1,    /* the receive was posted and has not finished */
-    EDUMPI_LC_FINISHING = 2,  /* the completion callback is filling in the entry */
-    EDUMPI_LC_ABANDONED = 3   /* the monitor thread gave up waiting; the slot is free */
-};
-#define EDUMPI_LC(ticket, state) (((uint64_t)(ticket) << 2) | (uint64_t)(state))
-
-/* Monitor thread: stop waiting for this entry. Returns 1 if the entry is now abandoned
- * (do not write it, the completion creates a new entry), 0 if it is not a pending UCX
- * receive or the completion is just filling it in. */
-static inline int edumpi_lifecycle_try_abandon(qentry *e)
-{
-    uint64_t lc = __atomic_load_n(&e->lifecycle, __ATOMIC_ACQUIRE);
-    if ((lc & 3) != EDUMPI_LC_PENDING) {
-        return 0;
-    }
-    return __atomic_compare_exchange_n(&e->lifecycle, &lc,
-                                       (lc & ~(uint64_t) 3) | EDUMPI_LC_ABANDONED, 0,
-                                       __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE);
-}
-#endif
 
 /* Can the entry be written? (false while it waits for its request) */
 static inline int edumpi_request_ready(qentry *e)
@@ -130,20 +94,11 @@ extern qentry *q_qentry;
 
 extern qentry* getWritingRingPos(void);
 
-/* Set up / start the event ring and the monitor thread (MPI_Init, MPI_Init_thread) */
+/* Event store and log file (MPI_Init, MPI_Init_thread, MPI_Finalize) */
 extern void edumpi_analysis_init_pre(void);
 extern void edumpi_analysis_init_post(int provided);
-extern int monitor_started;
-
-#ifndef INIT_H
-#define INIT_H
-#define MAX_RINGSIZE 1000000
-extern qentry *ringbuffer;
-extern int writer_pos;
-extern int reader_pos;
-#endif
-
-extern void closeFile(void);
+extern void edumpi_analysis_finalize(void);
+extern int edumpi_send_completion;
 
 
 

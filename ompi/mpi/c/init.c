@@ -25,23 +25,17 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <time.h>
 #include <unistd.h>
-#include <semaphore.h>
 #include <string.h>
 #include <strings.h>
+#include <errno.h>
+#include <sched.h>
 #include <math.h>
-#include <sys/queue.h>
 #include <sys/time.h>
 #include <fcntl.h>
 #include <sys/mman.h>
-
-#ifdef ENABLE_ANALYSIS
-#include <libpq-fe.h>
-#include <pthread.h>
-#include <sched.h>
-#include <hwloc.h>
-#endif
 
 #include "opal/util/show_help.h"
 #include "ompi/runtime/ompi_spc.h"
@@ -49,11 +43,9 @@
 #include "ompi/communicator/communicator.h"
 #include "ompi/errhandler/errhandler.h"
 #include "ompi/constants.h"
-#include "ompi/mpi/c/pgcopy.h"
 
 #ifdef ENABLE_ANALYSIS
 #include "ompi/mpi/c/init.h"
-#include "ompi/mpi/c/edumpi_ring.h"
 #include "ompi/peruse/peruse.h"
 #endif
 
@@ -66,65 +58,16 @@
 #endif
 
 static struct timeval start;
-static struct timeval init_sql_finished;
-static struct timeval init_sql_start;
-
-static int ID=0;
-static char *job_id;
 static struct timespec start_runtime;
-static int count_q_entry = 0;
-static int queue_lock;
-static TAILQ_HEAD(tailhead, qentry) head;
-static int queue_length=0;
-static int lock = 0;
-//sem_t ENSURE_INIT;
-
-static int main_core, logging_core;
 
 static int size, processrank;
-static char processrank_arr[4];
 char proc_name[MPI_MAX_PROCESSOR_NAME];
 int proc_name_length;
 
-static FILE *file;
-static char filename[20];
-static char filename[20];
-static char* mapped_data;
-static int file_size;
-static int illi=1;
-
-static int count_before = 0;
-static int partner_before = 0;
-static char count_before_arr[10];
-static char partner_before_arr[10];
-
 qentry *q_qentry;
-qentry *ringbuffer;
-int writer_pos;
-int reader_pos;
 
-/* AMT mode (EDUMPI_MPI_THREAD_AMT=1): the program calls MPI from many threads at
- * the same time, so events go into a multi-producer ring (edumpi_ring.h) instead
- * of the single-producer ring above. */
-static int amt_mode = 0;
-static edumpi_amt_ring_t amt_ring;
-int monitor_started = 0;
-
-/* How long (seconds) an entry waits for its request to finish (MPI_Irecv, see
- * pending_request in init.h) before it is written without the received size. */
-static double request_wait_s = 2.0;
-
-/* ticket of the entries of the single-producer ring (the multi-producer ring numbers its slots
- * itself): see lifecycle in init.h */
-static uint64_t edumpi_ticket_counter = 0;
-
-/* EDUMPI_RECV_DURATION=1: the time_diff of an MPI_Irecv is the time from posting the receive until it completed
- * (the time the receive request was pending). Without it time_diff of a receive is 0, as before. */
-static int edumpi_recv_duration = 0;
-
-/* EDUMPI_SEND_COMPLETION=1 (AMT mode only): for an MPI_Isend that is still in flight when the call returns, an
- * extra entry "MPI_Isend_done" is written when the send request completes (see pml_ucx_request.h). Read by the
- * UCX PML, therefore not static. */
+/* Hooks of the PML (pml_ucx_request.h, ob1): a send that is still in flight when MPI_Isend returns gets the time its
+ * request completed. Read by the PMLs, therefore not static. Default on, EDUHPX_MPI_SEND_COMPLETION=0 turns it off. */
 int edumpi_send_completion = 0;
 
 double timespec_diff(struct timespec start, struct timespec end) {
@@ -294,648 +237,263 @@ void initQentry(qentry **q, int dest, char *function, int function_len, int send
 }
 
 
-void qentryIntoQueue(qentry **q){
-    //printf("IntoQueue: %d\n", count_q_entry++);
-    //printf("Echtes Samplerandom: %d\n",samplerandom);
-    //if(time(NULL)-counter_time>0.1){ }
-    qentry *item = *q;
-    //printf("%s\n", item->function);
-    //gettimeofday(&item->intoQueue, NULL);
-    item->id = ++ID;
-    //printf("intoqueue: %d \n", item->id);
-    TAILQ_INSERT_TAIL(&head, item, pointers);
-    //printf("Es kam was rein\n");
-    queue_length++;
-    //printf("Queue Length: %d\n", queue_length);
-    //printf("Leer? %d\n", TAILQ_EMPTY(&head));
-}
+/*
+ * EduHPX measuring MPI: event store and log file.
+ *
+ * Every MPI call claims an entry (qentry) from a lock-free store and fills it in, as it always did. The store is a
+ * table of segments of EDUHPX_SEG_EVENTS entries each. A segment is anonymous memory that never moves, so the
+ * completion hooks of the PMLs can write into the entry of their request by pointer, however late the request
+ * completes. There is no monitor thread and no database: when a new segment is started, the calling thread
+ * converts the older segments whose entries are all complete into 64-byte records and appends them to
+ * eduhpx.mpi.<rank>.bin; MPI_Finalize writes the rest. A segment that still holds an entry whose call has not
+ * returned or whose request has not completed (a receive that is posted and has not got its message) stays in memory
+ * until it is complete or until MPI_Finalize. The format is described in docs/eduhpx_mpi_log_format.md.
+ */
+#define EDUHPX_SEG_EVENTS 2048
+#define EDUHPX_SEG_BYTES  ((size_t) EDUHPX_SEG_EVENTS * sizeof(qentry))
+#define EDUHPX_MAX_SEGS   (1 << 18)
+#define EDUHPX_REC        64
+#define EDUHPX_HDR        64
+#define EDUHPX_RETRY_SEGS 8            /* look at a segment that was not complete again after this many new segments */
+#define EDUHPX_QUIET_NS   100000       /* an entry counts as complete only 100 us after its end was set (no half-written stamp) */
+#define EDUHPX_MAX_FUNCS  512
+#define EDUHPX_MAX_COMMS  4096
+#define EDUHPX_SEG_FLUSHED ((void *) 1)
 
-qentry* dequeue(){
-    qentry *item;
-    item = TAILQ_FIRST(&head);
-    if(item != NULL){
-        TAILQ_REMOVE(&head, item, pointers);
+enum {
+    EDUHPX_F_BLOCKING      = 1u << 0, /* blocking call */
+    EDUHPX_F_COLLECTIVE    = 1u << 1, /* collective, not point-to-point */
+    EDUHPX_F_NO_END        = 1u << 2, /* the call had not returned at MPI_Finalize */
+    EDUHPX_F_HAS_DONE      = 1u << 3, /* done_ns is valid (MPI_Irecv: arrival, MPI_Isend: completion of the request) */
+    EDUHPX_F_ANY_SOURCE    = 1u << 4, /* receive posted with MPI_ANY_SOURCE, partner is the real sender */
+    EDUHPX_F_NOT_COMPLETED = 1u << 5  /* the request had not completed at MPI_Finalize */
+};
+
+static void *edumpi_seg_table[EDUHPX_MAX_SEGS];
+static uint32_t edumpi_seg_retry[EDUHPX_MAX_SEGS];
+static uint64_t edumpi_next_event = 0;     /* events claimed */
+static uint64_t edumpi_scan_from = 0;      /* first segment that is not flushed */
+static int edumpi_flush_busy = 0;
+static uint64_t edumpi_dropped = 0;
+static uint64_t edumpi_records = 0;
+static int edumpi_log_fd = -1;
+static int edumpi_finalized = 0;
+static char edumpi_log_dir[1024];
+static char edumpi_func_names[EDUHPX_MAX_FUNCS][32];
+static int edumpi_nfunc = 0;
+static char edumpi_comm_names[EDUHPX_MAX_COMMS][64];
+static int edumpi_ncomm = 0;
+static qentry edumpi_scratch_entry;        /* for events that cannot be stored (store full) */
+
+static void edumpi_put16(unsigned char *p, uint16_t v){ p[0] = v & 0xff; p[1] = (v >> 8) & 0xff; }
+static void edumpi_put32(unsigned char *p, uint32_t v){ for(int i = 0; i < 4; i++){ p[i] = (v >> (8 * i)) & 0xff; } }
+static void edumpi_put64(unsigned char *p, uint64_t v){ for(int i = 0; i < 8; i++){ p[i] = (v >> (8 * i)) & 0xff; } }
+
+static uint64_t edumpi_ts_ns(struct timespec t){
+    if(t.tv_sec == 0 && t.tv_nsec == 0){
+        return 0;
     }
-    return item;
+    return (uint64_t) t.tv_sec * 1000000000ull + (uint64_t) t.tv_nsec;
 }
 
-//Needs to be global!
-pthread_t MONITOR_THREAD = 0;
-int run_thread;
-int counter;
-
-static void registerCluster(){
-    
-    MPI_Comm comm = MPI_COMM_WORLD;
-    int size, processrank;
-    char processorname[30];
-    MPI_Comm_size(comm, &size);
-    MPI_Comm_rank(comm, &processrank);
-    
-    int proc_name_length;
-    MPI_Get_processor_name(processorname, &proc_name_length);
+static uint64_t edumpi_now_ns(void){
+    struct timespec t;
+    clock_gettime(CLOCK_REALTIME, &t);
+    return (uint64_t) t.tv_sec * 1000000000ull + (uint64_t) t.tv_nsec;
 }
 
-/*static void writeToPostgres(PGconn *conn, char* buffer, int offset){
-    counter ++;
-    const char copyQuery[256];
-    snprintf("COPY " + db_name + " FROM STDIN (FORMAT binary)";
-    PGresult *res;
-    res = PQexec(conn, copyQuery);
-    if (PQresultStatus(res) != PGRES_COPY_IN) {
-        printf("Fehler beim Starten des COPY-Befehls: %s\n", PQresultErrorMessage(res));
-        PQclear(res);
-        PQfinish(conn);
-        return;
+/* index of name in a table of fixed-size names (added if new); -1 if the table is full */
+static int edumpi_intern(char *table, int *count, int max, size_t width, const char *name, size_t maxlen){
+    size_t len = strnlen(name, maxlen);
+    if(len >= width){
+        len = width - 1;
     }
-    PQclear(res);
-    PQputCopyData(conn, PGCOPY_HEADER, 19);
-    
-    int copyRes = PQputCopyData(conn, buffer, offset);
-    // Beende den COPY-Befehl
-    if(copyRes == 1){
-        if(PQputCopyEnd(conn, NULL)==1){
-            res = PQgetResult(conn);
-            if(PQresultStatus(res) == PGRES_COMMAND_OK){
-                printf("Insert a record successfully\n");
-            }
+    for(int i = *count - 1; i >= 0; i--){
+        const char *e = table + (size_t) i * width;
+        if(0 == strncmp(e, name, len) && e[len] == '\0'){
+            return i;
         }
     }
-    PQflush(conn);
-    
-}*/
-
-void print_timespec(struct timespec ts) {
-    // Zeit in Sekunden in eine tm-Struktur umwandeln
-    struct tm *timeinfo;
-    timeinfo = localtime(&ts.tv_sec);
-    
-    // Stunden, Minuten und Sekunden aus der tm-Struktur
-    int hours = timeinfo->tm_hour;
-    int minutes = timeinfo->tm_min;
-    int seconds = timeinfo->tm_sec;
-    
-    // Ausgabe im Format yyyy-mm-dd hh:mm:ss.nnnnnnnnn
-    printf(" %04d-%02d-%02d %02d:%02d:%02d.%09ld\n",
-           timeinfo->tm_year + 1900,
-           timeinfo->tm_mon + 1,
-           timeinfo->tm_mday,
-           hours, minutes, seconds, ts.tv_nsec);
+    if(*count >= max){
+        return -1;
+    }
+    char *slot = table + (size_t) (*count) * width;
+    memset(slot, 0, width);
+    memcpy(slot, name, len);
+    return (*count)++;
 }
 
-void qentryToBinary(qentry *q, char *buffer, int *off){
-        counter ++;
-        //printf("Counter: %d\n", counter);
-        qentry *item = q;
-        int offset = *off;
-            
-        newRow(buffer, 16, &offset);
-
-        //printf("%.9f Seconds\n", item->sendWaitingTime);
-        
-        
-        int job = atoi(job_id);
-        intToBinary(job, buffer, &offset);
-
-        stringToBinary(item->function, buffer, &offset);
-        
-        stringToBinary(item->communicationType, buffer, &offset);
-        
-        int64ToBinary(item->sendDatasize, buffer, &offset);
-        
-        int64ToBinary(item->recvDatasize, buffer, &offset);
-        
-        stringToBinary(item->communicationArea, buffer, &offset);
-        
-        stringToBinary(item->processorname, buffer, &offset);
-        
-        intToBinary(item->processrank, buffer, &offset);
-        
-        intToBinary(item->partnerrank, buffer, &offset);
-        
-        stringToBinary(item->usedAlgorithm, buffer, &offset);
-
-        timestampToBinary(item->start, buffer, &offset, 1);
-        
-        timestampToBinary(item->end, buffer, &offset, 0);
-        
-        doubleToBinary(item->lateSenderTime, buffer, &offset);
-        
-        doubleToBinary(item->lateReceiverTime, buffer, &offset);
-        
-        double time_diff = timespec_diff(item->start, item->end);
-        if (edumpi_recv_duration && 0 == strcmp(item->function, "MPI_Irecv")
-            && (item->initializeRequest.tv_sec != 0 || item->initializeRequest.tv_nsec != 0)) {
-            double pending = timespec_diff(item->initializeRequest, item->end);
-            if (pending > 0) {
-                time_diff = pending;
-            }
-        }
-        doubleToBinary(time_diff, buffer, &offset);
-        
-        byteaToBinary(item->coll_partnerranks, 400, buffer, &offset, strcmp(item->communicationType, "collective"));
-        
-        *off = offset;
-        item = NULL;
-        
+/* The entry is final: the call returned, its request (if it has one) completed. */
+static int edumpi_entry_complete(qentry *e, uint64_t now_ns){
+    if(e->end.tv_sec == 0 && e->end.tv_nsec == 0){
+        return 0;
+    }
+    if(!edumpi_request_ready(e)){
+        return 0;
+    }
+    uint64_t end = edumpi_ts_ns(e->end);
+    return now_ns > end + EDUHPX_QUIET_NS;
 }
 
-#define TIME_TO_WAIT 0.5
-
-/* Wall-clock time in seconds. clock() is the CPU time of all threads of the
- * process, which runs faster than real time in a multi-threaded program. */
-static double edumpi_wall_seconds(void){
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+static void edumpi_encode(qentry *e, uint64_t seq, unsigned char *r){
+    uint32_t flags = 0;
+    memset(r, 0, EDUHPX_REC);
+    if(e->blocking){
+        flags |= EDUHPX_F_BLOCKING;
+    }
+    if(0 == strncmp(e->communicationType, "collective", sizeof(e->communicationType))){
+        flags |= EDUHPX_F_COLLECTIVE;
+    }
+    if(e->end.tv_sec == 0 && e->end.tv_nsec == 0){
+        flags |= EDUHPX_F_NO_END;
+    }
+    if(!edumpi_request_ready(e)){
+        flags |= EDUHPX_F_NOT_COMPLETED;
+    }
+    if(e->done.tv_sec != 0 || e->done.tv_nsec != 0){
+        flags |= EDUHPX_F_HAS_DONE;
+    }
+    if(e->recv_any_source){
+        flags |= EDUHPX_F_ANY_SOURCE;
+    }
+    int fn = edumpi_intern(&edumpi_func_names[0][0], &edumpi_nfunc, EDUHPX_MAX_FUNCS, 32, e->function, sizeof(e->function));
+    int cm = (e->communicationArea[0] == '\0') ? 0xffff
+             : edumpi_intern(&edumpi_comm_names[0][0], &edumpi_ncomm, EDUHPX_MAX_COMMS, 64, e->communicationArea, sizeof(e->communicationArea));
+    if(flags & EDUHPX_F_COLLECTIVE){
+        /* the done time and the "real source" of a collective are those of its last internal message: not exported */
+        flags &= ~(EDUHPX_F_HAS_DONE | EDUHPX_F_ANY_SOURCE);
+    }
+    edumpi_put64(r + 0, edumpi_ts_ns(e->start));
+    edumpi_put64(r + 8, edumpi_ts_ns(e->end));
+    edumpi_put64(r + 16, (flags & EDUHPX_F_HAS_DONE) ? edumpi_ts_ns(e->done) : 0);
+    edumpi_put64(r + 24, (uint64_t) e->sendDatasize);
+    edumpi_put64(r + 32, (uint64_t) e->recvDatasize);
+    edumpi_put32(r + 40, (uint32_t) e->partnerrank);
+    edumpi_put16(r + 44, (uint16_t) (cm < 0 ? 0xffff : cm));
+    edumpi_put16(r + 46, (uint16_t) (fn < 0 ? 0xffff : fn));
+    edumpi_put32(r + 48, flags);
+    edumpi_put32(r + 52, (uint32_t) e->sendcount);
+    edumpi_put32(r + 56, (uint32_t) e->recvcount);
+    edumpi_put32(r + 60, (uint32_t) seq);
 }
 
-/* Age of an entry in seconds: the time since its call returned (end is a CLOCK_REALTIME stamp). */
-static double edumpi_entry_age_seconds(qentry *e){
-    struct timespec now;
-    clock_gettime(CLOCK_REALTIME, &now);
-    return (double)(now.tv_sec - e->end.tv_sec) + (double)(now.tv_nsec - e->end.tv_nsec) * 1e-9;
+static void edumpi_write_all(const void *buf, size_t len){
+    const char *p = (const char *) buf;
+    while(len > 0 && edumpi_log_fd >= 0){
+        ssize_t n = write(edumpi_log_fd, p, len);
+        if(n < 0){
+            if(errno == EINTR){
+                continue;
+            }
+            fprintf(stderr, "EduHPX MPI log: write failed: %s (further events are not written)\n", strerror(errno));
+            close(edumpi_log_fd);
+            edumpi_log_fd = -1;
+            return;
+        }
+        p += n;
+        len -= (size_t) n;
+    }
 }
 
-/* Short sleep for the monitor thread while the ring is empty. (sleep(0.1)
- * takes an unsigned int, so it was sleep(0): a busy loop that kept one core
- * at 100%.) */
-static void edumpi_idle_sleep(void){
-    struct timespec ts = {0, 1000000};
-    nanosleep(&ts, NULL);
+/* Convert the entries of segment s to records and append them. With release the memory is given back (the address
+ * stays valid and reads as zero, so that a late write of a PML into an entry does no harm). */
+static void edumpi_flush_segment(uint64_t s, int release){
+    void *base = edumpi_seg_table[s];
+    uint64_t first = s * EDUHPX_SEG_EVENTS;
+    uint64_t claimed = __atomic_load_n(&edumpi_next_event, __ATOMIC_ACQUIRE);
+    uint64_t n = (claimed > first + EDUHPX_SEG_EVENTS) ? EDUHPX_SEG_EVENTS : (claimed > first ? claimed - first : 0);
+    unsigned char *buf = (unsigned char *) malloc((size_t) EDUHPX_SEG_EVENTS * EDUHPX_REC);
+    if(buf != NULL){
+        for(uint64_t i = 0; i < n; i++){
+            edumpi_encode((qentry *) base + i, first + i, buf + i * EDUHPX_REC);
+        }
+        edumpi_write_all(buf, (size_t) (n * EDUHPX_REC));
+        edumpi_records += n;
+        free(buf);
+    }
+    if(release){
+        mmap(base, EDUHPX_SEG_BYTES, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_FIXED, -1, 0);
+    }
+    edumpi_seg_table[s] = EDUHPX_SEG_FLUSHED;
 }
 
-/* AMT mode: hand one entry of the multi-producer ring to the COPY stream */
-#define AMT_DRAIN_BATCH 4096
-static void amt_emit(qentry *entry, void *ctx){
-    char buffer[2048];
-    int offset = 0;
-    qentryToBinary(entry, buffer, &offset);
-    PQputCopyData((PGconn *) ctx, buffer, offset);
+/* Flush the finished segments below "upto" (a thread that starts a new segment), or everything (force, at the end). */
+static void edumpi_flush_ready(uint64_t upto, int force){
+    if(__atomic_exchange_n(&edumpi_flush_busy, 1, __ATOMIC_ACQUIRE)){
+        if(!force){
+            return;
+        }
+        while(__atomic_exchange_n(&edumpi_flush_busy, 1, __ATOMIC_ACQUIRE)){
+            sched_yield();
+        }
+    }
+    uint64_t now = edumpi_now_ns();
+    for(uint64_t s = edumpi_scan_from; s < upto && s < EDUHPX_MAX_SEGS; s++){
+        void *base = edumpi_seg_table[s];
+        if(base == NULL || base == EDUHPX_SEG_FLUSHED){
+            continue;
+        }
+        if(!force){
+            if(edumpi_seg_retry[s] > upto){
+                continue;
+            }
+            int complete = 1;
+            for(int i = 0; i < EDUHPX_SEG_EVENTS && complete; i++){
+                complete = edumpi_entry_complete((qentry *) base + i, now);
+            }
+            if(!complete){
+                edumpi_seg_retry[s] = (uint32_t) (upto + EDUHPX_RETRY_SEGS);
+                continue;
+            }
+        }
+        edumpi_flush_segment(s, !force);
+    }
+    while(edumpi_scan_from < EDUHPX_MAX_SEGS && edumpi_seg_table[edumpi_scan_from] == EDUHPX_SEG_FLUSHED){
+        edumpi_scan_from++;
+    }
+    __atomic_store_n(&edumpi_flush_busy, 0, __ATOMIC_RELEASE);
 }
 
-//Monitor-Function for SQL-Connection
-static void* SQLMonitorFunc(void* _arg){
-    
-    char *db_host = getenv("DB_HOST");
-    char *db_port = getenv("DB_PORT");
-    char *db_user = getenv("DB_USER");
-    char *db_name = getenv("DB_NAME");
-    char *db_pw = getenv("DB_PW");
-    
-    if (db_host == NULL || db_port == NULL || db_name == NULL || db_user == NULL || db_pw == NULL) {
-        fprintf(stderr, "One or more environment variables are not set\n");
-        return NULL;
+qentry* getWritingRingPos(void){
+    uint64_t idx = __atomic_fetch_add(&edumpi_next_event, 1, __ATOMIC_ACQ_REL);
+    uint64_t seg = idx / EDUHPX_SEG_EVENTS;
+    if(seg >= EDUHPX_MAX_SEGS){
+        __atomic_fetch_add(&edumpi_dropped, 1, __ATOMIC_RELAXED);
+        return &edumpi_scratch_entry;
     }
-    
-    int conninfo_size=(36 + strlen(db_host) + strlen(db_port) + strlen(db_name) + strlen(db_user) + strlen(db_pw));
-    char *conninfo = malloc(conninfo_size);
-    
-    strcpy(conninfo, "host=");
-    strcat(conninfo, db_host);
-    strcat(conninfo, " port=");
-    strcat(conninfo, db_port);
-    strcat(conninfo, " dbname=");
-    strcat(conninfo, db_name);
-    strcat(conninfo, " user=");
-    strcat(conninfo, db_user);
-    strcat(conninfo, " password=");
-    strcat(conninfo, db_pw);
-    
-
-    PGconn *conn = PQconnectdb(conninfo);
-    bool check_job_id=0;
-       
-    if(processrank==0){
-        char *user_id = strrchr(getenv("HOME"), '/') + 1;
-        char start_time_str[30]; // Platz für den Zeitstempel
-        strftime(start_time_str, sizeof(start_time_str), "%Y-%m-%d %H:%M:%S", localtime(&(start_runtime.tv_sec)));
-        char *program_name = getenv("EDUMPI_PROGRAM");
-        const char *query = "INSERT INTO edumpi_runs (edumpi_run_id, start_time, user_id, program_name) VALUES ($1, $2, $3, $4)";
-        const char *paramValues[4] = {job_id, start_time_str, user_id, program_name};
-        int paramlengths[4] = {strlen(job_id), strlen(start_time_str), strlen(user_id), strlen(program_name)};
-        PGresult *res = PQexecParams(conn, query, 4, NULL, paramValues, paramlengths, NULL, 0);
-        PQclear(res);  
-    }
-    else {     
-       while(!check_job_id){
-           const char *query = "SELECT edumpi_run_id FROM edumpi_runs WHERE edumpi_run_id = $1";
-	  const char *paramValues[1] = {job_id};
-           PGresult *res = PQexecParams(conn, query, 1, NULL, paramValues, (const int*)strlen(job_id), NULL, 0);
-           check_job_id = (PQntuples(res));
-           PQclear(res);
-  
-       }
-   }
-
-    
-       char proc_rank[4];
-       sprintf(proc_rank, "%d", processrank);
-       const char *query = "INSERT INTO edumpi_cluster_info (edumpi_run_id, processorname, processrank) VALUES ($1, $2, $3)";
-       const char *paramValues[3] = {job_id ,proc_name, proc_rank};
-       PGresult *res_ = PQexecParams(conn, query, 3, NULL, paramValues, (const int*)strlen(job_id)+strlen(proc_name)+strlen(proc_rank), NULL, 0);
-       PQclear(res_);
-       
-    
-    double start = edumpi_wall_seconds();
-    int held = 0;            /* the next entry waits for its request ...     */
-    double held_since = 0.0; /* ... since this time (default mode only)      */
-    
-    const char *copyQuery = "COPY edumpi_running_data FROM STDIN (FORMAT binary)";
-    PGresult *res;
-    res = PQexec(conn, copyQuery);
-    PQclear(res);
-    PQputCopyData(conn, PGCOPY_HEADER, 19);
-    
-   // int copyRes = PQputCopyData(conn, buffer, offset);
-    //int offset = 0;
-    //char *buffer = (char*)malloc(sizeof(char)*20000000);
-
-    while(run_thread){
-        /* Default mode: hold the next entry back while its request is not finished */
-        int hold = 0;
-        if(!amt_mode && run_thread && writer_pos != -1 && reader_pos != writer_pos
-           && !(reader_pos == MAX_RINGSIZE-1 && writer_pos == 0)){
-            int next = (reader_pos == MAX_RINGSIZE-1) ? 0 : reader_pos + 1;
-            qentry *cand = &ringbuffer[next];
-            if(edumpi_request_ready(cand)){
-                held = 0;
-            } else if(cand->end.tv_sec != 0 || cand->end.tv_nsec != 0){
-                /* The call returned, the request has not finished. The wait is measured from
-                 * the time the receive was posted, so a pool of idle receives is not waited
-                 * for one after the other. */
-                held = 0;
-                hold = (edumpi_entry_age_seconds(cand) < request_wait_s)
-                       || ((__atomic_load_n(&cand->lifecycle, __ATOMIC_ACQUIRE) & 3) == EDUMPI_LC_FINISHING);
-            } else {
-                /* the call itself has not returned */
-                double now_held = edumpi_wall_seconds();
-                if(!held){
-                    held = 1;
-                    held_since = now_held;
-                }
-                hold = (now_held - held_since < request_wait_s);
-            }
-        }
-
-        if(amt_mode){
-            if(0 == edumpi_amt_ring_drain(&amt_ring, amt_emit, conn, 0, AMT_DRAIN_BATCH)){
-                edumpi_idle_sleep();
-            }
-        }
-        else if(hold){
-            edumpi_idle_sleep();
-        }
-        else if(writer_pos == -1 || reader_pos==writer_pos || (reader_pos == MAX_RINGSIZE-1 && writer_pos == 0)){
-            //printf("Reader sleeps at Position %d, %d\n", reader_pos, writer_pos);
-            edumpi_idle_sleep();
-            //printf("Prozess: %d haengt beim Lesen\n", processrank);
-            if(!run_thread) break;
-        }
-        else {
-            if(reader_pos == MAX_RINGSIZE-1){
-                reader_pos = 0;
-            }
-            else{
-                reader_pos ++;
-            }
-            
-            char buffer[2048];
-            int offset = 0;
-            qentry *item = &ringbuffer[reader_pos];
-            if(!edumpi_request_ready(item) && run_thread
-               && (item->end.tv_sec != 0 || item->end.tv_nsec != 0)
-               && edumpi_lifecycle_try_abandon(item)){
-                /* A UCX receive that waited too long: do not write it without data. It is
-                 * written as a new entry when its message arrives. */
-                held = 0;
-                goto entry_done;
-            }
-            if(reader_pos == writer_pos){
-                while(item->end.tv_nsec == 0){
-                    edumpi_idle_sleep();
-                    //printf("Prozess: %d haengt beim Lesen\n", processrank);
-                    if(!run_thread) break;
-	   }
-            }
-            //printf("Datenbankvorbereitung fuer: %s, Rank: %d\n", item->function, processrank);
-            /*MPI_Status status;
-            MPI_Request *request = item->request;
-            int flag = 0;
-            if(request == NULL){
-                printf("1: request is NULL\n");
-            }
-            if(request == MPI_REQUEST_NULL){
-                printf("1: request is MPI_REQUEST_NULL\n");
-            }
-            
-            if(request != MPI_REQUEST_NULL && request != NULL && strcmp(item->function, "MPI_Wait")){
-                while (!flag) {
-                    printf("Test1\n");
-	       MPI_Test(request, &flag, &status);
-	       usleep(100);
-	   }
-            }*/
-            qentryToBinary(&ringbuffer[reader_pos], buffer, &offset);
-            PQputCopyData(conn, buffer, offset);
-            held = 0;
-            entry_done: ;
-        }
-            
-        double current = edumpi_wall_seconds();
-        if(current >= start + TIME_TO_WAIT){
-            PQputCopyEnd(conn, NULL);
-            PQflush(conn);
-            while ((res = PQgetResult(conn)) != NULL) {
-                if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-                    fprintf(stderr, "COPY into edumpi_running_data failed: %s\n", PQresultErrorMessage(res));
-                }
-                PQclear(res);
-            }
-            res = PQexec(conn, copyQuery);
-            
-            if (PQresultStatus(res) != PGRES_COPY_IN) {
-                fprintf(stderr, "COPY start failed: %s\n", PQresultErrorMessage(res));
-                //return -1;
-	}
-            
-            PQclear(res);
-            PQputCopyData(conn, PGCOPY_HEADER, 19);
-            start = current;
-        }
-    }
-  
-    if(amt_mode){
-        /* shutdown: emit everything that is left, complete or not */
-        while(edumpi_amt_ring_drain(&amt_ring, amt_emit, conn, 1, AMT_DRAIN_BATCH) > 0){
-        }
-        uint64_t dropped = edumpi_amt_ring_dropped(&amt_ring);
-        if(dropped > 0){
-            fprintf(stderr, "EduMPI (rank %d): %llu events were dropped because the ring buffer was full\n",
-                    processrank, (unsigned long long) dropped);
-        }
-    }
-    while(!amt_mode && reader_pos != writer_pos){
-        if(reader_pos == MAX_RINGSIZE-1){
-            reader_pos = 0;
-        } else {
-            reader_pos ++;
-        }
-        char buffer[2048];
-        int offset = 0;
-        
-        qentry *item = &ringbuffer[reader_pos];
-        
-        /*MPI_Status status;
-        MPI_Request *request = item->request;
-        int flag = 0;
-        if(request == NULL){
-                printf("2: request is NULL\n");
-            }
-            if(request == MPI_REQUEST_NULL){
-                printf("2: request is MPI_REQUEST_NULL\n");
-            }
-            
-        
-        if(request != MPI_REQUEST_NULL && request != NULL && strcmp(item->function, "MPI_Wait")){
-            while (!flag) {
-                printf("Test2\n");
-	   MPI_Test(request, &flag, &status);
-	   usleep(100);
-            }
-        }*/
-        
-        qentryToBinary(&ringbuffer[reader_pos], buffer, &offset);
-        PQputCopyData(conn, buffer, offset);
-        double current = edumpi_wall_seconds();
-        if(current >= start + TIME_TO_WAIT){
-            PQputCopyEnd(conn, NULL);
-            PQflush(conn);
-            while ((res = PQgetResult(conn)) != NULL) {
-                if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-                    fprintf(stderr, "COPY into edumpi_running_data failed: %s\n", PQresultErrorMessage(res));
-                }
-                PQclear(res);
-            }
-            res = PQexec(conn, copyQuery);
-            PQclear(res);
-            PQputCopyData(conn, PGCOPY_HEADER, 19);
-            
-            start = current;
-        }
-    }
-    PQputCopyEnd(conn, NULL);
-    PQflush(conn);
-    while ((res = PQgetResult(conn)) != NULL) {
-        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-            fprintf(stderr, "COPY into edumpi_running_data failed: %s\n", PQresultErrorMessage(res));
-        }
-        PQclear(res);
-    }
-    
-    if(processrank == 0){
-        struct timespec end_runtime;
-        clock_gettime(CLOCK_REALTIME, &end_runtime);
-
-        // Zeitstempel für end_time als String erstellen
-        char end_time_str[30];
-        strftime(end_time_str, sizeof(end_time_str), "%Y-%m-%d %H:%M:%S", localtime(&(end_runtime.tv_sec)));
-
-        // SQL-Abfrage für UPDATE der end_time
-        const char *update_query = "UPDATE edumpi_runs SET end_time = $1 WHERE edumpi_run_id = $2";
-        const char *update_paramValues[2] = {end_time_str, job_id};
-        int update_paramLengths[2] = {strlen(end_time_str), strlen(job_id)};
-        int update_paramFormats[2] = {0, 0};
-
-        // PostgreSQL Abfrage für das Update
-        res = PQexecParams(conn, update_query, 2, NULL, update_paramValues, update_paramLengths, update_paramFormats, 0);
-        if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-            //fprintf(stderr, "UPDATE failed: %s", PQerrorMessage(conn));
-        } 
-        PQclear(res);
-    }
-    
-    PQflush(conn);
-    PQfinish(conn);
-    //free(ringbuffer);
-    //fwrite(buffer, offset, 1, file);
-    //writeToPostgres(conn, buffer, offset);
-}
-
-struct timeval start_time, end_time;
-float total_time;
-
-qentry* getWritingRingPos(){
-
-    if(amt_mode){
-        return edumpi_amt_ring_claim(&amt_ring);
-    }
-
-    if(writer_pos == -1){
-        writer_pos ++;
-        edumpi_entry_reset(&ringbuffer[0], ++edumpi_ticket_counter);
-        return &ringbuffer[0];
-    }
-    
-    //Ringbuffer ist voll, es müssen erst Items ausgelesen werden
-    //gettimeofday(&start_time, NULL);
-    while(writer_pos == reader_pos-1 || (reader_pos == 0 && writer_pos == MAX_RINGSIZE)){
-        edumpi_idle_sleep();
-    }
-    //gettimeofday(&end_time, NULL);
-    //total_time += timeDifference(end_time, start_time);
-    //Letzte Position im Ring-Buffer erreicht
-    
-    if(writer_pos == MAX_RINGSIZE-1){
-        writer_pos = 0;
-        edumpi_entry_reset(&ringbuffer[0], ++edumpi_ticket_counter);
-    }
-    //Solange Writer vor dem Reader kann nichts passieren
-    else{
-       qentry* item = &ringbuffer[writer_pos+1];
-       edumpi_entry_reset(item, ++edumpi_ticket_counter);
-       writer_pos++;
-       //printf("writing\n");
-    }
-    //printf("Adressen-Test; %p\n", &ringbuffer[writer_pos]);
-    return &ringbuffer[writer_pos];
-}
-
-char* createIntArray(int count){
-    char buffer_help[8];
-    int i = 0;
-    while(count!=0){
-        int rem = count%10;
-        buffer_help[i++] = (rem>9)?(rem-10)+'a':rem+'0';
-        count = count / 10;
-    }
-    buffer_help[i] = '\0';
-    char *buffer_help2 = (char*) malloc(i-1);
-    int x = 0;
-    while(i>0){
-        i--;
-        buffer_help2[x] = buffer_help[i];
-        x++;
-    }
-    buffer_help2[x] = '\0';
-    return buffer_help2;
-}
-
-
-void closeFile(){
-    //fwrite(PGCOPY_TRAILER, 2, 1, file);  
-    //close(file);
-    printf("Time: %f\n", total_time);
-    printf("Counter: %d\n", counter);
-}
-
-void openFile(){
-    char filename[20];
-    sprintf(filename, "./data_rank_%d.bin", processrank);
-    file = fopen(filename, "wb");
-    fwrite(PGCOPY_HEADER, 19, 1, file);
-}
-
-void initializeQueue()
-{ 
-    //gettimeofday(&init_sql_start, NULL);
-
-#ifdef SEPERATE_THREAD_NO_HYPERTHREADING
-    hwloc_topology_t topology;
-    hwloc_cpuset_t cpuset;
-    pthread_t threads[1];  // Nur ein zusätzlicher Thread (der Logging-Thread)
-    int core_ids[2];  // Array, um die zugeordneten Cores zu speichern
-    pthread_attr_t attr_main, attr_logging; 
-
-    // Topologie initialisieren
-    hwloc_topology_init(&topology);
-    hwloc_topology_load(topology);
-
-    // CPU-Set initialisieren
-    cpuset = hwloc_bitmap_alloc();
-    if (!cpuset) {
-        fprintf(stderr, "Failed to allocate CPU set\n");
-        hwloc_topology_destroy(topology);
-        return;
-    }
-
-    // CPU-Bindung abrufen
-    if (hwloc_get_cpubind(topology, cpuset, HWLOC_CPUBIND_PROCESS) < 0) {
-        fprintf(stderr, "Failed to get CPU binding\n");
-        hwloc_bitmap_free(cpuset);
-        hwloc_topology_destroy(topology);
-        return;
-    }
-
-    // CPU-Set in lesbaren String konvertieren
-    char *str;
-    hwloc_bitmap_asprintf(&str, cpuset);
-    if (str) {
-        printf("Assigned cores: %s\n", str);
-        free(str);
-    } else {
-        fprintf(stderr, "Failed to convert CPU set to string\n");
-    }
-    
-    main_core = hwloc_bitmap_first(cpuset);
-    if(main_core == -1){
-        fprintf(stderr, "No available cores found for main process\n");
-        hwloc_bitmap_free(cpuset);
-        hwloc_topology_destroy(topology);
-        return;
-    }
-    
-    core_ids[0] = main_core;
-    
-    logging_core = hwloc_bitmap_next(cpuset, main_core);
-    if (logging_core == -1) {
-        fprintf(stderr, "No available cores found for logging thread\n");
-        hwloc_bitmap_free(cpuset);
-        hwloc_topology_destroy(topology);
-        return;
-    }
-    
-    core_ids[1] = logging_core;
-    
-    pthread_attr_init(&attr_main);
-    cpu_set_t cpu_set_main;
-    
-    CPU_ZERO(&cpu_set_main);
-    CPU_SET(core_ids[0], &cpu_set_main);
-    pthread_attr_setaffinity_np(&attr_main, sizeof(cpu_set_t), &cpu_set_main);
-#endif
-    
-    TAILQ_INIT(&head);
-    
-    MPI_Comm comm = MPI_COMM_WORLD;
-    MPI_Comm_size(comm, &size);
-    MPI_Comm_rank(comm, &processrank);
-    MPI_Get_processor_name(proc_name, &proc_name_length);
-
-#ifdef SEPERATE_THREAD_NO_HYPERTHREADING
-    pthread_attr_init(&attr_logging);
-    cpu_set_t cpu_set_logging;
-    CPU_ZERO(&cpu_set_logging);
-    CPU_SET(core_ids[1], &cpu_set_logging);
-    pthread_attr_setaffinity_np(&attr_logging, sizeof(cpu_set_t), &cpu_set_logging);
-    
-    if(0 == pthread_create(&MONITOR_THREAD, &attr_logging, SQLMonitorFunc, &core_ids[1])){
-        monitor_started = 1;
-    }
-    
-    hwloc_bitmap_free(cpuset);
-    hwloc_topology_destroy(topology);
+    void *base = __atomic_load_n(&edumpi_seg_table[seg], __ATOMIC_ACQUIRE);
+    if(base == NULL){
+#ifdef MAP_POPULATE
+        /* fault in the whole segment with one call instead of one page fault per few events */
+        void *fresh = mmap(NULL, EDUHPX_SEG_BYTES, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_POPULATE, -1, 0);
 #else
-    if(0 == pthread_create(&MONITOR_THREAD, NULL, SQLMonitorFunc, NULL)){
-        monitor_started = 1;
-    }
+        void *fresh = mmap(NULL, EDUHPX_SEG_BYTES, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
 #endif
-    
-    //gettimeofday(&init_sql_finished, NULL);
-    //float dif = timeDifference(init_sql_finished, init_sql_start);
-    //printf("Lost time for initializing sql: %f\n", dif);
+        if(fresh == MAP_FAILED){
+            __atomic_fetch_add(&edumpi_dropped, 1, __ATOMIC_RELAXED);
+            return &edumpi_scratch_entry;
+        }
+        void *expected = NULL;
+        if(__atomic_compare_exchange_n(&edumpi_seg_table[seg], &expected, fresh, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)){
+            base = fresh;
+            if(seg > 0 && !edumpi_finalized){
+                edumpi_flush_ready(seg, 0); /* the thread that fills the store pays for emptying it */
+            }
+        } else {
+            munmap(fresh, EDUHPX_SEG_BYTES);
+            base = expected;
+        }
+    }
+    if(base == EDUHPX_SEG_FLUSHED){ /* cannot happen: only segments below the newest one are flushed, and all their events are claimed */
+        __atomic_fetch_add(&edumpi_dropped, 1, __ATOMIC_RELAXED);
+        return &edumpi_scratch_entry;
+    }
+    return (qentry *) base + (idx % EDUHPX_SEG_EVENTS);
 }
 
+void qentryIntoQueue(qentry **q){
+    (void) q; /* the entry is already in the store since it was claimed */
+}
 
 /* Is the environment variable set to something other than 0/false/no? */
 static int edumpi_env_enabled(const char *name){
@@ -946,54 +504,81 @@ static int edumpi_env_enabled(const char *name){
     return !(0 == strcmp(v, "0") || 0 == strcasecmp(v, "false") || 0 == strcasecmp(v, "no"));
 }
 
-/*
- * Set up the event ring. Called before ompi_mpi_init() by MPI_Init and
- * MPI_Init_thread.
- *
- * EDUMPI_MPI_THREAD_AMT=1 selects the multi-producer ring for programs that call
- * MPI from many threads at once (MPI_THREAD_MULTIPLE, e.g. asynchronous
- * many-task runtimes). It is off by default. There is still one ring and one
- * monitor thread per rank. EDUMPI_AMT_STALL_MS (default 10000) is how long an
- * unfinished entry may hold back the entries behind it.
- *
- * EDUMPI_REQUEST_WAIT_MS (default 2000, both modes) is how long an entry of a
- * non-blocking receive waits for its request to finish, so that the number of
- * received bytes is in the database.
- */
+/* Before ompi_mpi_init(): nothing to set up except the switches (the store is static). */
 void edumpi_analysis_init_pre(void)
 {
-    run_thread = 1;
-    counter = 0;
-    amt_mode = edumpi_env_enabled("EDUMPI_MPI_THREAD_AMT");
-    edumpi_recv_duration = edumpi_env_enabled("EDUMPI_RECV_DURATION");
-    edumpi_send_completion = amt_mode && edumpi_env_enabled("EDUMPI_SEND_COMPLETION");
-    const char *wait = getenv("EDUMPI_REQUEST_WAIT_MS");
-    int64_t request_wait_ms = (wait != NULL && atol(wait) >= 0) ? atol(wait) : 2000;
-    request_wait_s = (double) request_wait_ms / 1000.0;
-    if(amt_mode){
-        const char *stall = getenv("EDUMPI_AMT_STALL_MS");
-        int64_t stall_ms = (stall != NULL && atol(stall) > 0) ? atol(stall) : 10000;
-        if(0 != edumpi_amt_ring_init(&amt_ring, MAX_RINGSIZE, stall_ms, request_wait_ms)){
-            fprintf(stderr, "EduMPI: could not allocate the AMT ring buffer\n");
-            abort();
-        }
-    } else {
-        ringbuffer = (qentry*)malloc(sizeof(qentry)*MAX_RINGSIZE);
-        writer_pos = -1;
-        reader_pos = -1;
-    }
     q_qentry = (qentry*)malloc(sizeof(qentry));
-    job_id = getenv("SLURM_JOBID");
+    /* the hooks of the PMLs: a send that is still in flight when MPI_Isend returns gets its completion time (the
+     * "done" time of the entry). EDUHPX_MPI_SEND_COMPLETION=0 turns this off. */
+    const char *sc = getenv("EDUHPX_MPI_SEND_COMPLETION");
+    edumpi_send_completion = (sc == NULL) ? 1 : edumpi_env_enabled("EDUHPX_MPI_SEND_COMPLETION");
     clock_gettime(CLOCK_REALTIME, &start_runtime);
 }
 
-/* Start the monitor thread. Called after ompi_mpi_init(), as it needs the rank. */
+/* Open the log file and write the header. Called after ompi_mpi_init(), as it needs the rank. */
 void edumpi_analysis_init_post(int provided)
 {
-    initializeQueue();
-    if(!amt_mode && provided == MPI_THREAD_MULTIPLE && processrank == 0){
-        fprintf(stderr, "EduMPI: MPI_THREAD_MULTIPLE is active but EDUMPI_MPI_THREAD_AMT is not set. "
-                        "If MPI is called from several threads at once, set EDUMPI_MPI_THREAD_AMT=1.\n");
+    (void) provided;
+    MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Comm_size(comm, &size);
+    MPI_Comm_rank(comm, &processrank);
+    MPI_Get_processor_name(proc_name, &proc_name_length);
+
+    const char *dir = getenv("EDUHPX_MPI_LOG_DIR");
+    snprintf(edumpi_log_dir, sizeof(edumpi_log_dir), "%s", (dir != NULL && *dir != '\0') ? dir : ".");
+    char path[1200];
+    snprintf(path, sizeof(path), "%s/eduhpx.mpi.%d.bin", edumpi_log_dir, processrank);
+    edumpi_log_fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if(edumpi_log_fd < 0){
+        fprintf(stderr, "EduHPX MPI log: cannot open %s: %s (events are not written)\n", path, strerror(errno));
+        return;
+    }
+    unsigned char hdr[EDUHPX_HDR];
+    memset(hdr, 0, sizeof(hdr));
+    memcpy(hdr, "EDUHPXM1", 8);
+    edumpi_put32(hdr + 8, 1);                 /* version */
+    edumpi_put32(hdr + 12, EDUHPX_REC);       /* record size */
+    edumpi_put32(hdr + 16, (uint32_t) processrank);
+    edumpi_put32(hdr + 20, (uint32_t) size);
+    snprintf((char *) hdr + 24, 32, "%s", proc_name);
+    /* hdr + 56: offset of the trailer, written at the end (0 while the file is open) */
+    edumpi_write_all(hdr, sizeof(hdr));
+    atexit(edumpi_analysis_finalize); /* a program that does not reach MPI_Finalize still leaves a readable file */
+}
+
+/* MPI_Finalize: write everything that is left, then the trailer with the names, and put its offset in the header. */
+void edumpi_analysis_finalize(void)
+{
+    if(__atomic_exchange_n(&edumpi_finalized, 1, __ATOMIC_ACQ_REL)){
+        return;
+    }
+    uint64_t claimed = __atomic_load_n(&edumpi_next_event, __ATOMIC_ACQUIRE);
+    uint64_t segs = (claimed + EDUHPX_SEG_EVENTS - 1) / EDUHPX_SEG_EVENTS;
+    edumpi_flush_ready(segs, 1);
+    if(edumpi_log_fd >= 0){
+        off_t trailer_at = lseek(edumpi_log_fd, 0, SEEK_CUR);
+        size_t tlen = 16 + (size_t) edumpi_nfunc * 32 + (size_t) edumpi_ncomm * 64;
+        unsigned char *t = (unsigned char *) calloc(1, tlen);
+        if(t != NULL){
+            memcpy(t, "EDUHPXT1", 8);
+            edumpi_put32(t + 8, (uint32_t) edumpi_nfunc);
+            edumpi_put32(t + 12, (uint32_t) edumpi_ncomm);
+            memcpy(t + 16, edumpi_func_names, (size_t) edumpi_nfunc * 32);
+            memcpy(t + 16 + (size_t) edumpi_nfunc * 32, edumpi_comm_names, (size_t) edumpi_ncomm * 64);
+            edumpi_write_all(t, tlen);
+            free(t);
+            unsigned char off[8];
+            edumpi_put64(off, (uint64_t) trailer_at);
+            if(pwrite(edumpi_log_fd, off, 8, 56) != 8){
+                fprintf(stderr, "EduHPX MPI log: could not write the trailer offset\n");
+            }
+        }
+        close(edumpi_log_fd);
+        edumpi_log_fd = -1;
+    }
+    if(edumpi_dropped > 0){
+        fprintf(stderr, "EduHPX MPI log (rank %d): %llu events were dropped because the store was full\n",
+                processrank, (unsigned long long) edumpi_dropped);
     }
 }
 

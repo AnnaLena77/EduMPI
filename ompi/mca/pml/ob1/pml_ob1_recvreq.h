@@ -66,8 +66,7 @@ struct mca_pml_ob1_recv_request_t {
     qentry *q;
     struct timespec activate;
     edumpi_req_ext_t ext; /* MPI_Irecv: completion of the entry (edumpi_req_ext.h) */
-    uint64_t q_ticket;    /* ticket of q when the receive was posted */
-    int ext_mode;         /* q is the entry of an MPI_Irecv: only touch it through the ticket */
+    int ext_mode;         /* q is the entry of an MPI_Irecv, completed by edumpi_req_recv_finished() */
 #endif
     /** The size of this array is set from mca_pml_ob1.max_rdma_per_request */
     mca_pml_ob1_com_btl_t req_rdma[];
@@ -118,25 +117,15 @@ do {                                                               \
 #define EDUMPI_OB1_RECV_RESET(request)                              \
     do {                                                            \
         (request)->q = NULL;                                        \
-        (request)->q_ticket = 0;                                    \
         (request)->ext_mode = 0;                                    \
         edumpi_req_ext_reset(&(request)->ext);                      \
     } while (0)
 
-/* Entry of the receive that the PML may update while the receive is in flight. The entry of an MPI_Irecv
- * can be abandoned by the monitor thread (an idle receive) and its slot reused, then there is none. */
+/* Entry of the receive that the PML may update while the receive is in flight. The entry is in a segment of the
+ * event store that never moves and is not written before the receive completes. */
 static inline qentry *mca_pml_ob1_recv_entry(mca_pml_ob1_recv_request_t *req)
 {
-    qentry *q = req->q;
-    if (NULL == q || !req->ext_mode) {
-        return q;
-    }
-    uint64_t lc = __atomic_load_n(&q->lifecycle, __ATOMIC_ACQUIRE);
-    if ((lc >> 2) != req->q_ticket
-        || ((lc & 3) != EDUMPI_LC_NONE && (lc & 3) != EDUMPI_LC_PENDING)) {
-        return NULL;
-    }
-    return q;
+    return req->q;
 }
 #else
 #define EDUMPI_OB1_RECV_RESET(request) do { } while (0)
@@ -220,7 +209,7 @@ recv_request_pml_complete(mca_pml_ob1_recv_request_t *recvreq)
         /* the entry may be written now (also for messages without data). A receive
          * posted with MPI_ANY_SOURCE gets the rank of the sender. */
         if(recvreq->ext_mode){
-            /* MPI_Irecv: the entry is completed or, if the monitor thread gave up waiting for it, written anew */
+            /* MPI_Irecv: the entry gets size, real source and arrival time (edumpi_req_ext.h) */
             int cancelled = recvreq->req_recv.req_base.req_ompi.req_status._cancelled;
             edumpi_req_recv_finished(&recvreq->ext,
                                      cancelled ? 0 : (int64_t) recvreq->req_bytes_received,
@@ -230,10 +219,9 @@ recv_request_pml_complete(mca_pml_ob1_recv_request_t *recvreq)
             if(!recvreq->req_recv.req_base.req_ompi.req_status._cancelled
                && src >= 0 && recvreq->q->partnerrank < 0){
                 recvreq->q->partnerrank = edumpi_world_rank(recvreq->q->communicator, src);
+                recvreq->q->recv_any_source = 1;
             }
-            /* stamped with the arrival of the message, see edumpi_ucx_finish_entry */
-            clock_gettime(CLOCK_REALTIME, &recvreq->q->end);
-            recvreq->q->start = recvreq->q->end;
+            clock_gettime(CLOCK_REALTIME, &recvreq->q->done); /* the message arrived */
             edumpi_request_done(recvreq->q);
         }
 #endif

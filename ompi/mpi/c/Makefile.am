@@ -486,8 +486,7 @@ interface_profile_sources = \
         win_test.c \
         win_unlock.c \
         win_unlock_all.c \
-        win_wait.c \
-        pgcopy.c
+        win_wait.c
 
 # The following functions were removed from the MPI standard, but are
 # retained for ABI compliance reasons.  They are listed independently

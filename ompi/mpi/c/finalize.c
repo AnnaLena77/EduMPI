@@ -54,27 +54,7 @@ int MPI_Finalize(void)
 
     //sleep(8);
 #ifdef ENABLE_ANALYSIS
-    struct timespec start, end;
-    long seconds, nanoseconds;
-    double elapsed;
-    //clock_gettime(CLOCK_MONOTONIC, &start);
-    //printf("run_thread wird 0\n");
-    //printf("Reader: %d, Writer: %d\n", reader_pos, writer_pos);
-    run_thread = 0;
-    //closeFile();
-    /* the monitor thread only exists if MPI_Init or MPI_Init_thread started it */
-    if(monitor_started){
-        pthread_join(MONITOR_THREAD, NULL);
-    }
-    //clock_gettime(CLOCK_MONOTONIC, &end);
-    //free(ringbuffer);
-    
-    /*seconds = end.tv_sec - start.tv_sec;
-    nanoseconds = end.tv_nsec - start.tv_nsec;
-    elapsed = seconds + nanoseconds*1e-9;
-
-    printf("pthread_join dauerte %f Sekunden\n", elapsed);*/
-    //closeFile();
+    edumpi_analysis_finalize();
 #endif
     return ompi_mpi_finalize();
 }
