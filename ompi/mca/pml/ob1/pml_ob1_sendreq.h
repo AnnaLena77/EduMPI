@@ -35,6 +35,9 @@
 #include "ompi/mca/bml/bml.h"
 #include "ompi/memchecker.h"
 //#include "ompi/mpi/c/init.h"
+#ifdef ENABLE_ANALYSIS
+#   include "ompi/mpi/c/edumpi_req_ext.h"
+#endif
 
 BEGIN_C_DECLS
 
@@ -62,6 +65,7 @@ struct mca_pml_ob1_send_request_t {
 #ifdef ENABLE_ANALYSIS
     qentry *q;
     struct timespec activate;
+    edumpi_req_ext_t ext; /* EDUMPI_SEND_COMPLETION (edumpi_req_ext.h) */
 #endif
     /** The size of this array is set from mca_pml_ob1.max_rdma_per_request */
     mca_pml_ob1_com_btl_t req_rdma[];
@@ -146,6 +150,16 @@ get_request_from_send_pending(mca_pml_ob1_send_pending_t *type)
     }
 
 
+#ifdef ENABLE_ANALYSIS
+#define EDUMPI_OB1_SEND_RESET(sendreq)                                  \
+    do {                                                                \
+        (sendreq)->q = NULL;                                            \
+        edumpi_req_ext_reset(&(sendreq)->ext);                          \
+    } while (0)
+#else
+#define EDUMPI_OB1_SEND_RESET(sendreq) do { } while (0)
+#endif
+
 #define MCA_PML_OB1_SEND_REQUEST_INIT( sendreq,                         \
                                        buf,                             \
                                        count,                           \
@@ -169,6 +183,7 @@ get_request_from_send_pending(mca_pml_ob1_send_pending_t *type)
                                        0); /* convertor_flags */        \
         (sendreq)->req_recv.pval = NULL;                                \
         (sendreq)->ob1_proc = ob1_proc;                                 \
+        EDUMPI_OB1_SEND_RESET(sendreq);                                 \
     }
 
 #define MCA_PML_OB1_SEND_REQUEST_RESET(sendreq)                         \
@@ -267,6 +282,12 @@ static inline void mca_pml_ob1_send_request_fini (mca_pml_ob1_send_request_t *se
 static inline void
 send_request_pml_complete(mca_pml_ob1_send_request_t *sendreq){
     if(false == sendreq->req_send.req_base.req_pml_complete) {
+#ifdef ENABLE_ANALYSIS
+        /* the request is done: note the time (EDUMPI_SEND_COMPLETION) */
+        if (OPAL_UNLIKELY(edumpi_send_completion)) {
+            edumpi_req_send_finished(&sendreq->ext);
+        }
+#endif
         if(sendreq->req_send.req_bytes_packed > 0) {
 /*#ifdef ENABLE_ANALYSIS
             qentry* item = NULL;

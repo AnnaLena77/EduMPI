@@ -39,6 +39,9 @@
 /*#ifdef ENABLE_ANALYSIS
 #   include "ompi/mpi/c/init.h"
 #endif*/
+#ifdef ENABLE_ANALYSIS
+#   include "ompi/mpi/c/edumpi_req_ext.h"
+#endif
 
 BEGIN_C_DECLS
 
@@ -62,6 +65,9 @@ struct mca_pml_ob1_recv_request_t {
 #ifdef ENABLE_ANALYSIS
     qentry *q;
     struct timespec activate;
+    edumpi_req_ext_t ext; /* MPI_Irecv: completion of the entry (edumpi_req_ext.h) */
+    uint64_t q_ticket;    /* ticket of q when the receive was posted */
+    int ext_mode;         /* q is the entry of an MPI_Irecv: only touch it through the ticket */
 #endif
     /** The size of this array is set from mca_pml_ob1.max_rdma_per_request */
     mca_pml_ob1_com_btl_t req_rdma[];
@@ -108,6 +114,34 @@ do {                                                               \
  * @param comm (IN)          Communicator.
  * @param persistent (IN)    Is this a ersistent request.
  */
+#ifdef ENABLE_ANALYSIS
+#define EDUMPI_OB1_RECV_RESET(request)                              \
+    do {                                                            \
+        (request)->q = NULL;                                        \
+        (request)->q_ticket = 0;                                    \
+        (request)->ext_mode = 0;                                    \
+        edumpi_req_ext_reset(&(request)->ext);                      \
+    } while (0)
+
+/* Entry of the receive that the PML may update while the receive is in flight. The entry of an MPI_Irecv
+ * can be abandoned by the monitor thread (an idle receive) and its slot reused, then there is none. */
+static inline qentry *mca_pml_ob1_recv_entry(mca_pml_ob1_recv_request_t *req)
+{
+    qentry *q = req->q;
+    if (NULL == q || !req->ext_mode) {
+        return q;
+    }
+    uint64_t lc = __atomic_load_n(&q->lifecycle, __ATOMIC_ACQUIRE);
+    if ((lc >> 2) != req->q_ticket
+        || ((lc & 3) != EDUMPI_LC_NONE && (lc & 3) != EDUMPI_LC_PENDING)) {
+        return NULL;
+    }
+    return q;
+}
+#else
+#define EDUMPI_OB1_RECV_RESET(request) do { } while (0)
+#endif
+
 #define MCA_PML_OB1_RECV_REQUEST_INIT( request,                     \
                                        addr,                        \
                                        count,                       \
@@ -117,6 +151,7 @@ do {                                                               \
                                        comm,                        \
                                        persistent)                  \
 do {                                                                \
+    EDUMPI_OB1_RECV_RESET(request);                                 \
     MCA_PML_BASE_RECV_REQUEST_INIT( &(request)->req_recv,           \
                                     addr,                           \
                                     count,                          \
@@ -173,10 +208,9 @@ recv_request_pml_complete(mca_pml_ob1_recv_request_t *recvreq)
 
         if(recvreq->req_recv.req_bytes_packed > 0) {
 #ifdef ENABLE_ANALYSIS
-            qentry* item = NULL;
-            if(recvreq->q != NULL){
-                item=recvreq->q;
-                item->recvDatasize += (int)recvreq->req_bytes_received;
+            /* the received bytes of an MPI_Irecv are stored by edumpi_req_recv_finished below */
+            if(recvreq->q != NULL && !recvreq->ext_mode){
+                recvreq->q->recvDatasize += (int)recvreq->req_bytes_received;
             }
 #endif
             PERUSE_TRACE_COMM_EVENT( PERUSE_COMM_REQ_XFER_END,
@@ -185,7 +219,13 @@ recv_request_pml_complete(mca_pml_ob1_recv_request_t *recvreq)
 #ifdef ENABLE_ANALYSIS
         /* the entry may be written now (also for messages without data). A receive
          * posted with MPI_ANY_SOURCE gets the rank of the sender. */
-        if(recvreq->q != NULL){
+        if(recvreq->ext_mode){
+            /* MPI_Irecv: the entry is completed or, if the monitor thread gave up waiting for it, written anew */
+            int cancelled = recvreq->req_recv.req_base.req_ompi.req_status._cancelled;
+            edumpi_req_recv_finished(&recvreq->ext,
+                                     cancelled ? 0 : (int64_t) recvreq->req_bytes_received,
+                                     cancelled ? -1 : recvreq->req_recv.req_base.req_ompi.req_status.MPI_SOURCE);
+        } else if(recvreq->q != NULL){
             int src = recvreq->req_recv.req_base.req_ompi.req_status.MPI_SOURCE;
             if(!recvreq->req_recv.req_base.req_ompi.req_status._cancelled
                && src >= 0 && recvreq->q->partnerrank < 0){
@@ -281,10 +321,7 @@ static inline void recv_req_matched(mca_pml_ob1_recv_request_t *req,
                                     )
 {
 #ifdef ENABLE_ANALYSIS
-    qentry* item = NULL;
-    if(req->q != NULL){
-        item = req->q;
-    }
+    qentry* item = mca_pml_ob1_recv_entry(req);
 #endif
     req->req_recv.req_base.req_ompi.req_status.MPI_SOURCE = hdr->hdr_src;
     req->req_recv.req_base.req_ompi.req_status.MPI_TAG = hdr->hdr_tag;

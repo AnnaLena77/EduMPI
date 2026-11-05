@@ -471,10 +471,7 @@ static int mca_pml_ob1_recv_request_put_frag (mca_pml_ob1_rdma_frag_t *frag)
 {
     mca_pml_ob1_recv_request_t *recvreq = (mca_pml_ob1_recv_request_t *) frag->rdma_req;
 #ifdef ENABLE_ANALYSIS
-    qentry* item = NULL;
-    if(recvreq->q != NULL){
-        item = recvreq->q;
-    }
+    qentry* item = mca_pml_ob1_recv_entry(recvreq);
 #endif
 
 #if OPAL_ENABLE_HETEROGENEOUS_SUPPORT
@@ -1305,10 +1302,7 @@ void mca_pml_ob1_recv_req_start(mca_pml_ob1_recv_request_t *req
 )
 {
 #ifdef ENABLE_ANALYSIS
-    qentry* item = NULL;
-    if(req->q != NULL){
-        item = req->q;
-    }
+    qentry* item = mca_pml_ob1_recv_entry(req);
 #endif
     ompi_communicator_t *comm = req->req_recv.req_base.req_comm;
     mca_pml_ob1_comm_t *ob1_comm = comm->c_pml_comm;

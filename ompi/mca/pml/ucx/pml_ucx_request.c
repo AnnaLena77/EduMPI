@@ -56,6 +56,11 @@ mca_pml_ucx_send_completion_internal(void *request, ucs_status_t status)
     PML_UCX_VERBOSE(8, "send request %p completed with status %s", (void*)req,
                     ucs_status_string(status));
 
+#ifdef ENABLE_ANALYSIS
+    if (OPAL_UNLIKELY(edumpi_send_completion)) {
+        edumpi_ucx_send_finished(req);
+    }
+#endif
     mca_pml_ucx_set_send_status(&req->req_status, status);
     PML_UCX_ASSERT( !(REQUEST_COMPLETE(req)));
     ompi_request_complete(req, true);

@@ -1042,6 +1042,12 @@ int mca_pml_ucx_isend(const void *buf, size_t count, ompi_datatype_t *datatype,
             req->req_cancel      = mca_pml_ucx_request_cancel_send;
         }
 #endif
+#ifdef ENABLE_ANALYSIS
+        /* the send is still in flight: note its completion (EDUMPI_SEND_COMPLETION) */
+        if (OPAL_UNLIKELY(edumpi_send_completion) && NULL != item) {
+            edumpi_ucx_send_attach(req, item, comm);
+        }
+#endif
         *request                 = req;
         return OMPI_SUCCESS;
     } else {

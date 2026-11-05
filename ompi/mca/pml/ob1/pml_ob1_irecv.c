@@ -132,6 +132,9 @@ int mca_pml_ob1_irecv(void *addr,
 #ifdef ENABLE_ANALYSIS
     if(item!=NULL){ 
         recvreq->q = item;
+        /* the entry waits for this request: complete it with the protocol of edumpi_req_ext.h */
+        recvreq->q_ticket = __atomic_load_n(&item->lifecycle, __ATOMIC_RELAXED) >> 2;
+        recvreq->ext_mode = (1 == item->pending_request);
         clock_gettime(CLOCK_REALTIME, &recvreq->activate);
     }
 #endif
@@ -141,6 +144,11 @@ int mca_pml_ob1_irecv(void *addr,
                              PERUSE_RECV);
 
     MCA_PML_OB1_RECV_REQUEST_START(recvreq);
+#ifdef ENABLE_ANALYSIS
+    if(item!=NULL && recvreq->ext_mode){
+        edumpi_req_attach_recv(&recvreq->ext, item);
+    }
+#endif
     *request = (ompi_request_t *) recvreq;
     return OMPI_SUCCESS;
 }

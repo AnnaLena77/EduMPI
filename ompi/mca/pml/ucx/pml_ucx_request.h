@@ -161,6 +161,7 @@ static inline void mca_pml_ucx_request_reset(ompi_request_t *req)
 }
 
 #ifdef ENABLE_ANALYSIS
+#include "ompi/mpi/c/edumpi_req_ext.h"
 /*
  * EduMPI: private area behind each UCX request (see request_size in pml_ucx.c).
  * It links an MPI_Irecv request to its event entry, so that the completion
@@ -168,18 +169,7 @@ static inline void mca_pml_ucx_request_reset(ompi_request_t *req)
  * monitor thread that the entry may be written. Only requests from the UCX
  * request pool have this area (not persistent or "completed" requests).
  */
-typedef struct edumpi_ucx_req_ext {
-    qentry  *q;        /* entry of the MPI_Irecv, set after the receive was posted */
-    uint64_t ticket;   /* ticket of that entry (see lifecycle in init.h)           */
-    int64_t  bytes;    /* received bytes, valid if cb_done is set                  */
-    int      source;   /* rank of the sender, valid if cb_done is set (-1: none)   */
-    int      cb_done;  /* the completion callback has run                          */
-    int      finished; /* the entry was completed (in place or as a new entry)     */
-    int      partner;  /* partner rank the receive was posted with                 */
-    MPI_Comm communicator;
-    char     area[64]; /* name of the communicator; with partner and communicator the snapshot
-                        * to write a new entry if the monitor thread abandoned the old one */
-} edumpi_ucx_req_ext_t;
+typedef edumpi_req_ext_t edumpi_ucx_req_ext_t;
 
 static inline edumpi_ucx_req_ext_t *edumpi_ucx_req_ext(ompi_request_t *req)
 {
@@ -188,105 +178,33 @@ static inline edumpi_ucx_req_ext_t *edumpi_ucx_req_ext(ompi_request_t *req)
 
 static inline void edumpi_ucx_req_ext_reset(ompi_request_t *req)
 {
-    edumpi_ucx_req_ext_t *x = edumpi_ucx_req_ext(req);
-    x->q = NULL;
-    x->ticket = 0;
-    x->bytes = 0;
-    x->source = -1;
-    x->cb_done = 0;
-    x->finished = 0;
-    x->partner = -1;
-    x->communicator = NULL;
-    x->area[0] = '\0';
-}
-
-/*
- * The receive finished: the entry gets the received size and, for a receive that was posted
- * with MPI_ANY_SOURCE, the rank of the sender (the entry has the wildcard until now). Then the
- * monitor thread may write the entry.
- *
- * Exactly one of two things happens, decided by one compare-and-swap on the lifecycle word of
- * the entry (the ticket makes it safe if the slot was reused):
- *  - the entry is still waiting: it is completed in place, and
- *  - the monitor thread gave up waiting (the receive was idle longer than
- *    EDUMPI_REQUEST_WAIT_MS) and freed the slot without writing it: a new entry with the data
- *    is written now, from the snapshot in the request.
- * In both cases nothing is lost and nothing is written twice.
- *
- * The entry is stamped with the time the message arrived, not with the time the receive was
- * posted. A receive that is posted early (HPX keeps a pool of them posted all the time) would
- * otherwise show up seconds before its message, in another second of the timeline than the
- * matching send.
- */
-static inline void edumpi_ucx_complete_entry(edumpi_ucx_req_ext_t *x, qentry *q,
-                                             int64_t bytes, int source)
-{
-    if (0 != __atomic_exchange_n(&x->finished, 1, __ATOMIC_SEQ_CST)) {
-        return; /* the other side (callback or MPI_Irecv) did it already */
-    }
-
-    uint64_t expected = EDUMPI_LC(x->ticket, EDUMPI_LC_PENDING);
-    if (__atomic_compare_exchange_n(&q->lifecycle, &expected,
-                                    EDUMPI_LC(x->ticket, EDUMPI_LC_FINISHING), 0,
-                                    __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
-        if (source >= 0 && q->partnerrank < 0) {
-            q->partnerrank = edumpi_world_rank(q->communicator, source);
-        }
-        clock_gettime(CLOCK_REALTIME, &q->end);
-        q->start = q->end;
-        edumpi_request_done_bytes(q, bytes);
-        return;
-    }
-
-    /* abandoned: write a new, complete entry */
-    qentry *n = getWritingRingPos();
-    initQentry(&n, (source >= 0) ? edumpi_world_rank(x->communicator, source) : x->partner, "MPI_Irecv", 9, 0, 0, "p2p", 3,
-               NULL, NULL, NULL, 0, NULL);
-    memcpy(n->communicationArea, x->area, sizeof(n->communicationArea));
-    n->communicator = x->communicator;
-    n->recvDatasize = bytes;
-    clock_gettime(CLOCK_REALTIME, &n->start);
-    /* the monitor thread writes an entry when its end is set: the seconds come last */
-    n->end.tv_nsec = n->start.tv_nsec;
-    __atomic_store_n(&n->end.tv_sec, n->start.tv_sec, __ATOMIC_RELEASE);
+    edumpi_req_ext_reset(edumpi_ucx_req_ext(req));
 }
 
 /* Completion callback side. Call before ompi_request_complete(): afterwards the
  * request may be freed and reused. */
 static inline void edumpi_ucx_recv_finished(ompi_request_t *req)
 {
-    edumpi_ucx_req_ext_t *x = edumpi_ucx_req_ext(req);
     /* A cancelled receive (e.g. a receive that is still posted at shutdown) did not
      * receive anything; its _ucount is a leftover of an earlier use of the request. */
     int64_t received = req->req_status._cancelled ? 0 : (int64_t) req->req_status._ucount;
     int source = req->req_status._cancelled ? -1 : req->req_status.MPI_SOURCE;
-    __atomic_store_n(&x->bytes, received, __ATOMIC_RELAXED);
-    __atomic_store_n(&x->source, source, __ATOMIC_RELAXED);
-    __atomic_store_n(&x->cb_done, 1, __ATOMIC_SEQ_CST);
-    qentry *q = __atomic_load_n(&x->q, __ATOMIC_SEQ_CST);
-    if (NULL != q) {
-        edumpi_ucx_complete_entry(x, q, received, source);
-    }
+    edumpi_req_recv_finished(edumpi_ucx_req_ext(req), received, source);
 }
 
-/* MPI_Irecv side. The receive may already be finished (the callback can run
- * before this), so check again after the entry was attached. At least one of the
- * two sides sees the other one; the entry is completed only once. */
 static inline void edumpi_ucx_attach_entry(ompi_request_t *req, qentry *q)
 {
-    edumpi_ucx_req_ext_t *x = edumpi_ucx_req_ext(req);
-    /* snapshot for a new entry, in case the monitor thread abandons this one */
-    x->ticket = __atomic_load_n(&q->lifecycle, __ATOMIC_RELAXED) >> 2;
-    x->partner = q->partnerrank;
-    x->communicator = q->communicator;
-    memcpy(x->area, q->communicationArea, sizeof(x->area));
-    /* from now on the monitor thread may abandon the entry (it does so only after the
-     * MPI_Irecv call returned) */
-    __atomic_store_n(&q->lifecycle, EDUMPI_LC(x->ticket, EDUMPI_LC_PENDING), __ATOMIC_RELEASE);
-    __atomic_store_n(&x->q, q, __ATOMIC_SEQ_CST);
-    if (0 != __atomic_load_n(&x->cb_done, __ATOMIC_SEQ_CST)) {
-        edumpi_ucx_complete_entry(x, q, x->bytes, x->source);
-    }
+    edumpi_req_attach_recv(edumpi_ucx_req_ext(req), q);
+}
+
+static inline void edumpi_ucx_send_finished(ompi_request_t *req)
+{
+    edumpi_req_send_finished(edumpi_ucx_req_ext(req));
+}
+
+static inline void edumpi_ucx_send_attach(ompi_request_t *req, qentry *q, MPI_Comm comm)
+{
+    edumpi_req_attach_send(edumpi_ucx_req_ext(req), q, comm);
 }
 
 /* Size of the datatype in bytes. (sizeof(datatype) is the size of the handle.) */

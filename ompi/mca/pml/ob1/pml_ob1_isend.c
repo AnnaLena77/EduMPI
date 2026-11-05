@@ -367,6 +367,11 @@ int mca_pml_ob1_isend(const void *buf,
     MCA_PML_OB1_SEND_REQUEST_START_W_SEQ(sendreq, endpoint, seqn, rc);
     *request = (ompi_request_t *) sendreq;
 #ifdef ENABLE_ANALYSIS
+    /* the send is still in flight: note its completion (EDUMPI_SEND_COMPLETION) */
+    if (OPAL_UNLIKELY(edumpi_send_completion) && NULL != item && OMPI_SUCCESS == rc
+        && !REQUEST_COMPLETE(&sendreq->req_send.req_base.req_ompi)) {
+        edumpi_req_attach_send(&sendreq->ext, item, comm);
+    }
     //if(item!=NULL) qentryIntoQueue(&item);
 #endif
     return rc;

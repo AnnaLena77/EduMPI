@@ -118,6 +118,15 @@ static double request_wait_s = 2.0;
  * itself): see lifecycle in init.h */
 static uint64_t edumpi_ticket_counter = 0;
 
+/* EDUMPI_RECV_DURATION=1: the time_diff of an MPI_Irecv is the time from posting the receive until it completed
+ * (the time the receive request was pending). Without it time_diff of a receive is 0, as before. */
+static int edumpi_recv_duration = 0;
+
+/* EDUMPI_SEND_COMPLETION=1 (AMT mode only): for an MPI_Isend that is still in flight when the call returns, an
+ * extra entry "MPI_Isend_done" is written when the send request completes (see pml_ucx_request.h). Read by the
+ * UCX PML, therefore not static. */
+int edumpi_send_completion = 0;
+
 double timespec_diff(struct timespec start, struct timespec end) {
     long long elapsed_sec = end.tv_sec - start.tv_sec;
     long long elapsed_ns = end.tv_nsec - start.tv_nsec;
@@ -178,6 +187,7 @@ void convert_MPI_datatype(MPI_Datatype type, char *datatype_field){
  * ("MPI COMM 3 DUP FROM 0"). MPI_Comm_get_name reports the latter only after a name was set,
  * so those communicators used to be stored with an empty label. */
 static void edumpi_comm_label(MPI_Comm comm, char *out, size_t outlen){
+    char base[64];
     out[0] = '\0';
     if(comm == NULL || comm == MPI_COMM_NULL){
         return;
@@ -187,9 +197,16 @@ static void edumpi_comm_label(MPI_Comm comm, char *out, size_t outlen){
         return;
     }
     if(comm->c_name != NULL && comm->c_name[0] != '\0'){
-        snprintf(out, outlen, "%s", comm->c_name);
+        snprintf(base, sizeof(base), "%s", comm->c_name);
     } else {
-        snprintf(out, outlen, "MPI COMM %d", (int) comm->c_index);
+        snprintf(base, sizeof(base), "MPI COMM %d", (int) comm->c_index);
+    }
+    /* The disjoint parts of a split (even and odd ranks, say) have the same context id and so the
+     * same name. Add the world rank of the first member to tell them apart. */
+    if(!OMPI_COMM_IS_INTER(comm) && ompi_comm_size(comm) < ompi_comm_size(MPI_COMM_WORLD)){
+        snprintf(out, outlen, "%.52s @%d", base, edumpi_world_rank(comm, 0));
+    } else {
+        snprintf(out, outlen, "%s", base);
     }
 }
 
@@ -197,7 +214,9 @@ int edumpi_world_rank(MPI_Comm comm, int rank){
     if(rank < 0 || comm == NULL || comm == MPI_COMM_NULL || comm == MPI_COMM_WORLD){
         return rank;
     }
-    if(rank >= ompi_comm_remote_size(comm)){
+    /* ompi_comm_remote_size() is 0 for an intra-communicator */
+    int peers = OMPI_COMM_IS_INTER(comm) ? ompi_comm_remote_size(comm) : ompi_comm_size(comm);
+    if(rank >= peers){
         return rank;
     }
     ompi_proc_t *proc = ompi_comm_peer_lookup(comm, rank);
@@ -259,6 +278,8 @@ void initQentry(qentry **q, int dest, char *function, int function_len, int send
         item->request = NULL;
         item->end.tv_sec = 0;
         item->end.tv_nsec = 0;
+        item->initializeRequest.tv_sec = 0;      /* post time of a receive, set by the UCX completion hook */
+        item->initializeRequest.tv_nsec = 0;
        
         memcpy(item->sendmode, "", 0);
         item->immediate = 0;
@@ -403,6 +424,13 @@ void qentryToBinary(qentry *q, char *buffer, int *off){
         doubleToBinary(item->lateReceiverTime, buffer, &offset);
         
         double time_diff = timespec_diff(item->start, item->end);
+        if (edumpi_recv_duration && 0 == strcmp(item->function, "MPI_Irecv")
+            && (item->initializeRequest.tv_sec != 0 || item->initializeRequest.tv_nsec != 0)) {
+            double pending = timespec_diff(item->initializeRequest, item->end);
+            if (pending > 0) {
+                time_diff = pending;
+            }
+        }
         doubleToBinary(time_diff, buffer, &offset);
         
         byteaToBinary(item->coll_partnerranks, 400, buffer, &offset, strcmp(item->communicationType, "collective"));
@@ -937,6 +965,8 @@ void edumpi_analysis_init_pre(void)
     run_thread = 1;
     counter = 0;
     amt_mode = edumpi_env_enabled("EDUMPI_MPI_THREAD_AMT");
+    edumpi_recv_duration = edumpi_env_enabled("EDUMPI_RECV_DURATION");
+    edumpi_send_completion = amt_mode && edumpi_env_enabled("EDUMPI_SEND_COMPLETION");
     const char *wait = getenv("EDUMPI_REQUEST_WAIT_MS");
     int64_t request_wait_ms = (wait != NULL && atol(wait) >= 0) ? atol(wait) : 2000;
     request_wait_s = (double) request_wait_ms / 1000.0;
