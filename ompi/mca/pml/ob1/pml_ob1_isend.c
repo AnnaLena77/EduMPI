@@ -270,16 +270,16 @@ int mca_pml_ob1_isend(const void *buf,
             if(item->blocking == 0 && !strcmp(item->communicationType, "p2p")){
                 //qentry->sendmode & qentry->operation
                 if(sendmode==MCA_PML_BASE_SEND_SYNCHRONOUS){
-                    strcpy(item->sendmode, "SYNCHRONOUS");
+                    ;
                 }
                 else if(sendmode==MCA_PML_BASE_SEND_BUFFERED){
-                    strcpy(item->sendmode, "BUFFERED");
+                    ;
                 }
                 else if(sendmode==MCA_PML_BASE_SEND_READY){
-                    strcpy(item->sendmode, "READY");
+                    ;
                 }
                 else if(sendmode==MCA_PML_BASE_SEND_STANDARD){
-                    strcpy(item->sendmode, "STANDARD");
+                    ;
                 }
             } else if(!strcmp(item->communicationType, "collective")){
                 opal_proc_t *dst_opal_proc = &dst_proc->super;
@@ -470,7 +470,7 @@ int mca_pml_ob1_send(const void *buf,
 #ifndef ENABLE_ANALYSIS
         rc = mca_pml_ob1_isend (buf, count, datatype, dst, tag, sendmode, comm, &brequest);
 #else
-        strcpy(item->sendmode, "BUFFERED");
+        ;
         rc = mca_pml_ob1_isend (buf, count, datatype, dst, tag, sendmode, comm, &brequest, &item);
 #endif
         if (OPAL_UNLIKELY(OMPI_SUCCESS != rc)) {
@@ -507,13 +507,13 @@ int mca_pml_ob1_send(const void *buf,
             }
             if(!strcmp(item->communicationType, "p2p")){
                 if(sendmode==MCA_PML_BASE_SEND_SYNCHRONOUS){
-                    strcpy(item->sendmode, "SYNCHRONOUS");
+                    ;
                 }
                 else if(sendmode==MCA_PML_BASE_SEND_READY){
-                    strcpy(item->sendmode, "READY");
+                    ;
                 }
                 else if(sendmode==MCA_PML_BASE_SEND_STANDARD){
-                    strcpy(item->sendmode, "STANDARD");
+                    ;
                 }
             }
             else if(!strcmp(item->communicationType, "collective")){

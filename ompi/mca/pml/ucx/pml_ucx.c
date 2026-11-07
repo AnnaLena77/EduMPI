@@ -988,7 +988,7 @@ int mca_pml_ucx_isend(const void *buf, size_t count, ompi_datatype_t *datatype,
         if(*q!=NULL){
             item = *q;
             item->blocking = 0;
-            strcpy(item->usedBtl,"ucx");
+            ;
             item->sendcount = item->sendcount + count;
         	   item->sendDatasize = item->sendDatasize + count*edumpi_datatype_size(datatype);
         	   //printf("Datasize: %d\n", item->sendDatasize);

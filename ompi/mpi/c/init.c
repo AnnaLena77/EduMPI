@@ -169,12 +169,13 @@ int edumpi_world_rank(MPI_Comm comm, int rank){
     return (int) proc->super.proc_name.vpid;
 }
 
+static int edumpi_comm_id(MPI_Comm comm);
+
 void initQentry(qentry **q, int dest, char *function, int function_len, int sendCount, int recvCount, char *commType, int commType_len, MPI_Datatype sendType, MPI_Datatype recvType, MPI_Comm comm, int blocking, MPI_Op op){
     if(q==NULL || *q==NULL){
     	return;
     } else {
-        qentry *item = *q;
-        item->id = 0;
+        qentry *item = *q;                /* a new entry is zeroed memory: only what is not zero is stored */
         memcpy(item->function, function, function_len);
         item->blocking = blocking;
         
@@ -202,36 +203,22 @@ void initQentry(qentry **q, int dest, char *function, int function_len, int send
             memcpy(item->operation, get_mpi_op_name(op), 10);
         }
         
-        edumpi_comm_label(comm, item->communicationArea, sizeof(item->communicationArea));
+        item->comm_id = edumpi_comm_id(comm) + 1;     /* the label is looked up once per communicator, not written into every entry */
         if(comm != NULL){
             item->communicator = comm;
         }
-        memcpy(item->processorname, proc_name, proc_name_length);
         item->processrank = processrank;
         item->partnerrank = edumpi_world_rank(comm, dest);
         
         //printf("Test Rank: %d, WriterPos: %d, Bcast: %p\n", processrank, writer_pos, item);
         
-        item->recvWaitingTime = 0.0;
-        item->sendWaitingTime = 0.0;
-
-        item->lateSenderTime = 0.0;
-        item->lateReceiverTime = 0.0;
-        
-        item->request = NULL;
-        item->end.tv_sec = 0;
-        item->end.tv_nsec = 0;
-        item->initializeRequest.tv_sec = 0;      /* post time of a receive, set by the UCX completion hook */
-        item->initializeRequest.tv_nsec = 0;
        
         memcpy(item->sendmode, "", 0);
-        item->immediate = 0;
         memcpy(item->usedBtl, "", 0);
         memcpy(item->usedProtocol, "", 0);
         item->withinEagerLimit = -1;
         item->foundMatchWild = -1;
         memcpy(item->usedAlgorithm, "", 0);
-        memset(item->coll_partnerranks, 0, 50);
 
     }
 }
@@ -323,6 +310,47 @@ static int edumpi_intern(char *table, int *count, int max, size_t width, const c
     return (*count)++;
 }
 
+/* Index in the table of communicator labels of this communicator (-1: none). A small cache, so that the label is built
+ * (snprintf) once per communicator and not at every call. */
+#define EDUMPI_COMM_CACHE 32
+static struct { MPI_Comm comm; int cindex; int id; } edumpi_comm_cache[EDUMPI_COMM_CACHE];
+static int edumpi_comm_cache_n = 0;
+static int edumpi_comm_world_id = -2;
+static int edumpi_comm_lock = 0;
+static int edumpi_comm_id(MPI_Comm comm){
+    if(comm == NULL || comm == MPI_COMM_NULL){
+        return -1;
+    }
+    int world = (comm == MPI_COMM_WORLD);
+    if(world){
+        int id = __atomic_load_n(&edumpi_comm_world_id, __ATOMIC_ACQUIRE);
+        if(id != -2){
+            return id;
+        }
+    } else {
+        int n = __atomic_load_n(&edumpi_comm_cache_n, __ATOMIC_ACQUIRE);
+        for(int i = 0; i < n; i++){
+            if(edumpi_comm_cache[i].comm == comm && edumpi_comm_cache[i].cindex == (int) comm->c_index){
+                return edumpi_comm_cache[i].id;
+            }
+        }
+    }
+    while(__atomic_exchange_n(&edumpi_comm_lock, 1, __ATOMIC_ACQUIRE)){ }
+    char label[64];
+    edumpi_comm_label(comm, label, sizeof(label));
+    int id = (label[0] == '\0') ? -1 : edumpi_intern(&edumpi_comm_names[0][0], &edumpi_ncomm, EDUHPX_MAX_COMMS, 64, label, sizeof(label));
+    if(world){
+        __atomic_store_n(&edumpi_comm_world_id, id, __ATOMIC_RELEASE);
+    } else if(edumpi_comm_cache_n < EDUMPI_COMM_CACHE){
+        edumpi_comm_cache[edumpi_comm_cache_n].comm = comm;
+        edumpi_comm_cache[edumpi_comm_cache_n].cindex = (int) comm->c_index;
+        edumpi_comm_cache[edumpi_comm_cache_n].id = id;
+        __atomic_store_n(&edumpi_comm_cache_n, edumpi_comm_cache_n + 1, __ATOMIC_RELEASE);
+    }
+    __atomic_store_n(&edumpi_comm_lock, 0, __ATOMIC_RELEASE);
+    return id;
+}
+
 /* The entry is final: the call returned, its request (if it has one) completed. */
 static int edumpi_entry_complete(qentry *e, uint64_t now_ns){
     if(e->end.tv_sec == 0 && e->end.tv_nsec == 0){
@@ -357,8 +385,7 @@ static void edumpi_encode(qentry *e, uint64_t seq, unsigned char *r){
         flags |= EDUHPX_F_ANY_SOURCE;
     }
     int fn = edumpi_intern(&edumpi_func_names[0][0], &edumpi_nfunc, EDUHPX_MAX_FUNCS, 32, e->function, sizeof(e->function));
-    int cm = (e->communicationArea[0] == '\0') ? 0xffff
-             : edumpi_intern(&edumpi_comm_names[0][0], &edumpi_ncomm, EDUHPX_MAX_COMMS, 64, e->communicationArea, sizeof(e->communicationArea));
+    int cm = (e->comm_id > 0) ? e->comm_id - 1 : 0xffff;
     if(flags & EDUHPX_F_COLLECTIVE){
         /* the done time and the "real source" of a collective are those of its last internal message: not exported */
         flags &= ~(EDUHPX_F_HAS_DONE | EDUHPX_F_ANY_SOURCE);
@@ -397,6 +424,57 @@ static void edumpi_write_all(const void *buf, size_t len){
 
 /* Convert the entries of segment s to records and append them. With release the memory is given back (the address
  * stays valid and reads as zero, so that a late write of a PML into an entry does no harm). */
+/* Event segments are expensive when they come new from the kernel (the pages are cleared and populated: about 0.5 us per event).
+ * So a few are populated at start (MPI_Init) and flushed segments are kept for the next ones instead of being given back. */
+#define EDUHPX_FREE_SEGS 16
+#define EDUHPX_PREPOP_SEGS 8
+static void *edumpi_free_segs[EDUHPX_FREE_SEGS];      /* flushed segments: must be cleared before they are used again */
+static int edumpi_n_free = 0;
+static void *edumpi_fresh_segs[EDUHPX_PREPOP_SEGS];   /* populated at start and still zero */
+static int edumpi_n_fresh = 0;
+static int edumpi_free_lock = 0;
+static void edumpi_prepopulate(void){
+    for(int i = 0; i < EDUHPX_PREPOP_SEGS; i++){
+#ifdef MAP_POPULATE
+        void *p = mmap(NULL, EDUHPX_SEG_BYTES, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_POPULATE, -1, 0);
+#else
+        void *p = mmap(NULL, EDUHPX_SEG_BYTES, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+#endif
+        if(p == MAP_FAILED){
+            break;
+        }
+        edumpi_fresh_segs[edumpi_n_fresh++] = p;
+    }
+}
+static void *edumpi_fresh_pop(void){
+    void *p = NULL;
+    while(__atomic_exchange_n(&edumpi_free_lock, 1, __ATOMIC_ACQUIRE)){ }
+    if(edumpi_n_fresh > 0){
+        p = edumpi_fresh_segs[--edumpi_n_fresh];
+    }
+    __atomic_store_n(&edumpi_free_lock, 0, __ATOMIC_RELEASE);
+    return p;
+}
+static void *edumpi_free_pop(void){
+    void *p = NULL;
+    while(__atomic_exchange_n(&edumpi_free_lock, 1, __ATOMIC_ACQUIRE)){ }
+    if(edumpi_n_free > 0){
+        p = edumpi_free_segs[--edumpi_n_free];
+    }
+    __atomic_store_n(&edumpi_free_lock, 0, __ATOMIC_RELEASE);
+    return p;
+}
+static int edumpi_free_push(void *p){
+    int ok = 0;
+    while(__atomic_exchange_n(&edumpi_free_lock, 1, __ATOMIC_ACQUIRE)){ }
+    if(edumpi_n_free < EDUHPX_FREE_SEGS){
+        edumpi_free_segs[edumpi_n_free++] = p;
+        ok = 1;
+    }
+    __atomic_store_n(&edumpi_free_lock, 0, __ATOMIC_RELEASE);
+    return ok;
+}
+
 static void edumpi_flush_segment(uint64_t s, int release){
     void *base = edumpi_seg_table[s];
     uint64_t first = s * EDUHPX_SEG_EVENTS;
@@ -411,7 +489,7 @@ static void edumpi_flush_segment(uint64_t s, int release){
         edumpi_records += n;
         free(buf);
     }
-    if(release){
+    if(release && !edumpi_free_push(base)){
         mmap(base, EDUHPX_SEG_BYTES, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_FIXED, -1, 0);
     }
     edumpi_seg_table[s] = EDUHPX_SEG_FLUSHED;
@@ -463,12 +541,21 @@ qentry* getWritingRingPos(void){
     }
     void *base = __atomic_load_n(&edumpi_seg_table[seg], __ATOMIC_ACQUIRE);
     if(base == NULL){
+        void *fresh = edumpi_fresh_pop();
+        if(fresh == NULL){
+            fresh = edumpi_free_pop();
+            if(fresh != NULL){
+                memset(fresh, 0, EDUHPX_SEG_BYTES);  /* a flushed segment: all entries start zeroed, as in new memory */
+            }
+        }
+        if(fresh == NULL){
 #ifdef MAP_POPULATE
-        /* fault in the whole segment with one call instead of one page fault per few events */
-        void *fresh = mmap(NULL, EDUHPX_SEG_BYTES, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_POPULATE, -1, 0);
+            /* fault in the whole segment with one call instead of one page fault per few events */
+            fresh = mmap(NULL, EDUHPX_SEG_BYTES, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_POPULATE, -1, 0);
 #else
-        void *fresh = mmap(NULL, EDUHPX_SEG_BYTES, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+            fresh = mmap(NULL, EDUHPX_SEG_BYTES, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
 #endif
+        }
         if(fresh == MAP_FAILED){
             __atomic_fetch_add(&edumpi_dropped, 1, __ATOMIC_RELAXED);
             return &edumpi_scratch_entry;
@@ -480,7 +567,9 @@ qentry* getWritingRingPos(void){
                 edumpi_flush_ready(seg, 0); /* the thread that fills the store pays for emptying it */
             }
         } else {
-            munmap(fresh, EDUHPX_SEG_BYTES);
+            if(!edumpi_free_push(fresh)){
+                munmap(fresh, EDUHPX_SEG_BYTES);
+            }
             base = expected;
         }
     }
@@ -513,6 +602,7 @@ void edumpi_analysis_init_pre(void)
     const char *sc = getenv("EDUHPX_MPI_SEND_COMPLETION");
     edumpi_send_completion = (sc == NULL) ? 1 : edumpi_env_enabled("EDUHPX_MPI_SEND_COMPLETION");
     clock_gettime(CLOCK_REALTIME, &start_runtime);
+    edumpi_prepopulate();
 }
 
 /* Open the log file and write the header. Called after ompi_mpi_init(), as it needs the rank. */
